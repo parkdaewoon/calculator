@@ -38,7 +38,7 @@ function isWorkModeObject(v: any): v is WorkMode {
 
 /** ✅ YYYYMMDD를 "YYYY-MM-DD"로 강제 정규화 (8자리도 받아줌) */
 function normalizeYmd(v: any): YYYYMMDD {
-  const s = String(v ?? "");
+  const s = String(v ?? "").trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s as YYYYMMDD;
   if (/^\d{8}$/.test(s)) {
     const y = s.slice(0, 4);
@@ -46,6 +46,8 @@ function normalizeYmd(v: any): YYYYMMDD {
     const d = s.slice(6, 8);
     return `${y}-${m}-${d}` as YYYYMMDD;
   }
+  const m = s.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}` as YYYYMMDD;
   return "" as YYYYMMDD;
 }
 
@@ -93,6 +95,24 @@ function migrateEvent(raw: any, fallbackDate: YYYYMMDD): CalendarEvent {
 }
 
 /** =========================
+ * ✅ holidays key normalize
+ * ========================= */
+function normalizeHolidayKey(k: string): string {
+  return normalizeYmd(k) || String(k ?? "").trim();
+}
+
+function normalizeHolidayMap(input: any): HolidaysMap {
+  const out: HolidaysMap = {};
+  const src = (input ?? {}) as Record<string, any>;
+  for (const [k, v] of Object.entries(src)) {
+    const nk = normalizeHolidayKey(k);
+    if (!nk) continue;
+    out[nk] = v as any;
+  }
+  return out;
+}
+
+/** =========================
  * ✅ holidays localStorage cache
  * ========================= */
 const HOLI_CACHE_KEY = "holidays_cache_v1";
@@ -104,7 +124,13 @@ function readHolidaysCache(): Record<string, HolidaysMap> {
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return {};
-    return parsed as Record<string, HolidaysMap>;
+
+    // ✅ 캐시 안의 키도 혹시 모르니 정규화해서 반환
+    const out: Record<string, HolidaysMap> = {};
+    for (const [monthKey, holiMap] of Object.entries(parsed as any)) {
+      out[monthKey] = normalizeHolidayMap(holiMap);
+    }
+    return out;
   } catch {
     return {};
   }
@@ -130,15 +156,18 @@ export default function CalendarPage() {
   const [workMode, setWorkMode] = useState<WorkMode>(() => ({ type: "NONE" }));
   const [workModeOpen, setWorkModeOpen] = useState(false);
 
-  // ✅ holidays: "첫 렌더부터" 캐시를 반영하기 위해 초기값 함수를 사용
+  // ✅ holidays: 캐시 ref
   const holidaysCacheRef = useRef<Record<string, HolidaysMap> | null>(null);
+
+  // ✅ holidays state: month 바뀔 때 캐시로 먼저 채움
   const [holidays, setHolidays] = useState<HolidaysMap>(() => {
     const cache = readHolidaysCache();
     holidaysCacheRef.current = cache;
-    return {};
+    return cache[toMonthKey(today)] ?? {};
   });
 
-  const hydratedRef = useRef(false);
+  // ✅ 로드 완료 후에만 저장하기 위한 플래그
+  const [hydrated, setHydrated] = useState(false);
 
   const [dayDetailOpen, setDayDetailOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -208,13 +237,12 @@ export default function CalendarPage() {
       }
     }
 
-    setTimeout(() => {
-      hydratedRef.current = true;
-    }, 0);
+    // ✅ 로드가 끝났다고 표시 (이후부터만 save effect 실행)
+    setHydrated(true);
   }, [today]);
 
   /** =========================
-   * ✅ 1.5) month가 확정되면: localStorage 캐시를 즉시 적용
+   * 1.5) month가 바뀌면: 캐시를 즉시 적용
    * ========================= */
   useEffect(() => {
     if (!holidaysCacheRef.current) holidaysCacheRef.current = readHolidaysCache();
@@ -222,6 +250,8 @@ export default function CalendarPage() {
     const cached = holidaysCacheRef.current?.[month];
     if (cached) {
       setHolidays(cached);
+    } else {
+      setHolidays({});
     }
   }, [month]);
 
@@ -229,7 +259,7 @@ export default function CalendarPage() {
    * 2) persist state (hydrated 이후만)
    * ========================= */
   useEffect(() => {
-    if (!hydratedRef.current) return;
+    if (!hydrated) return;
 
     const safeEvents = (events ?? []).map((e: any) => migrateEvent(e, today));
 
@@ -240,7 +270,7 @@ export default function CalendarPage() {
       month,
       selectedDate,
     });
-  }, [pattern, events, workMode, month, selectedDate, today]);
+  }, [hydrated, pattern, events, workMode, month, selectedDate, today]);
 
   /** =========================
    * 3) holidays fetch when month changes
@@ -254,7 +284,8 @@ export default function CalendarPage() {
         const data = await res.json();
         if (!alive) return;
 
-        const next = (data?.holidays ?? {}) as HolidaysMap;
+        // ✅ 서버 응답 키가 무엇이든 YYYY-MM-DD로 정규화
+        const next = normalizeHolidayMap(data?.holidays ?? {});
 
         const cache = holidaysCacheRef.current ?? readHolidaysCache();
         cache[month] = next;
@@ -353,7 +384,7 @@ export default function CalendarPage() {
             setSelectedDate(nd);
             setDayDetailOpen(true);
           }}
-          holidays={holidays}   // ✅✅✅ 추가 (MonthGrid가 공휴일을 직접 표시/전달 가능)
+          holidays={holidays}
         />
 
         <SummaryBar stats={stats} onOpenWorkSummary={() => setWorkSummaryOpen(true)} />
@@ -388,7 +419,7 @@ export default function CalendarPage() {
         events={events}
         pattern={pattern}
         workMode={workMode}
-        holidays={holidays}     // ✅✅✅ 추가 (상세 팝업에서 공휴일명 표시)
+        holidays={holidays}
         onClose={() => setDayDetailOpen(false)}
         onAdd={() => {
           setEditingId(null);
