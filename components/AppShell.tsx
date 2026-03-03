@@ -1,0 +1,25 @@
+"use client";
+
+import { useState } from "react";
+import TopBar from "@/components/TopBar";
+import SideMenu from "@/components/SideMenu";
+import BottomTabs from "@/components/BottomTabs";
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <div className="min-h-dvh bg-[#f6f7fb] text-neutral-900">
+      <div className="mx-auto min-h-dvh max-w-[430px] bg-white shadow-[0_10px_30px_rgba(0,0,0,0.06)]">
+        <TopBar onMenu={() => setMenuOpen(true)} />
+        <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+
+        {/* Content */}
+        <main className="px-5 pb-24 pt-3">{children}</main>
+
+        {/* Bottom tabs */}
+        <BottomTabs />
+      </div>
+    </div>
+  );
+}
