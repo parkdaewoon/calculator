@@ -14,7 +14,7 @@ export default function BottomTabs() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 bg-white/92 backdrop-blur">
+    <nav className="fixed bottom-4 left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2 bg-white/95 backdrop-blur rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
       <div className="h-px w-full bg-neutral-100" />
       <div className="grid grid-cols-4 px-3 py-2">
         {tabs.map((t) => {
