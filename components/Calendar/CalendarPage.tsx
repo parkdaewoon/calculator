@@ -9,7 +9,6 @@ import WorkModeSheet from "./WorkModeSheet";
 
 import DayDetailSheet from "./DayDetailSheet";
 import EventEditorSheet from "./EventEditorSheet";
-import FloatingAddButton from "./FloatingAddButton";
 
 import {
   addMonths,
@@ -135,9 +134,6 @@ export default function CalendarPage() {
   const holidaysCacheRef = useRef<Record<string, HolidaysMap> | null>(null);
   const [holidays, setHolidays] = useState<HolidaysMap>(() => {
     const cache = readHolidaysCache();
-    // 첫 렌더에서 current month는 아직 month state가 없으니,
-    // 일단 cache 전체는 ref에 넣고, map은 빈 값으로 시작.
-    // 아래에서 month가 결정된 뒤 캐시를 적용함.
     holidaysCacheRef.current = cache;
     return {};
   });
@@ -221,12 +217,10 @@ export default function CalendarPage() {
    * ✅ 1.5) month가 확정되면: localStorage 캐시를 즉시 적용
    * ========================= */
   useEffect(() => {
-    // ref가 비었으면(예: 첫 렌더 타이밍) 다시 읽기
     if (!holidaysCacheRef.current) holidaysCacheRef.current = readHolidaysCache();
 
     const cached = holidaysCacheRef.current?.[month];
     if (cached) {
-      // ✅ "처음부터" 바로 최종값이 뜨도록, month 변경 직후 즉시 캐시 holidays 적용
       setHolidays(cached);
     }
   }, [month]);
@@ -250,8 +244,6 @@ export default function CalendarPage() {
 
   /** =========================
    * 3) holidays fetch when month changes
-   *    ✅ 캐시가 있으면 이미 "처음부터" 뜸
-   *    ✅ 그래도 서버 값으로 최신화/보정하기 위해 백그라운드 fetch 수행
    * ========================= */
   useEffect(() => {
     let alive = true;
@@ -264,13 +256,11 @@ export default function CalendarPage() {
 
         const next = (data?.holidays ?? {}) as HolidaysMap;
 
-        // ✅ 캐시에 저장
         const cache = holidaysCacheRef.current ?? readHolidaysCache();
         cache[month] = next;
         holidaysCacheRef.current = cache;
         writeHolidaysCache(cache);
 
-        // ✅ 값이 진짜 달라졌을 때만 set (불필요한 깜빡임/재계산 방지)
         setHolidays((prev) => {
           const a = JSON.stringify(prev);
           const b = JSON.stringify(next);
@@ -278,9 +268,6 @@ export default function CalendarPage() {
         });
       } catch {
         if (!alive) return;
-
-        // 실패도 캐시해두면 다음엔 재시도/정책을 바꿀 수 있음(여기서는 저장 안 함)
-        // setHolidays({}); // ✅ 실패했다고 비우면 "최종값 -> 0"으로 다시 바뀌어서 더 나빠짐
       }
     })();
 
@@ -311,7 +298,6 @@ export default function CalendarPage() {
     setEditorOpen(false);
     setEditingId(null);
 
-    // ✅ holiday 캐시도 초기화(원하면 주석처리)
     try {
       window.localStorage.removeItem(HOLI_CACHE_KEY);
     } catch {}
@@ -367,6 +353,7 @@ export default function CalendarPage() {
             setSelectedDate(nd);
             setDayDetailOpen(true);
           }}
+          holidays={holidays}   // ✅✅✅ 추가 (MonthGrid가 공휴일을 직접 표시/전달 가능)
         />
 
         <SummaryBar stats={stats} onOpenWorkSummary={() => setWorkSummaryOpen(true)} />
@@ -401,6 +388,7 @@ export default function CalendarPage() {
         events={events}
         pattern={pattern}
         workMode={workMode}
+        holidays={holidays}     // ✅✅✅ 추가 (상세 팝업에서 공휴일명 표시)
         onClose={() => setDayDetailOpen(false)}
         onAdd={() => {
           setEditingId(null);

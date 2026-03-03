@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import TopBar from "@/components/TopBar";
 import SideMenu from "@/components/SideMenu";
 import BottomTabs from "@/components/BottomTabs";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  const mainPx = pathname === "/calendar" ? "px-0" : "px-5";
 
   return (
     <div className="min-h-dvh bg-[#f6f7fb] text-neutral-900">
@@ -14,10 +18,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <TopBar onMenu={() => setMenuOpen(true)} />
         <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
 
-        {/* Content */}
-        <main className="px-5 pb-24 pt-3">{children}</main>
+        <main className={`${mainPx} pb-24 pt-3`}>{children}</main>
 
-        {/* Bottom tabs */}
         <BottomTabs />
       </div>
     </div>

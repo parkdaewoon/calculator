@@ -19,6 +19,7 @@ type Props = {
 
   showWorkBadge: boolean;
   isHoliday?: boolean;
+  holidayName?: string;
 
   // ✅ 더보기 여부만 전달 (숫자 대신 boolean)
   hasMore?: boolean;
@@ -84,6 +85,7 @@ export default function DayCell({
   onChangeEvents,
   showWorkBadge,
   isHoliday,
+  holidayName,
   hasMore = false,
 }: Props) {
   const workCode = useMemo(
@@ -146,43 +148,43 @@ export default function DayCell({
       }}
       // ✅ 더블클릭 동작 제거
       className={[
-        "relative h-[84px] w-full text-left cursor-pointer",
+        "relative h-full w-full text-left cursor-pointer",
         day.inMonth ? "bg-white" : "bg-neutral-50",
         selected
           ? "z-10 outline outline-2 outline-neutral-900 -outline-offset-2"
           : "outline-none",
       ].join(" ")}
     >
-      {/* ✅ 상단: 날짜 + 근무배지 (overlay보다 위로) */}
-      <div className="absolute left-2 right-2 top-1 z-40 flex items-start justify-between">
-        <div
-          className={["text-[12px] font-semibold leading-4", dateColor].join(
-            " "
-          )}
-        >
-          {day.day}
-        </div>
+      {/* ✅ 상단: 날짜 + 근무배지 */}
+<div className="absolute left-2 right-2 top-1 z-40 flex items-start justify-between">
+  <div
+    className={["text-[12px] font-semibold leading-4", dateColor].join(" ")}
+  >
+    {day.day}
+  </div>
 
-        {badge ? (
-          <div
-            className={[
-              "px-1.5 py-[1px] rounded text-[10px] font-semibold leading-4",
-              badgeStyle,
-            ].join(" ")}
-          >
-            {badge}
-          </div>
-        ) : (
-          <div />
-        )}
-      </div>
+  {badge ? (
+    <div
+      className={[
+        "px-1.5 py-[1px] rounded text-[10px] font-semibold leading-4",
+        badgeStyle,
+      ].join(" ")}
+    >
+      {badge}
+    </div>
+  ) : (
+    <div />
+  )}
+</div>
 
-      {/* ✅ 제일 아래 '...' 표시 (겹침 방지 위해 z-40) */}
-      {hasMore ? (
-        <div className="absolute bottom-0.5 left-2 right-2 z-40 flex justify-center">
-          <div className="text-[10px] leading-none text-neutral-400">...</div>
-        </div>
-      ) : null}
+{/* ✅ 👇 여기에 추가 */}
+{day.inMonth && isHoliday && holidayName ? (
+  <div className="absolute left-2 right-2 top-6 z-40">
+    <div className="truncate text-[10px] font-medium text-red-500">
+      {holidayName}
+    </div>
+  </div>
+) : null}
     </button>
   );
 }

@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef } from "react";
 import type { MonthGridProps } from "./types";
 import DayCell from "./DayCell";
 import { buildMonthGrid, getMonthRange } from "@/lib/calendar";
-import { fetchHolidays, type HolidayMap } from "@/lib/holidays";
 
 import { loadTypeColors } from "@/lib/storage/typeColorStorage";
 import { hexToRgba } from "@/lib/calendar/typeColors";
@@ -15,9 +14,9 @@ const DOW = ["일", "월", "화", "수", "목", "금", "토"] as const;
 const MAX_LINES = 3;
 
 // ✅ 겹침 방지(바닥 ... 공간 확보용)
-const BAR_H = 14; // 기존 16
-const BASE_TOP = 26; // 기존 28
-const LINE_PITCH = 16; // 기존 18
+const BAR_H = 14;
+const BASE_TOP = 26;
+const LINE_PITCH = 16;
 
 export default function MonthGrid({
   month,
@@ -31,6 +30,9 @@ export default function MonthGrid({
   onPrevMonth,
   onNextMonth,
   onOpenDay,
+
+  // ✅✅✅ CalendarPage에서 내려받는 공휴일 맵
+  holidays,
 }: MonthGridProps) {
   const grid = useMemo(() => buildMonthGrid(month), [month]);
   const { start, end } = useMemo(() => getMonthRange(month), [month]);
@@ -52,44 +54,25 @@ export default function MonthGrid({
     });
   }, [events, start, end]);
 
-  const [holidayMap, setHolidayMap] = useState<HolidayMap>({} as HolidayMap);
-
-  useEffect(() => {
-    let alive = true;
-    fetchHolidays(month)
-      .then((m) => {
-        if (!alive) return;
-        setHolidayMap(m);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setHolidayMap({} as HolidayMap);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [month]);
-
   const typeColors = useMemo(() => loadTypeColors(), []);
 
   // ✅ 하루/기간 이벤트를 모두 "주(row) 점유"로 라인 배치해서 seg로 만들기
   const segments = useMemo(() => {
     type Seg = {
       id: string;
-      row: number; // week row (0-based)
-      line: number; // stack line within the week (0,1,2...)
-      colStart: number; // 1..7
-      colEnd: number; // 1..7 inclusive
+      row: number;
+      line: number;
+      colStart: number;
+      colEnd: number;
       color: string;
-      title: string; // 시작 segment에서만 텍스트
-      startYMD: string; // 더보기 계산용
-      endYMD: string; // 더보기 계산용
+      title: string;
+      startYMD: string;
+      endYMD: string;
     };
 
     const segs: Seg[] = [];
     const rows = Math.ceil(grid.length / 7);
 
-    // row별 line 점유 기록
     const occupancy: Record<number, Array<Array<[number, number]>>> = {};
 
     const overlaps = (a1: number, a2: number, b1: number, b2: number) =>
@@ -115,7 +98,6 @@ export default function MonthGrid({
       return `${main === "DUTY" ? "DUTY" : "WORK"}|${sub}`;
     };
 
-    // ✅ iOS 느낌: 시작일 빠른 순, "기간"을 "하루"보다 먼저
     const sorted = [...(eventsInView ?? [])].sort((a: any, b: any) => {
       const aS = normYMD(a.dateStart);
       const aE = normYMD(a.dateEnd ?? a.dateStart);
@@ -128,7 +110,6 @@ export default function MonthGrid({
       const bIsRange = bS !== bE;
       if (aIsRange !== bIsRange) return aIsRange ? -1 : 1;
 
-      // 같은 타입이면 제목으로 안정 정렬
       return String(a.title ?? "").localeCompare(String(b.title ?? ""));
     });
 
@@ -160,8 +141,6 @@ export default function MonthGrid({
         const colEnd = endIdx + 1;
 
         const line = findLine(row, colStart, colEnd);
-
-        // ✅ "진짜 시작일" segment에서만 텍스트 표시
         const showTitle = segStart === a;
 
         segs.push({
@@ -181,7 +160,7 @@ export default function MonthGrid({
     return segs;
   }, [eventsInView, grid, typeColors]);
 
-  // ✅ 날짜별 more 계산 (해당 날짜 칸에 걸린 seg가 MAX_LINES를 초과하면 more>0)
+  // ✅ 날짜별 more 계산
   const moreCountByDate = useMemo(() => {
     const total: Record<string, number> = {};
     const visible: Record<string, number> = {};
@@ -205,9 +184,7 @@ export default function MonthGrid({
         const t = total[k] ?? 0;
         const v = visible[k] ?? 0;
         const more = Math.max(0, t - v);
-        if (more > 0) {
-          map[week[i].date] = more;
-        }
+        if (more > 0) map[week[i].date] = more;
       }
     }
 
@@ -258,7 +235,7 @@ export default function MonthGrid({
   };
 
   return (
-    <section className="mx-auto w-full max-w-md px-4">
+    <section className="w-full">
       <div
         className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.05)]"
         onTouchStart={onTouchStart}
@@ -268,112 +245,107 @@ export default function MonthGrid({
         <div className="grid grid-cols-7">
           {DOW.map((d, idx) => {
             const cls =
-              idx === 0
-                ? "text-red-500"
-                : idx === 6
-                ? "text-blue-500"
-                : "text-neutral-500";
+              idx === 0 ? "text-red-500" : idx === 6 ? "text-blue-500" : "text-neutral-500";
             return (
-              <div
-                key={d}
-                className={`py-2 text-center text-[11px] font-semibold ${cls}`}
-              >
+              <div key={d} className={`py-2 text-center text-[11px] font-semibold ${cls}`}>
                 {d}
               </div>
             );
           })}
         </div>
 
-        <div
-          className={[
-            "relative mt-3 grid grid-cols-7 auto-rows-[84px]",
-            "[&>*]:border-r [&>*]:border-b [&>*]:border-neutral-200",
-            "[&>*:nth-child(7n)]:border-r-0",
-            "[&>*:nth-last-child(-n+7)]:border-b-0",
-          ].join(" ")}
-        >
-          {/* ✅ iOS 스타일 overlay: 하루/기간 이벤트를 한 레이어에서 라인 쌓기 */}
+        <div className="relative mt-3 grid grid-cols-7 auto-rows-[84px]">
+          {/* overlay */}
           <div className="pointer-events-none absolute inset-0 z-30 grid grid-cols-7 auto-rows-[84px]">
             {segments
-  .filter((seg) => seg.line < MAX_LINES)
-  .map((seg) => {
-    const isContinuation = !seg.title;           // 이전 주에서 넘어온 조각(진짜 시작 아님)
-    const flattenLeft = isContinuation && seg.colStart === 1; // ✅ 주 첫칸인데 이어짐이면 왼쪽 직선
+              .filter((seg) => seg.line < MAX_LINES)
+              .map((seg) => {
+                const isContinuation = !seg.title;
+                const flattenLeft = isContinuation && seg.colStart === 1;
 
-    // ✅ 주 마지막칸(colEnd=7)에서 끝났는데, 실제 이벤트는 더 이어지면 오른쪽 직선
-    const continuesToNextWeek = seg.colEnd === 7 && seg.endYMD > normYMD(grid[seg.row * 7 + 6].date);
-    const flattenRight = continuesToNextWeek;    // ✅ 주 끝인데 다음 주로 이어지면 오른쪽 직선
+                const continuesToNextWeek =
+                  seg.colEnd === 7 &&
+                  seg.endYMD > normYMD(grid[seg.row * 7 + 6].date);
+                const flattenRight = continuesToNextWeek;
 
-    return (
-      <div
-        key={seg.id}
-        className="mx-1 flex items-center min-w-0 overflow-hidden"
-        style={{
-          height: BAR_H,
-          gridRow: `${seg.row + 1}`,
-          gridColumn: `${seg.colStart} / ${seg.colEnd + 1}`,
-          marginTop: BASE_TOP + seg.line * LINE_PITCH,
-          backgroundColor: hexToRgba(seg.color, 0.16),
+                return (
+                  <div
+                    key={seg.id}
+                    className="mx-1 flex items-center min-w-0 overflow-hidden"
+                    style={{
+                      height: BAR_H,
+                      gridRow: `${seg.row + 1}`,
+                      gridColumn: `${seg.colStart} / ${seg.colEnd + 1}`,
+                      marginTop: BASE_TOP + seg.line * LINE_PITCH,
+                      backgroundColor: hexToRgba(seg.color, 0.16),
 
-          // ✅ 기본 둥글게, 이어짐 방향은 직선 처리
-          borderRadius: 6,
-          borderTopLeftRadius: flattenLeft ? 0 : 6,
-          borderBottomLeftRadius: flattenLeft ? 0 : 6,
-          borderTopRightRadius: flattenRight ? 0 : 6,
-          borderBottomRightRadius: flattenRight ? 0 : 6,
-        }}
-        title={seg.title || undefined}
-      >
-        {/* 텍스트(시작 segment에서만) */}
-        {seg.title ? (
-          <div
-  className="px-1.5 text-[10px] font-normal min-w-0 overflow-hidden whitespace-nowrap text-clip"
-  style={{ color: "#111827" }}
->
-  {seg.title}
-</div>
-        ) : null}
-      </div>
-    );
-  })}
+                      borderRadius: 6,
+                      borderTopLeftRadius: flattenLeft ? 0 : 6,
+                      borderBottomLeftRadius: flattenLeft ? 0 : 6,
+                      borderTopRightRadius: flattenRight ? 0 : 6,
+                      borderBottomRightRadius: flattenRight ? 0 : 6,
+                    }}
+                    title={seg.title || undefined}
+                  >
+                    {seg.title ? (
+                      <div
+                        className="px-1.5 text-[10px] font-normal min-w-0 overflow-hidden whitespace-nowrap text-clip"
+                        style={{ color: "#111827" }}
+                      >
+                        {seg.title}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
           </div>
 
-          {grid.map((day) => {
-  const h = holidayMap[day.date];
-  const more = moreCountByDate[day.date] ?? 0;
+          {grid.map((day, i) => {
+            // ✅✅✅ 이제 여기서 "props.holidays" 사용
+            const h = (holidays as any)?.[day.date];
+            const more = moreCountByDate[day.date] ?? 0;
 
-  const handleTapDay = () => {
-    // ✅ 이미 선택된 날짜를 다시 탭하면 상세 오픈
-    if (day.date === selectedDate) {
-      onOpenDay?.(day.date);
-      return;
-    }
+            const row = Math.floor(i / 7);
+            const col = i % 7;
 
-    // ✅ 첫 탭은 선택만(검정 테두리)
-    onSelectDate(day.date);
-    onSelectMeta?.({
-      date: day.date,
-      holidayName: h?.name,
-      isHoliday: Boolean(h?.isHoliday),
-    });
-  };
+            const handleTapDay = () => {
+              if (day.date === selectedDate) {
+                onOpenDay?.(day.date);
+                return;
+              }
+              onSelectDate(day.date);
 
-  return (
-    <DayCell
-      key={day.date}
-      day={day}
-      selected={day.date === selectedDate}
-      onSelect={handleTapDay}
-      onOpenDay={undefined} // 이제 필요 없음(안 내려도 됨)
-      pattern={pattern}
-      events={eventsInView}
-      onChangeEvents={onChangeEvents}
-      showWorkBadge={showWorkBadges}
-      isHoliday={Boolean(h?.isHoliday)}
-      hasMore={more > 0}
-    />
-  );
-})}
+              // ✅ onSelectMeta로 DayDetailSheet 열기 전에 정보 저장하고 싶다면 유지
+              onSelectMeta?.({
+                date: day.date,
+                holidayName: h?.name,
+                isHoliday: Boolean(h?.isHoliday),
+              });
+            };
+
+            return (
+              <div
+                key={day.date}
+                className={[
+                  "cell h-full w-full border-neutral-200",
+                  col === 0 ? "" : "border-l",
+                  row === 0 ? "" : "border-t",
+                ].join(" ")}
+              >
+                <DayCell
+                  day={day}
+                  selected={day.date === selectedDate}
+                  onSelect={handleTapDay}
+                  pattern={pattern}
+                  events={eventsInView}
+                  onChangeEvents={onChangeEvents}
+                  showWorkBadge={showWorkBadges}
+                  isHoliday={Boolean(h?.isHoliday)}
+                  hasMore={more > 0}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

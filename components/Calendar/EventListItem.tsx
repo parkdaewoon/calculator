@@ -6,6 +6,7 @@ import type { CalendarEvent } from "@/lib/calendar";
 type Props = {
   event: CalendarEvent;
   onEdit: () => void;
+  canEdit?: boolean; // ✅ 추가: 수정 가능 여부(기본 true)
 };
 
 function normalizeToDash(input: any): string {
@@ -56,7 +57,6 @@ function allDayRangeLabel(ev: any) {
 }
 
 function timeLabel(ev: any) {
-  // ✅ 종일이면 "종일" 대신 "M월D일~M월D일"
   if (ev?.allDay) return allDayRangeLabel(ev);
 
   const s = ev?.startTime;
@@ -66,7 +66,7 @@ function timeLabel(ev: any) {
   return "시간 미지정";
 }
 
-export default function EventListItem({ event, onEdit }: Props) {
+export default function EventListItem({ event, onEdit, canEdit = true }: Props) {
   const ev: any = event;
 
   return (
@@ -81,12 +81,15 @@ export default function EventListItem({ event, onEdit }: Props) {
         ) : null}
       </div>
 
-      <button
-        onClick={onEdit}
-        className="ml-3 shrink-0 rounded-xl px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
-      >
-        수정
-      </button>
+      {/* ✅ canEdit=false면 수정 버튼 숨김 */}
+      {canEdit ? (
+        <button
+          onClick={onEdit}
+          className="ml-3 shrink-0 rounded-xl px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+        >
+          수정
+        </button>
+      ) : null}
     </div>
   );
 }

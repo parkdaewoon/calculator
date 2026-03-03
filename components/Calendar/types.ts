@@ -83,6 +83,9 @@ export type MonthGridProps = {
 
   // ✅ 추가: 날짜 더블클릭/상세보기 열기
   onOpenDay?: (date: YYYYMMDD) => void;
+
+  // ✅✅✅ 추가: CalendarPage에서 내려주는 공휴일 맵
+  holidays?: Record<string, { name: string; isHoliday: boolean }>;
 };
 
 export type SummaryBarProps = {

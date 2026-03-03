@@ -24,6 +24,7 @@ import {
   FileText,
   ArrowRight,
 } from "lucide-react";
+import { useLockBodyScroll } from "@/lib/hooks/useLockBodyScroll";
 type Props = {
   open: boolean;
   date: YYYYMMDD;
@@ -461,6 +462,7 @@ export default function EventEditorSheet({
   onSave,
   onDelete,
 }: Props) {
+    useLockBodyScroll(open);
   const isEdit = !!event?.id;
 
   // ===== 유형 색상(저장/불러오기) =====
