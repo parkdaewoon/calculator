@@ -24,7 +24,9 @@ export default function SideMenu({
       <aside
         className={[
           "fixed right-0 top-0 z-[60] h-dvh w-[320px] bg-white shadow-2xl transition-transform",
-          open ? "translate-x-0" : "translate-x-full",
+          open
+  ? "translate-x-0 pointer-events-auto"
+  : "translate-x-full pointer-events-none",
         ].join(" ")}
         role="dialog"
         aria-modal="true"
