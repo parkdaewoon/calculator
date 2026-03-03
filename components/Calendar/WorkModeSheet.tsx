@@ -295,7 +295,7 @@ export default function WorkModeSheet({ open, onClose, value, onChange }: WorkMo
   return (
     <Sheet open={open} onClose={onClose} title="근무형태 설정">
       {/* ✅ 길면 스크롤 */}
-      <div className="max-h-[75vh] overflow-y-auto pr-1">
+      <div className="pr-1">
         <div className="space-y-4">
           {/* 1) 유형 */}
           <div className="space-y-3">
