@@ -25,16 +25,18 @@ type Status = {
 
 export default function PushTest() {
   const [status, setStatus] = useState<Status>({
-    permission:
-      typeof Notification === "undefined"
-        ? "unsupported"
-        : Notification.permission,
-    hasSW: typeof navigator !== "undefined" && "serviceWorker" in navigator,
-    hasPush: typeof window !== "undefined" && "PushManager" in window,
-    isSecure:
-      typeof window !== "undefined" ? window.isSecureContext : false,
-    hasSubscription: false,
-  });
+  permission:
+    typeof Notification === "undefined" ? "unsupported" : Notification.permission,
+  hasSW: typeof navigator !== "undefined" && "serviceWorker" in navigator,
+  hasPush: typeof window !== "undefined" && "PushManager" in window,
+  isSecure: typeof window !== "undefined" ? window.isSecureContext : false,
+  isStandalone:
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      // @ts-ignore
+      window.navigator?.standalone === true),
+  hasSubscription: false,
+});
 
   async function refreshStatus(note?: string) {
     try {
@@ -107,9 +109,21 @@ export default function PushTest() {
         return;
       }
       if (!window.isSecureContext) {
-        alert("HTTPS가 필요해 (보안 컨텍스트 아님)");
-        return;
-      }
+  alert("HTTPS가 필요해 (보안 컨텍스트 아님)");
+  return;
+}
+
+// 🔔 standalone 강제 체크 (여기에 추가!)
+const standalone =
+  window.matchMedia?.("(display-mode: standalone)")?.matches ||
+  // @ts-ignore
+  window.navigator?.standalone === true;
+
+if (!standalone) {
+  alert("홈화면에 추가한 아이콘으로 실행해야 푸시가 됩니다. (standalone NO)");
+  await refreshStatus("enablePush:not-standalone");
+  return;
+}
 
       // ✅ 권한 요청: iOS는 반드시 '클릭 이벤트'에서 실행돼야 팝업이 뜸
       const perm = await Notification.requestPermission();
@@ -135,12 +149,18 @@ await navigator.serviceWorker.ready;
 
       // 혹시 이미 구독이 있으면 재사용
       const existing = await reg.pushManager.getSubscription();
-      const sub =
-        existing ??
-        (await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(key),
-        }));
+
+let sub = existing;
+if (!sub) {
+  try {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key),
+    });
+  } catch (err: any) {
+    throw new Error(`pushManager.subscribe 실패: ${err?.message || String(err)}`);
+  }
+}
 
       // 서버에 저장(테스트)
       await fetch("/api/push/subscribe", {
