@@ -20,6 +20,7 @@ type Status = {
   endpoint?: string;
   lastError?: string;
   lastAction?: string;
+  isStandalone?: boolean;
 };
 
 export default function PushTest() {
@@ -47,6 +48,12 @@ export default function PushTest() {
       const hasPush = typeof window !== "undefined" && "PushManager" in window;
       const isSecure =
         typeof window !== "undefined" ? window.isSecureContext : false;
+        const isStandalone =
+  typeof window !== "undefined" &&
+  (window.matchMedia?.("(display-mode: standalone)")?.matches ||
+    // iOS Safari legacy
+    // @ts-ignore
+    window.navigator?.standalone === true);
 
       let hasSubscription = false;
       let endpoint: string | undefined;
@@ -70,6 +77,7 @@ export default function PushTest() {
         endpoint,
         lastAction: note ?? p.lastAction,
         lastError: undefined,
+        isStandalone,
       }));
     } catch (e: any) {
       setStatus((p) => ({
@@ -111,9 +119,13 @@ export default function PushTest() {
         return;
       }
 
-      // SW 등록
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
+      // ✅ SW 등록(이미 있으면 재사용) + ready 보장
+let reg = await navigator.serviceWorker.getRegistration("/");
+if (!reg) {
+  reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+}
+await reg.update().catch(() => {});
+await navigator.serviceWorker.ready;
 
       // VAPID key 가져오기
       const res = await fetch("/api/push/public-key", { cache: "no-store" });
@@ -205,24 +217,35 @@ export default function PushTest() {
       <div className="rounded-2xl border bg-white p-3 text-sm">
         <div className="font-semibold">Push 상태</div>
         <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[13px]">
-          <div className="text-neutral-500">permission</div>
-          <div className="font-medium">{permLabel}</div>
+  <div className="text-neutral-500">permission</div>
+  <div className="font-medium">{permLabel}</div>
 
-          <div className="text-neutral-500">secure(HTTPS)</div>
-          <div className="font-medium">{status.isSecure ? "YES" : "NO"}</div>
+  <div className="text-neutral-500">secure(HTTPS)</div>
+  <div className="font-medium">{status.isSecure ? "YES" : "NO"}</div>
 
-          <div className="text-neutral-500">serviceWorker</div>
-          <div className="font-medium">{status.hasSW ? "YES" : "NO"}</div>
+  <div className="text-neutral-500">serviceWorker</div>
+  <div className="font-medium">{status.hasSW ? "YES" : "NO"}</div>
 
-          <div className="text-neutral-500">PushManager</div>
-          <div className="font-medium">{status.hasPush ? "YES" : "NO"}</div>
+  <div className="text-neutral-500">PushManager</div>
+  <div className="font-medium">{status.hasPush ? "YES" : "NO"}</div>
 
-          <div className="text-neutral-500">subscription</div>
-          <div className="font-medium">
-            {status.hasSubscription ? "YES" : "NO"}
-          </div>
-        </div>
+  <div className="text-neutral-500">standalone(PWA)</div>
+  <div className="font-medium">{status.isStandalone ? "YES" : "NO"}</div>
 
+  <div className="text-neutral-500">subscription</div>
+  <div className="font-medium">{status.hasSubscription ? "YES" : "NO"}</div>
+</div>
+
+{status.permission === "denied" && (
+  <div className="mt-3 rounded-xl bg-amber-50 p-2 text-[12px] text-amber-800">
+    알림 권한이 <b>차단(denied)</b> 상태예요. iPhone에서:
+    <br />
+    <b>설정 → 알림</b>에서 “공무원 노트(홈화면 앱)”를 찾아 허용하거나,
+    <br />
+    안 보이면 사파리에서 사이트 데이터 삭제 후 다시 “홈화면 추가 → 구독”을 눌러주세요.
+  </div>
+)}
+       
         {status.endpoint && (
           <div className="mt-2 break-all text-[11px] text-neutral-500">
             endpoint: {status.endpoint}
