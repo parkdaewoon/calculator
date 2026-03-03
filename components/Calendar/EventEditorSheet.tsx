@@ -137,46 +137,65 @@ function Wheel({
   const [ready, setReady] = useState(false);
   const itemH = 44;
   const viewH = 240;
-  const pad = viewH / 2 - itemH / 2; // 98
+  const pad = viewH / 2 - itemH / 2;
+
   const rafRef = useRef<number | null>(null);
   const settleRef = useRef<number | null>(null);
   const programmaticRef = useRef(false);
+const tapToSelect = (idx: number) => {
+  const next = items[idx];
+  if (!next) return;
 
-  // YYYY-MM-DD 비교용
+  // 1) 탭하면 그쪽으로 스크롤 이동(부드럽게)
+  const el = ref.current;
+  if (el) {
+    programmaticRef.current = true;
+    el.scrollTo({ top: idx * itemH, behavior: "smooth" });
+
+    // smooth 스크롤 동안 스크롤 이벤트로 중복 커밋되는 것 방지
+    window.setTimeout(() => {
+      programmaticRef.current = false;
+    }, 220);
+  }
+
+  // 2) 즉시 선택값도 반영 (깜빡임 방지 플래그)
+  if (next !== value) {
+    fromUserScrollRef.current = true;
+    onChange(next);
+  }
+};
+  // ✅ "이번 value 변경이 스크롤(사용자) 때문에 발생한 것" 표시
+  const fromUserScrollRef = useRef(false);
+
   const toTime = (s: string) => {
     const dt = ymdToDate(s);
     return dt ? dt.getTime() : NaN;
   };
 
-    const isTimeWheel = useMemo(() => {
+  const isTimeWheel = useMemo(() => {
     const sample = items?.[0] ?? "";
-    // HH:MM 형태면 시간 휠로 판단
     return /^\d{2}:\d{2}$/.test(sample);
   }, [items]);
 
   const getBestIndex = (v: string) => {
-    // ✅ 시간 휠: 날짜 정규화 금지 (여기가 맨위로 튀는 원인!)
     if (isTimeWheel) {
       const exact = items.indexOf(v);
       return exact >= 0 ? exact : 0;
     }
 
-    // ✅ 날짜 휠(기존 로직 유지)
     const normalized = normalizeYmd(v);
     if (!normalized) return 0;
 
     const exact = items.indexOf(normalized);
     if (exact >= 0) return exact;
 
-    // 없으면 "가장 가까운 날짜"로
     const t = toTime(normalized);
     if (!isFinite(t)) return 0;
 
     let best = 0;
     let bestDiff = Infinity;
     for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const tt = toTime(it);
+      const tt = toTime(items[i]);
       if (!isFinite(tt)) continue;
       const diff = Math.abs(tt - t);
       if (diff < bestDiff) {
@@ -187,18 +206,14 @@ function Wheel({
     return best;
   };
 
-    const scrollToIndex = (idx: number) => {
+  const scrollToIndex = (idx: number) => {
     const el = ref.current;
     if (!el) return;
 
     const top = idx * itemH;
-
     programmaticRef.current = true;
-
-    // 🔥 점프/이동 느낌 없애기: scrollTo 대신 즉시 할당
     el.scrollTop = top;
 
-    // 다음 프레임에만 스크롤 이벤트 허용 + 화면 표시
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
       programmaticRef.current = false;
@@ -206,17 +221,19 @@ function Wheel({
     });
   };
 
-  // ✅ 열릴 때/값 바뀔 때: 선택값이 중앙으로 오도록 스크롤
+  // ✅ 핵심: "사용자 스크롤로 바뀐 value"면 재정렬/숨김 로직을 건너뛰기
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    // ✅ 세팅 전에는 숨김 (처음 다른 날짜 보이는 현상 제거)
-    setReady(false);
+    if (fromUserScrollRef.current) {
+      fromUserScrollRef.current = false;
+      return; // ✅ 여기서 끝 → 깜빡임(ready false) 안 함
+    }
 
+    setReady(false);
     const idx = getBestIndex(value);
 
-    // rAF 2번 유지 (바텀시트 애니메이션/레이아웃 안정화)
     let r1 = 0;
     let r2 = 0;
     r1 = requestAnimationFrame(() => {
@@ -232,7 +249,7 @@ function Wheel({
       if (settleRef.current) window.clearTimeout(settleRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, value]);
+  }, [items, value]); // value는 유지해도 OK (fromUserScrollRef로 막음)
 
   const commitFromScroll = () => {
     const el = ref.current;
@@ -242,7 +259,10 @@ function Wheel({
     const safe = Math.min(items.length - 1, Math.max(0, idx));
     const next = items[safe];
 
-    if (next && next !== value) onChange(next);
+    if (next && next !== value) {
+      fromUserScrollRef.current = true; // ✅ 다음 effect에서 재정렬/숨김 방지
+      onChange(next);
+    }
   };
 
   const onScroll = () => {
@@ -256,7 +276,6 @@ function Wheel({
 
   return (
     <div className="relative">
-      {/* 가운데 선택 하이라이트 */}
       <div className="pointer-events-none absolute left-0 right-0 top-1/2 -translate-y-1/2">
         <div className="mx-2 h-[44px] rounded-2xl border border-neutral-300 bg-neutral-50/70" />
       </div>
@@ -267,22 +286,21 @@ function Wheel({
         className="h-[240px] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
           scrollSnapType: "y mandatory" as any,
-          // ✅ 첫 위치 맞추기 전에는 숨김 → 이동하는 느낌 제거
           visibility: ready ? "visible" : "hidden",
         }}
       >
         <div style={{ height: pad }} />
-
-        {items.map((it) => (
-          <div
-            key={it}
-            className="flex items-center justify-center text-sm text-neutral-900"
-            style={{ height: itemH, scrollSnapAlign: "center" as any }}
-          >
-            {format ? format(it) : it}
-          </div>
-        ))}
-
+        {items.map((it, idx) => (
+  <button
+    key={it}
+    type="button"
+    onClick={() => tapToSelect(idx)}
+    className="flex w-full items-center justify-center text-sm text-neutral-900 active:bg-neutral-100/60"
+    style={{ height: itemH, scrollSnapAlign: "center" as any }}
+  >
+    {format ? format(it) : it}
+  </button>
+))}
         <div style={{ height: pad }} />
       </div>
     </div>

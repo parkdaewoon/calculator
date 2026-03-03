@@ -1,5 +1,5 @@
-import CalendarPage from "@/components/Calendar/CalendarPage";
+import CalendarClient from "./CalendarClient";
 
 export default function Page() {
-  return <CalendarPage />;
+  return <CalendarClient />;
 }

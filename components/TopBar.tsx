@@ -1,15 +1,38 @@
 "use client";
 
+import React from "react";
+import { usePathname, useRouter } from "next/navigation";
+
 export default function TopBar({ onMenu }: { onMenu: () => void }) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const onBrandClick = (e: React.MouseEvent) => {
+    // 홈이면: 이동 대신 스크롤만 위로
+    if (pathname === "/") {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    // 홈이 아니면: 홈으로 이동
+    router.push("/");
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-white/90 backdrop-blur">
       <div className="relative flex items-center justify-center px-5 py-4">
-        {/* Brand - 크게 */}
-        <div className="text-[22px] font-semibold tracking-[-0.01em] text-neutral-900">
-  공무원 노트
-</div>
+        {/* Brand - 홈이면 스크롤 업, 아니면 홈 이동 */}
+        <button
+          type="button"
+          onClick={onBrandClick}
+          className="text-[22px] font-semibold tracking-[-0.01em] text-neutral-900 active:opacity-70 transition"
+          aria-label="홈으로"
+        >
+          공무원 노트
+        </button>
 
-        {/* Menu Button - 오른쪽 고정, 2/3 크기 */}
+        {/* Menu Button */}
         <button
           onClick={onMenu}
           aria-label="메뉴 열기"
