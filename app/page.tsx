@@ -7,7 +7,7 @@ export default function HomePage() {
   return (
     <div className="space-y-6">
       {/* 🔔 Push 디버그 (임시) */}
-<section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+<section className="relative z-[9999] pointer-events-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
   <PushTest />
 </section>
       {/* 안내 카드 */}

@@ -295,11 +295,11 @@ if (!sub) {
       {/* 액션 버튼 */}
       <div className="space-y-2">
         <button
-          onClick={enablePush}
-          className="w-full rounded-xl bg-black px-4 py-2 text-white"
-        >
-          푸시 알림 켜기(구독)
-        </button>
+  onClick={enablePush}
+  className="pointer-events-auto w-full rounded-xl bg-black px-4 py-2 text-white"
+>
+  푸시 알림 켜기(구독)
+</button>
 
         <button
           onClick={sendTest}
