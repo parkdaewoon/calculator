@@ -135,7 +135,7 @@ type SalaryInputs = {
   localTax_mode: MoneyMode;
   localTax_manual: number;
 
-  // 세금 계산용 비과세 월액(직접 입력)
+  // 세금 계산용 추가 비과세 월액(정액급식비 외 직접 입력)
   taxFreeMonthly_manual: number;
 
   otherDeduction: number;
@@ -1088,7 +1088,7 @@ export default function SalaryCalculator() {
               />
 
               <MoneyInput
-                label="비과세 월액(세금계산용)"
+                label="추가 비과세 월액(세금계산용)"
                 value={safeInputs.taxFreeMonthly_manual}
                 onChange={(v) =>
                   setInputs((p) => ({ ...p, taxFreeMonthly_manual: v }))
@@ -1373,7 +1373,11 @@ function calcSalary(inputs: SalaryInputs): SalaryResult {
 
   // ✅ (세금 자동) 간이세액표 기준 소득세/지방세 계산
   const monthlyGrossPay = gross;
-  const monthlyTaxFree = Math.max(0, Math.trunc(inputs.taxFreeMonthly_manual || 0));
+  // 정액급식비는 비과세, 직급보조비는 과세
+  const monthlyTaxFree = Math.max(
+    0,
+    Math.trunc(allow_meal + (inputs.taxFreeMonthly_manual || 0))
+  );
 
   const tax = calcTaxesMonthly({
     monthlyGrossPay,
