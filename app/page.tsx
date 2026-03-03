@@ -1,10 +1,15 @@
 import AdsenseSlot from "@/components/AdsenseSlot";
 import IconCard from "@/components/IconCard";
 import { Calculator, Landmark, Calendar, Clock } from "lucide-react";
+import PushTest from "@/components/PushTest";
 
 export default function HomePage() {
   return (
     <div className="space-y-6">
+      {/* 🔔 Push 디버그 (임시) */}
+<section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+  <PushTest />
+</section>
       {/* 안내 카드 */}
       <section className="pt-4 pb-1">
         <div className="flex justify-center">
