@@ -498,8 +498,8 @@ export default function EventEditorSheet({
   const [endDate, setEndDate] = useState<YYYYMMDD>(normalizeYmd(date));
 
   const [allDay, setAllDay] = useState(false);
-  const [startTime, setStartTime] = useState("00:00");
-const [endTime, setEndTime] = useState("00:00");
+  const [startTime, setStartTime] = useState("09:00");
+const [endTime, setEndTime] = useState("18:00");
 
   const [location, setLocation] = useState("");
   const [url, setUrl] = useState("");
@@ -592,8 +592,8 @@ const [endTime, setEndTime] = useState("00:00");
     setEndDate(baseEnd || baseStart || normalizeYmd(date));
 
     setAllDay(!!e?.allDay);
-    setStartTime((e?.startTime ?? "00:00") as string);
-setEndTime((e?.endTime ?? "00:00") as string);
+    setStartTime((e?.startTime ?? "09:00") as string);
+    setEndTime((e?.endTime ?? "18:00") as string);
 
     setLocation((e?.location ?? "") as string);
     setUrl((e?.url ?? e?.link ?? "") as string);
@@ -635,7 +635,7 @@ setEndTime((e?.endTime ?? "00:00") as string);
   if (title.trim().length === 0) return false;
   if (startDate > endDate) return false;
 
-  const timeUnspecified = !allDay && startTime === "00:00" && endTime === "00:00";
+  const timeUnspecified = !allDay && startTime === "09:00" && endTime === "18:00";
   if (!allDay && !timeUnspecified && startDate === endDate && startTime >= endTime) return false;
 
   return true;
