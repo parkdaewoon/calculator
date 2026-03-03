@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: "봉급·수당·연금 계산과 달력을 한 곳에서",
 
   // ✅ app/manifest.ts를 만들면 Next가 자동으로 제공
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
 
   icons: {
     icon: "/favicon.ico",
