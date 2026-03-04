@@ -324,7 +324,7 @@ function makeInitialInputs(series: SeriesKey = "general" as SeriesKey): SalaryIn
 export default function SalaryCalculator() {
   const [active, setActive] = useState<SalaryTabKey | null>(null);
   const [inputs, setInputs] = useState<SalaryInputs>(() => makeInitialInputs());
-    const pathname = usePathname();
+  const pathname = usePathname();
 
   useEffect(() => {
     // ✅ 다른 화면(다른 route)으로 이동하면 초기화
@@ -488,36 +488,24 @@ export default function SalaryCalculator() {
               </Field>
 
               <Field label="호봉(1~31)">
-                <input
-                  type="number"
+                <DraftNumberInput
+                  key={`${safeInputs.series}:${safeInputs.step}`}
+                  value={safeInputs.step}
                   min={1}
                   max={PAY_TABLES[safeInputs.series]?.maxStep ?? 31}
-                  value={safeInputs.step}
-                  onChange={(e) =>
-                    setInputs((p) => ({
-                      ...p,
-                      step: clampInt(
-                        e.target.value,
-                        1,
-                        PAY_TABLES[safeInputs.series]?.maxStep ?? 31
-                      ),
-                    }))
-                  }
+                  onCommit={(step) => setInputs((p) => ({ ...p, step }))}
                   className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
                 />
               </Field>
 
               <Field label="근무연수">
-                <input
-                  type="number"
+                <DraftNumberInput
+                  key={`years:${safeInputs.yearsOfService}`}
+                  value={safeInputs.yearsOfService}
                   min={0}
                   max={40}
-                  value={safeInputs.yearsOfService}
-                  onChange={(e) =>
-                    setInputs((p) => ({
-                      ...p,
-                      yearsOfService: clampInt(e.target.value, 0, 40),
-                    }))
+                  onCommit={(yearsOfService) =>
+                    setInputs((p) => ({ ...p, yearsOfService }))
                   }
                   className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
                 />
@@ -1083,7 +1071,7 @@ export default function SalaryCalculator() {
                   setInputs((p) => ({ ...p, standardMonthly_manual: v }))
                 }
               />
-<MoneyInput
+              <MoneyInput
                 label="추가 비과세 월액(세금계산용)"
                 value={safeInputs.taxFreeMonthly_manual}
                 onChange={(v) =>
@@ -1921,6 +1909,41 @@ function AutoDayMoneyLine({
   );
 }
 
+function DraftNumberInput({
+  value,
+  min,
+  max,
+  onCommit,
+  className,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onCommit: (value: number) => void;
+  className: string;
+}) {
+  const [draft, setDraft] = useState(() =>
+    Number.isFinite(value) ? String(Math.trunc(value)) : ""
+  );
+
+  return (
+    <input
+      inputMode="numeric"
+      value={draft}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/[^0-9]/g, "");
+        setDraft(raw);
+      }}
+      onBlur={() => {
+        const committed = clampInt(draft, min, max);
+        onCommit(committed);
+        setDraft(String(committed));
+      }}
+      className={className}
+    />
+  );
+}
+
 /** =========================
  *  Number helpers
  *  ========================= */
@@ -1946,7 +1969,6 @@ function clampInt(v: string, min: number, max: number, fallback: number = min) {
 
   const n = Number(cleaned);
   if (!Number.isFinite(n)) return fallback;
-
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 

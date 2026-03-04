@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { PAY_TABLES, getPay, type PayTableId } from "@/lib/payTables";
 
 type Props = {
@@ -52,16 +52,11 @@ export default function PayTableSection({
   }
 
   // ✅ columnKey 안전 보정: 표에 없으면 첫 번째 컬럼으로
-  const safeColumnKey = useMemo(() => {
-    const firstKey = table.columns[0]?.key ?? "";
-    if (!firstKey) return "";
-    return table.columns.some((c) => c.key === columnKey) ? columnKey : firstKey;
-  }, [table, columnKey]);
+  const firstKey = table.columns[0]?.key ?? "";
+  const safeColumnKey =
+    firstKey && table.columns.some((c) => c.key === columnKey) ? columnKey : firstKey;
 
-  const pay = useMemo(() => {
-    if (!safeColumnKey) return null;
-    return getPay(tableId, safeColumnKey, step);
-  }, [tableId, safeColumnKey, step]);
+  const pay = safeColumnKey ? getPay(tableId, safeColumnKey, step) : null;
 
   const selectedColLabel =
     table.columns.find((c) => c.key === safeColumnKey)?.label ?? "";
@@ -118,14 +113,12 @@ export default function PayTableSection({
 
         <label className="block">
           <div className="mb-1 text-xs text-neutral-500">호봉</div>
-          <input
-            type="number"
+          <DraftNumberInput
+            key={`${tableId}:${step}`}
+            value={step}
             min={1}
             max={table.maxStep}
-            value={step}
-            onChange={(e) =>
-              onChangeStep(clampInt(e.target.value, 1, table.maxStep))
-            }
+            onCommit={onChangeStep}
             className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
           />
         </label>
@@ -160,6 +153,41 @@ function clampInt(v: string, min: number, max: number) {
   const n = Number(v);
   if (Number.isNaN(n)) return min;
   return Math.min(max, Math.max(min, Math.trunc(n)));
+}
+
+function DraftNumberInput({
+  value,
+  min,
+  max,
+  onCommit,
+  className,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onCommit: (next: number) => void;
+  className: string;
+}) {
+  const [draft, setDraft] = useState(() =>
+    Number.isFinite(value) ? String(Math.trunc(value)) : ""
+  );
+
+  return (
+    <input
+      inputMode="numeric"
+      value={draft}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/[^0-9]/g, "");
+        setDraft(raw);
+      }}
+      onBlur={() => {
+        const committed = clampInt(draft, min, max);
+        onCommit(committed);
+        setDraft(String(committed));
+      }}
+      className={className}
+    />
+  );
 }
 
 function formatWon(n: number) {
