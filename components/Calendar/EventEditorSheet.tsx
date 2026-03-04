@@ -724,82 +724,52 @@ const [endTime, setEndTime] = useState("18:00");
   };
 
   const handleSave = async () => {
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-  if (!canSave) return;
+    if (!canSave) return;
 
-  if (reminderMinutes !== null && typeof Notification !== "undefined") {
-    try {
-      if (Notification.permission === "default") {
-        await Notification.requestPermission();
-      }
-    } catch {}
-  }
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-=======
->>>>>>> theirs
-  if (!canSave) return;
+    if (reminderMinutes !== null && typeof Notification !== "undefined") {
+      try {
+        if (Notification.permission === "default") {
+          await Notification.requestPermission();
+        }
+      } catch {}
+    }
 
-  if (reminderMinutes !== null && typeof Notification !== "undefined") {
-    try {
-      if (Notification.permission === "default") {
-        await Notification.requestPermission();
-      }
-    } catch {}
-  }
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
+    const base: any = event ? { ...(event as any) } : {};
+    const { main: typeMain, sub: typeSub } = unpackType(typeValue);
 
-  const base: any = event ? { ...(event as any) } : {};
-  const { main: typeMain, sub: typeSub } = unpackType(typeValue);
+    const safeStart = startDate;
+    const safeEnd = endDate && endDate >= startDate ? endDate : startDate;
 
-  const safeStart = startDate;
-  const safeEnd = endDate && endDate >= startDate ? endDate : startDate;
+    // ✅ 00:00 / 00:00이면 "시간 미지정"으로 저장(시간 필드 제거)
+    const timeUnspecified =
+      !allDay && startTime === "00:00" && endTime === "00:00";
 
-  // ✅ 00:00 / 00:00이면 "시간 미지정"으로 저장(시간 필드 제거)
-  const timeUnspecified =
-    !allDay && startTime === "00:00" && endTime === "00:00";
+    const next: any = {
+      ...base,
+      id: base.id ?? newId(),
 
-  const next: any = {
-    ...base,
-    id: base.id ?? newId(),
+      dateStart: safeStart,
+      dateEnd: safeEnd === safeStart ? undefined : safeEnd,
 
-    dateStart: safeStart,
-    dateEnd: safeEnd === safeStart ? undefined : safeEnd,
+      title: title.trim(),
+      allDay,
 
-    title: title.trim(),
-    allDay,
+      startTime: allDay || timeUnspecified ? undefined : startTime,
+      endTime: allDay || timeUnspecified ? undefined : endTime,
 
-    startTime: allDay || timeUnspecified ? undefined : startTime,
-    endTime: allDay || timeUnspecified ? undefined : endTime,
+      location: location?.trim() ? location.trim() : undefined,
+      url: url?.trim() ? url.trim() : undefined,
 
-    location: location?.trim() ? location.trim() : undefined,
-    url: url?.trim() ? url.trim() : undefined,
+      typeMain,
+      typeSub: typeSub || undefined,
 
-    typeMain,
-    typeSub: typeSub || undefined,
+      reminderMinutes: reminderMinutes ?? undefined,
+      memo: memo?.trim() ? memo.trim() : undefined,
+    };
 
-    reminderMinutes: reminderMinutes ?? undefined,
-    memo: memo?.trim() ? memo.trim() : undefined,
+    onSave(next as CalendarEvent);
+    onClose();
   };
-
-  onSave(next as CalendarEvent);
-  onClose();
-};
 
   const currentTypeLabel = useMemo(() => {
     const { main, sub } = unpackType(typeValue);
