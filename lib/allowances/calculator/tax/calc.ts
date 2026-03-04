@@ -1,4 +1,4 @@
-import { lookupIncomeTax2024 } from "./lookup";
+import { lookupIncomeTax2026 } from "./earnedIncomeTax";
 
 export type FamilyInputs = {
   /** 0 or 1 */
@@ -8,8 +8,8 @@ export type FamilyInputs = {
   /** other dependents (deduction-eligible) */
   dependents: number;
   /**
-   * Optional: number of children aged 8~20 (for additional withholding reduction rule in the table notes).
-   * If you don't model ages, set 0.
+   * Optional: number of children aged 8~20 (간이세액표 비고 3의 추가 공제 규칙).
+   * 나이를 모델링하지 않으면 0으로 둬도 됨.
    */
   childrenAge8to20?: number;
 };
@@ -32,13 +32,18 @@ export type TaxResult = {
   localIncomeTax: number;
 };
 
-/** 8~20세 자녀에 대한 원천징수 세액 추가 공제(간이세액표 비고) */
+/**
+ * 8~20세 자녀에 대한 원천징수 세액 추가 공제(간이세액표 비고 3)
+ * - 1명: 20,830원
+ * - 2명: 45,830원
+ * - 3명 이상: 45,830원 + (2명 초과 1명당 33,330원)
+ */
 export function calcChildWithholdingReduction(childrenAge8to20: number): number {
   const n = Math.max(0, Math.floor(childrenAge8to20 || 0));
   if (n <= 0) return 0;
-  if (n === 1) return 12_500;
-  if (n === 2) return 29_160;
-  return 29_160 + (n - 2) * 25_000;
+  if (n === 1) return 20_830;
+  if (n === 2) return 45_830;
+  return 45_830 + (n - 2) * 33_330;
 }
 
 /** 공제대상가족수(본인 포함) */
@@ -50,14 +55,26 @@ export function calcFamilyCount(family: FamilyInputs): number {
 }
 
 /** 간이세액표 기준 소득세(국세) */
-export function calcIncomeTaxMonthly(params: TaxInputs): { taxableMonthlyPay: number; familyCount: number; incomeTax: number } {
+export function calcIncomeTaxMonthly(params: TaxInputs): {
+  taxableMonthlyPay: number;
+  familyCount: number;
+  incomeTax: number;
+} {
   const scholarship = Math.max(0, Math.floor(params.monthlyScholarship || 0));
-  const taxableMonthlyPay = Math.max(0, Math.floor(params.monthlyGrossPay - params.monthlyTaxFree - scholarship));
+  const taxableMonthlyPay = Math.max(
+    0,
+    Math.floor(params.monthlyGrossPay - params.monthlyTaxFree - scholarship)
+  );
   const familyCount = calcFamilyCount(params.family);
 
-  const base = lookupIncomeTax2024(taxableMonthlyPay, familyCount, { clampToBounds: true });
+  const base = lookupIncomeTax2026(taxableMonthlyPay, familyCount, {
+    clampToBounds: true,
+    applyOver11Rule: true,
+  });
 
-  const childReduction = calcChildWithholdingReduction(params.family.childrenAge8to20 || 0);
+  const childReduction = calcChildWithholdingReduction(
+    params.family.childrenAge8to20 || 0
+  );
 
   return {
     taxableMonthlyPay,
@@ -76,7 +93,8 @@ export function calcLocalIncomeTaxMonthly(incomeTax: number): number {
 }
 
 export function calcTaxesMonthly(params: TaxInputs): TaxResult {
-  const { taxableMonthlyPay, familyCount, incomeTax } = calcIncomeTaxMonthly(params);
+  const { taxableMonthlyPay, familyCount, incomeTax } =
+    calcIncomeTaxMonthly(params);
   const localIncomeTax = calcLocalIncomeTaxMonthly(incomeTax);
   return { taxableMonthlyPay, familyCount, incomeTax, localIncomeTax };
 }

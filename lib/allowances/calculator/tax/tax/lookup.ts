@@ -1,4 +1,4 @@
-import { EARNED_INCOME_TAX_TABLE_2024 } from "./earnedIncomeTable2024";
+import { EARNED_INCOME_TAX_TABLE_2024 } from "../earnedIncomeTable2026";
 
 export type LookupOptions = {
   /** Clamp k to table bounds instead of returning 0 when out of range. Default: true */

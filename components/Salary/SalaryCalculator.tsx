@@ -8,7 +8,7 @@ import SalaryMenuGrid, { SalaryTabKey } from "@/components/Salary/SalaryTabs";
 import PayTableSection from "@/components/Salary/PayTableSection";
 import AllowanceSection from "@/components/Salary/AllowanceSection";
 import TravelSection from "@/components/Salary/TravelSection";
-
+import { getEarnedIncomeWithholdingTaxWon } from "@/lib/allowances/calculator/tax/earnedIncomeTax";
 import { PAY_TABLES, getPay, type PayTableId } from "@/lib/payTables"; // ✅ PAY_TABLES 추가
 import {
   calcPwuAllowance,
@@ -29,7 +29,6 @@ import {
   calcLongTermCare,
   calcPensionContribution,
 } from "@/lib/allowances/calculator/deductions";
-import { calcTaxesMonthly } from "@/lib/allowances/calculator/tax";
 
 type SeriesKey = PayTableId;
 type MoneyMode = "auto" | "manual";
@@ -115,6 +114,18 @@ type SalaryInputs = {
 
   allow_leave_comp_mode: MoneyMode; // (자동) 연가보상비
   allow_leave_comp_manual: number;
+
+  // ===== 소방/경찰/교정 관련 수당(수동) =====
+  fire_field_manual: number;        // 소방: 현장(출동/현장활동 등)
+  fire_rescue_manual: number;       // 소방: 구조/구급 등
+  fire_other_manual: number;        // 소방: 기타
+
+  police_security_manual: number;   // 경찰: 치안/경비/순찰 등
+  police_invest_manual: number;     // 경찰: 수사/정보/형사 등
+  police_other_manual: number;      // 경찰: 기타
+
+  corrections_duty_manual: number;  // 교정: 계호/보안/근무수당 등
+  corrections_other_manual: number; // 교정: 기타
 
   allow_other_manual: number;
   leave_comp_days: number;
@@ -310,6 +321,18 @@ function makeInitialInputs(series: SeriesKey = "general" as SeriesKey): SalaryIn
     standardMonthly_mode: "manual",
     standardMonthly_manual: 0,
 
+    // ===== 소방/경찰/교정 관련 수당(수동) =====
+    fire_field_manual: 0,
+    fire_rescue_manual: 0,
+    fire_other_manual: 0,
+
+    police_security_manual: 0,
+    police_invest_manual: 0,
+    police_other_manual: 0,
+
+    corrections_duty_manual: 0,
+    corrections_other_manual: 0,
+
     employment: 0,
     incomeTax_mode: "auto",
     incomeTax_manual: 0,
@@ -333,7 +356,6 @@ export default function SalaryCalculator() {
   }, [pathname]);
   // ✅ series/columnKey가 어긋나도 안전하게 보정
   const safeInputs = useMemo<SalaryInputs>(() => {
-    
     const safeSeries: SeriesKey = inputs.series;
     const safeColumnKey = getSafeColumnKey(safeSeries, inputs.columnKey);
 
@@ -385,9 +407,9 @@ export default function SalaryCalculator() {
             <button
               type="button"
               onClick={() => {
-  setActive(null);
-  setInputs(makeInitialInputs()); // ✅ 입력값 초기화
-}}
+                setActive(null);
+                setInputs(makeInitialInputs()); // ✅ 입력값 초기화
+              }}
               className="shrink-0 rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
             >
               전체 메뉴
@@ -403,13 +425,13 @@ export default function SalaryCalculator() {
       </section>
 
       {!active && (
-  <SalaryMenuGrid
-    onSelect={(next) => {
-      setInputs(makeInitialInputs()); // ✅ 이동할 때 초기화
-      setActive(next);
-    }}
-  />
-)}
+        <SalaryMenuGrid
+          onSelect={(next) => {
+            setInputs(makeInitialInputs()); // ✅ 이동할 때 초기화
+            setActive(next);
+          }}
+        />
+      )}
 
       {active === "payTable" && (
         <PayTableSection
@@ -530,7 +552,7 @@ export default function SalaryCalculator() {
 
             <div className="mt-3 space-y-3">
               {/* 상여수당 */}
-              <AllowanceGroup title="상여수당" defaultOpen>
+              <AllowanceGroup title="상여수당">
                 <AutoMoneyLine
                   label="대우공무원수당"
                   mode={safeInputs.allow_pwu_mode}
@@ -751,29 +773,29 @@ export default function SalaryCalculator() {
                     <label className="block">
                       <div className="text-xs text-neutral-500">구분</div>
                       <select
-  value={safeInputs.risk_type}
-  onChange={(e) =>
-    setInputs((p) => {
-      const next = e.target.value as SalaryInputs["risk_type"];
-      const isOther = next === "OTHER";
+                        value={safeInputs.risk_type}
+                        onChange={(e) =>
+                          setInputs((p) => {
+                            const next = e.target.value as SalaryInputs["risk_type"];
+                            const isOther = next === "OTHER";
 
-      return {
-        ...p,
-        risk_type: next,
+                            return {
+                              ...p,
+                              risk_type: next,
 
-        // ✅ 갑/을/병 선택하면 자동 금액이 보이고 합산되게
-        allow_risk_mode: isOther ? "manual" : "auto",
+                              // ✅ 갑/을/병 선택하면 자동 금액이 보이고 합산되게
+                              allow_risk_mode: isOther ? "manual" : "auto",
 
-        // ✅ OTHER가 아니면 기타금액은 0으로 정리
-        risk_other_manual: isOther ? p.risk_other_manual : 0,
+                              // ✅ OTHER가 아니면 기타금액은 0으로 정리
+                              risk_other_manual: isOther ? p.risk_other_manual : 0,
 
-        // (선택) OTHER면 allow_risk_manual을 기타금액으로 맞춰두면 더 직관적
-        allow_risk_manual: isOther ? (p.risk_other_manual ?? 0) : 0,
-      };
-    })
-  }
-  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
->
+                              // (선택) OTHER면 allow_risk_manual을 기타금액으로 맞춰두면 더 직관적
+                              allow_risk_manual: isOther ? (p.risk_other_manual ?? 0) : 0,
+                            };
+                          })
+                        }
+                        className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+                      >
                         <option value="NONE">해당없음</option>
                         <option value="A">갑 (60,000원)</option>
                         <option value="B">을 (50,000원)</option>
@@ -789,16 +811,16 @@ export default function SalaryCalculator() {
                           inputMode="numeric"
                           value={formatNumberInput(safeInputs.risk_other_manual)}
                           onChange={(e) =>
-  setInputs((p) => {
-    const v = clampInt(e.target.value, 0, 1_000_000_000);
-    return {
-      ...p,
-      risk_other_manual: v,
-      allow_risk_mode: "manual",
-      allow_risk_manual: v, // ✅ 기타 입력 = 실제 합산 값
-    };
-  })
-}
+                            setInputs((p) => {
+                              const v = clampInt(e.target.value, 0, 1_000_000_000);
+                              return {
+                                ...p,
+                                risk_other_manual: v,
+                                allow_risk_mode: "manual",
+                                allow_risk_manual: v, // ✅ 기타 입력 = 실제 합산 값
+                              };
+                            })
+                          }
                           className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
                         />
                       </label>
@@ -1007,6 +1029,97 @@ export default function SalaryCalculator() {
                 />
               </AllowanceGroup>
 
+              {/* ✅ 소방/경찰/교정 관련 수당 */}
+              <AllowanceGroup title="소방/경찰/교정 관련 수당">
+                <div className="text-[11px] text-neutral-500">
+                  * 소속/직무/지급기준에 따라 금액이 달라서, 우선 급여명세서 기준으로 입력하세요.
+                </div>
+
+                {/* 소방 */}
+                <div className="rounded-2xl border border-neutral-200 p-3">
+                  <div className="text-sm font-semibold text-neutral-900">소방수당</div>
+                  <div className="mt-2 space-y-2">
+                    <ManualMoneyLine
+                      label="현장(출동/현장활동 등)"
+                      value={safeInputs.fire_field_manual}
+                      onChange={(v) => setInputs((p) => ({ ...p, fire_field_manual: v }))}
+                    />
+                    <ManualMoneyLine
+                      label="구조/구급 등"
+                      value={safeInputs.fire_rescue_manual}
+                      onChange={(v) => setInputs((p) => ({ ...p, fire_rescue_manual: v }))}
+                    />
+                    <ManualMoneyLine
+                      label="기타(합산)"
+                      value={safeInputs.fire_other_manual}
+                      onChange={(v) => setInputs((p) => ({ ...p, fire_other_manual: v }))}
+                    />
+                  </div>
+                </div>
+
+                {/* 경찰 */}
+                <div className="rounded-2xl border border-neutral-200 p-3">
+                  <div className="text-sm font-semibold text-neutral-900">경찰수당</div>
+                  <div className="mt-2 space-y-2">
+                    <ManualMoneyLine
+                      label="치안/경비/순찰 등"
+                      value={safeInputs.police_security_manual}
+                      onChange={(v) =>
+                        setInputs((p) => ({ ...p, police_security_manual: v }))
+                      }
+                    />
+                    <ManualMoneyLine
+                      label="수사/형사/정보 등"
+                      value={safeInputs.police_invest_manual}
+                      onChange={(v) => setInputs((p) => ({ ...p, police_invest_manual: v }))}
+                    />
+                    <ManualMoneyLine
+                      label="기타(합산)"
+                      value={safeInputs.police_other_manual}
+                      onChange={(v) => setInputs((p) => ({ ...p, police_other_manual: v }))}
+                    />
+                  </div>
+                </div>
+
+                {/* 교정 */}
+                <div className="rounded-2xl border border-neutral-200 p-3">
+                  <div className="text-sm font-semibold text-neutral-900">교정수당</div>
+                  <div className="mt-2 space-y-2">
+                    <ManualMoneyLine
+                      label="계호/보안/교정근무 등"
+                      value={safeInputs.corrections_duty_manual}
+                      onChange={(v) =>
+                        setInputs((p) => ({ ...p, corrections_duty_manual: v }))
+                      }
+                    />
+                    <ManualMoneyLine
+                      label="기타(합산)"
+                      value={safeInputs.corrections_other_manual}
+                      onChange={(v) =>
+                        setInputs((p) => ({ ...p, corrections_other_manual: v }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* 소방/경찰/교정 합계 표시 */}
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                  <div className="text-xs text-neutral-500">소방/경찰/교정 수당 합계</div>
+                  <div className="mt-1 text-sm font-semibold text-neutral-900">
+                    {formatWon(
+                      (safeInputs.fire_field_manual ?? 0) +
+                        (safeInputs.fire_rescue_manual ?? 0) +
+                        (safeInputs.fire_other_manual ?? 0) +
+                        (safeInputs.police_security_manual ?? 0) +
+                        (safeInputs.police_invest_manual ?? 0) +
+                        (safeInputs.police_other_manual ?? 0) +
+                        (safeInputs.corrections_duty_manual ?? 0) +
+                        (safeInputs.corrections_other_manual ?? 0)
+                    )}
+                  </div>
+                </div>
+              </AllowanceGroup>
+
               {/* ✅ 기타 수당 */}
               <AllowanceGroup title="기타 수당">
                 <ManualMoneyLine
@@ -1033,8 +1146,7 @@ export default function SalaryCalculator() {
               </div>
 
               <div className="text-xs text-neutral-400">
-                * 입력값과 자동 계산은 참고용이며, 실제 지급 수당과 차이가 있을 수
-                있습니다. 급여명세서·관련 규정을 확인해 주세요.
+                * 입력값과 자동 계산은 참고용이며, 실제 지급 수당과 차이가 있을 수 있습니다. 급여명세서·관련 규정을 확인해 주세요.
               </div>
             </div>
           </section>
@@ -1071,20 +1183,12 @@ export default function SalaryCalculator() {
                   setInputs((p) => ({ ...p, standardMonthly_manual: v }))
                 }
               />
-              <MoneyInput
-                label="추가 비과세 월액(세금계산용)"
-                value={safeInputs.taxFreeMonthly_manual}
-                onChange={(v) =>
-                  setInputs((p) => ({ ...p, taxFreeMonthly_manual: v }))
-                }
-              />
               <ReadOnlyMoneyLine label="일반기여금" value={result.breakdown.pension} />
               <ReadOnlyMoneyLine label="건강보험료" value={result.breakdown.health} />
               <ReadOnlyMoneyLine label="장기요양보험료" value={result.breakdown.care} />
               <ReadOnlyMoneyLine label="소득세(간이)" value={result.breakdown.incomeTax} />
               <ReadOnlyMoneyLine label="지방소득세" value={result.breakdown.localTax} />
-
-              <MoneyInput
+              <EditableMoneyLine
                 label="기타공제"
                 value={safeInputs.otherDeduction}
                 onChange={(v) => setInputs((p) => ({ ...p, otherDeduction: v }))}
@@ -1119,8 +1223,7 @@ export default function SalaryCalculator() {
           </section>
 
           <div className="text-xs text-neutral-500">
-            * 실수령액은 입력값 기반 “예상”입니다. (보수월액/기준소득월액만 필요 시
-            “직접”으로 수정 가능)
+            * 실수령액은 입력값 기반 “예상”입니다. (보수월액/기준소득월액만 필요 시 “직접”으로 수정 가능)
           </div>
         </>
       )}
@@ -1299,6 +1402,18 @@ function calcSalary(inputs: SalaryInputs): SalaryResult {
     allow_holiday_bonus,
     allow_leave_comp,
 
+    // ✅ 소방/경찰/교정 관련 수당(수동)
+    inputs.fire_field_manual,
+    inputs.fire_rescue_manual,
+    inputs.fire_other_manual,
+
+    inputs.police_security_manual,
+    inputs.police_invest_manual,
+    inputs.police_other_manual,
+
+    inputs.corrections_duty_manual,
+    inputs.corrections_other_manual,
+
     inputs.allow_other_manual
   );
 
@@ -1356,31 +1471,41 @@ function calcSalary(inputs: SalaryInputs): SalaryResult {
 
   // ✅ (세금 자동) 간이세액표 기준 소득세/지방세 계산
   const monthlyGrossPay = gross;
-  // 정액급식비는 비과세, 직급보조비는 과세
+
+  // ✅ 정액급식비 비과세는 20만원 한도
+  const mealTaxFree = Math.min(allow_meal, 200_000);
+
   const monthlyTaxFree = Math.max(
     0,
-    Math.trunc(allow_meal + (inputs.taxFreeMonthly_manual || 0))
+    Math.trunc(mealTaxFree + (inputs.taxFreeMonthly_manual || 0))
   );
 
-  const tax = calcTaxesMonthly({
-    monthlyGrossPay,
-    monthlyTaxFree,
-    monthlyScholarship: 0,
-    family: {
-      spouse: inputs.family_spouse,
-      children: inputs.family_children,
-      dependents: inputs.family_dependents,
-    },
-  });
+  const monthlyTaxablePayWon = Math.max(
+    0,
+    Math.trunc(monthlyGrossPay - monthlyTaxFree)
+  );
 
-  const auto_incomeTax = tax.incomeTax;
-  const auto_localTax = tax.localIncomeTax;
+  const familyCount =
+    1 +
+    (inputs.family_spouse ?? 0) +
+    (inputs.family_children ?? 0) +
+    (inputs.family_dependents ?? 0);
+
+  const auto_incomeTax = getEarnedIncomeWithholdingTaxWon(
+    monthlyTaxablePayWon,
+    familyCount
+  );
+
+  // ✅ 지방소득세: 10원 단위 절사(급여명세서 방식)
+  const auto_localTax_raw = Math.floor(auto_incomeTax * 0.1);
+  const auto_localTax = Math.floor(auto_localTax_raw / 10) * 10;
 
   const incomeTax = pick(
     inputs.incomeTax_mode,
     auto_incomeTax,
     inputs.incomeTax_manual
   );
+
   const localTax = pick(
     inputs.localTax_mode,
     auto_localTax,
@@ -1563,7 +1688,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function MoneyInput({
+function EditableMoneyLine({
   label,
   value,
   onChange,
@@ -1573,15 +1698,20 @@ function MoneyInput({
   onChange: (v: number) => void;
 }) {
   return (
-    <label className="block">
-      <div className="mb-1 text-xs text-neutral-500">{label}</div>
-      <input
-        inputMode="numeric"
-        value={formatNumberInput(value ?? 0)}
-        onChange={(e) => onChange(clampInt(e.target.value, 0, 1_000_000_000))}
-        className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-      />
-    </label>
+    <div className="rounded-2xl border border-neutral-200 p-3">
+      <div className="text-sm text-neutral-900">{label}</div>
+
+      <div className="mt-2">
+        <input
+          inputMode="numeric"
+          value={formatNumberInput(value ?? 0)}
+          onChange={(e) =>
+            onChange(clampInt(e.target.value, 0, 1_000_000_000))
+          }
+          className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+        />
+      </div>
+    </div>
   );
 }
 

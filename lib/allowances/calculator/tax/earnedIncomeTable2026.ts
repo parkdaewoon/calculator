@@ -1,6 +1,87 @@
 // AUTO-GENERATED from 근로소득 간이세액표(조견표) PDF
-export type EarnedIncomeTaxRow = { minK: number; maxK: number; taxByFamily1to11: number[] };
-export const EARNED_INCOME_TAX_TABLE_2024: EarnedIncomeTaxRow[] = [
+// 소득세법 시행령 [별표 2] <개정 2026. 2. 27.> 반영
+export type EarnedIncomeTaxRow = {
+  /** 월급여액(천원) 이상 */
+  minK: number;
+  /** 월급여액(천원) 미만 */
+  maxK: number;
+  /** 공제대상가족수 1..11에 대한 (원) 단위 소득세 */
+  taxByFamily1to11: number[];
+};
+
+export const EARNED_INCOME_TAX_TABLE_2026: EarnedIncomeTaxRow[] = [
+  { minK: 770, maxK: 775, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 775, maxK: 780, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 780, maxK: 785, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 785, maxK: 790, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 790, maxK: 795, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 795, maxK: 800, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 800, maxK: 805, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 805, maxK: 810, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 810, maxK: 815, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 815, maxK: 820, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 820, maxK: 825, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 825, maxK: 830, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 830, maxK: 835, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 835, maxK: 840, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 840, maxK: 845, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 845, maxK: 850, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 850, maxK: 855, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 855, maxK: 860, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 860, maxK: 865, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 865, maxK: 870, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 870, maxK: 875, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 875, maxK: 880, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 880, maxK: 885, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 885, maxK: 890, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 890, maxK: 895, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 895, maxK: 900, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 900, maxK: 905, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 905, maxK: 910, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 910, maxK: 915, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 915, maxK: 920, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 920, maxK: 925, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 925, maxK: 930, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 930, maxK: 935, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 935, maxK: 940, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 940, maxK: 945, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 945, maxK: 950, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 950, maxK: 955, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 955, maxK: 960, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 960, maxK: 965, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 965, maxK: 970, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 970, maxK: 975, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 975, maxK: 980, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 980, maxK: 985, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 985, maxK: 990, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 990, maxK: 995, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 995, maxK: 1000, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1000, maxK: 1005, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1005, maxK: 1010, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1010, maxK: 1015, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1015, maxK: 1020, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1020, maxK: 1025, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1025, maxK: 1030, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1030, maxK: 1035, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1035, maxK: 1040, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1040, maxK: 1045, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1045, maxK: 1050, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1050, maxK: 1055, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1055, maxK: 1060, taxByFamily1to11: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1060, maxK: 1065, taxByFamily1to11: [1040, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1065, maxK: 1070, taxByFamily1to11: [1110, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1070, maxK: 1075, taxByFamily1to11: [1180, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1075, maxK: 1080, taxByFamily1to11: [1250, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1080, maxK: 1085, taxByFamily1to11: [1320, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1085, maxK: 1090, taxByFamily1to11: [1390, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1090, maxK: 1095, taxByFamily1to11: [1460, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1095, maxK: 1100, taxByFamily1to11: [1530, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1100, maxK: 1105, taxByFamily1to11: [1600, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1105, maxK: 1110, taxByFamily1to11: [1670, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1110, maxK: 1115, taxByFamily1to11: [1740, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1115, maxK: 1120, taxByFamily1to11: [1810, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1120, maxK: 1125, taxByFamily1to11: [1880, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { minK: 1125, maxK: 1130, taxByFamily1to11: [1950, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
   { minK: 1130, maxK: 1135, taxByFamily1to11: [2020, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
   { minK: 1135, maxK: 1140, taxByFamily1to11: [2090, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
   { minK: 1140, maxK: 1145, taxByFamily1to11: [2160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
@@ -576,3 +657,6 @@ export const EARNED_INCOME_TAX_TABLE_2024: EarnedIncomeTaxRow[] = [
   { minK: 9960, maxK: 9980, taxByFamily1to11: [1497170, 1421380, 1194280, 1164280, 1134280, 1104280, 1074280, 1044280, 1014280, 984280, 954280] },
   { minK: 9980, maxK: 10000, taxByFamily1to11: [1503990, 1428170, 1198650, 1168650, 1138650, 1108650, 1078650, 1048650, 1018650, 988650, 958650] },
 ];
+
+// Backward compat alias (이전 코드가 2024 이름을 import하는 경우를 위해 유지)
+export const EARNED_INCOME_TAX_TABLE_2024 = EARNED_INCOME_TAX_TABLE_2026;

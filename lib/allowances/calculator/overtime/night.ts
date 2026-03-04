@@ -15,15 +15,10 @@ function inferGradeFromColumnKey(columnKey: string): number | null {
  */
 export function getWageStandardRate(series: PayTableId, columnKey: string): number {
   const grade = inferGradeFromColumnKey(columnKey);
-  if (!grade) return 0.55;     // 못 뽑으면 기본 55%
+  if (!grade) return 0.55;
   return grade >= 8 ? 0.60 : 0.55;
 }
 
-/**
- * 야간수당(시간당)
- * - 야간수당 = (봉급기준액 / 209) * 0.5 * hours
- * - 봉급기준액 = (해당 직급 10호봉 봉급) * (55% 또는 60%)
- */
 export function calcNightAllowance(args: {
   series: PayTableId;
   columnKey: string;
@@ -37,8 +32,27 @@ export function calcNightAllowance(args: {
   if (!base10) return 0;
 
   const rate = getWageStandardRate(series, columnKey);
-  const wageStandard = base10 * rate; // 봉급기준액
-  const hourly = wageStandard / 209;  // 209분의 1
+  const wageStandard = base10 * rate;
 
-  return Math.floor(hourly * 0.5 * hours);
+  const rawPerHour = (wageStandard / 209) * 0.5;   // 내부 계산(소수 가능)
+  const total = Math.floor(rawPerHour * hours);     // 지급: 총액 절사(원 단위)
+
+  return total;
+}
+
+/** (선택) 화면 표시용: 시간당 단가 */
+export function calcNightAllowancePerHourDisplay(args: {
+  series: PayTableId;
+  columnKey: string;
+}): number {
+  const { series, columnKey } = args;
+  const pay10 = getPay(series, columnKey, 10);
+  const base10 = typeof pay10 === "number" ? pay10 : 0;
+  if (!base10) return 0;
+
+  const rate = getWageStandardRate(series, columnKey);
+  const wageStandard = base10 * rate;
+  const rawPerHour = (wageStandard / 209) * 0.5;
+
+  return Math.round(rawPerHour); // 표시: 반올림해서 4,038원처럼
 }
