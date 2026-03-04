@@ -724,6 +724,16 @@ const [endTime, setEndTime] = useState("18:00");
   };
 
   const handleSave = async () => {
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
   if (!canSave) return;
 
   if (reminderMinutes !== null && typeof Notification !== "undefined") {
@@ -733,7 +743,26 @@ const [endTime, setEndTime] = useState("18:00");
       }
     } catch {}
   }
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+=======
+>>>>>>> theirs
   if (!canSave) return;
+
+  if (reminderMinutes !== null && typeof Notification !== "undefined") {
+    try {
+      if (Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
+    } catch {}
+  }
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
 
   const base: any = event ? { ...(event as any) } : {};
   const { main: typeMain, sub: typeSub } = unpackType(typeValue);

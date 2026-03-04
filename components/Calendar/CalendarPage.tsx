@@ -31,6 +31,84 @@ import {
 import type { WorkMode } from "./types";
 
 type HolidaysMap = Record<string, { name: string; isHoliday: boolean }>;
+const REMINDER_FIRED_KEY = "calendar_reminder_fired_v1";
+const MAX_TIMEOUT_MS = 2_147_000_000;
+
+function readReminderFiredMap(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(REMINDER_FIRED_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeReminderFiredMap(map: Record<string, number>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(REMINDER_FIRED_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function toEventStartMs(ev: CalendarEvent): number | null {
+  const ymd = normalizeYmd(ev?.dateStart);
+  if (!ymd) return null;
+  const [y, m, d] = ymd.split("-").map(Number);
+
+  const time = ev?.allDay ? "09:00" : String(ev?.startTime || "09:00");
+  const tm = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!tm) return null;
+
+  const hh = Math.min(23, Math.max(0, Number(tm[1])));
+  const mm = Math.min(59, Math.max(0, Number(tm[2])));
+  const dt = new Date(y, (m ?? 1) - 1, d ?? 1, hh, mm, 0, 0);
+  const ms = dt.getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function buildReminderTitle(ev: CalendarEvent, minutes: number) {
+  const base = ev?.title?.trim() || "일정";
+  return minutes > 0 ? `${base} · ${minutes}분 전` : `${base} · 시작 알림`;
+}
+
+function buildReminderBody(ev: CalendarEvent, minutes: number) {
+  const when = ev?.allDay
+    ? `${ev?.dateStart} 종일`
+    : `${ev?.dateStart} ${ev?.startTime || "09:00"}`;
+
+  if (minutes <= 0) {
+    return `지금 시작할 일정입니다. (${when})`;
+  }
+
+  return `${minutes}분 뒤 일정이 있습니다. (${when})`;
+}
+
+async function showReminderNotification(ev: CalendarEvent, minutes: number) {
+  if (typeof window === "undefined" || typeof Notification === "undefined") return;
+  if (Notification.permission !== "granted") return;
+
+  const title = buildReminderTitle(ev, minutes);
+  const body = buildReminderBody(ev, minutes);
+
+  try {
+    const reg = await navigator.serviceWorker.getRegistration("/").catch(() => null);
+    if (reg) {
+      await reg.showNotification(title, {
+        body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: `cal-reminder-${ev.id}-${minutes}`,
+        data: { url: "/" },
+      });
+      return;
+    }
+  } catch {}
+
+  // SW가 없어도 브라우저 Notification으로 폴백
+  new Notification(title, { body, icon: "/icon-192.png" });
+}
 
 function isWorkModeObject(v: any): v is WorkMode {
   return v && typeof v === "object" && typeof v.type === "string";
@@ -172,6 +250,7 @@ export default function CalendarPage() {
   const [dayDetailOpen, setDayDetailOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const reminderTimersRef = useRef<number[]>([]);
 
   const editingEvent = useMemo(() => {
     if (!editingId) return null;
@@ -230,8 +309,11 @@ export default function CalendarPage() {
         setPattern(workModeToPattern(nextWorkMode as any, today));
       } else if (st.pattern) {
         const p: any = st.pattern;
-        if (p?.anchorDate) p.anchorDate = normalizeYmd(p.anchorDate) || today;
-        setPattern(p);
+        const nextPattern =
+          p?.anchorDate
+            ? { ...p, anchorDate: normalizeYmd(p.anchorDate) || today }
+            : p;
+        setPattern(nextPattern);
       } else {
         setPattern(defaultPattern(today));
       }
@@ -254,6 +336,59 @@ export default function CalendarPage() {
       setHolidays({});
     }
   }, [month]);
+
+  /** =========================
+   * 3.5) event reminder scheduling (client local notification)
+   * ========================= */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // 기존 타이머 정리
+    for (const id of reminderTimersRef.current) window.clearTimeout(id);
+    reminderTimersRef.current = [];
+
+    const now = Date.now();
+    const firedMap = readReminderFiredMap();
+
+    const remindEvents = (events ?? []).filter(
+      (ev) => typeof ev?.reminderMinutes === "number" && (ev?.reminderMinutes ?? -1) >= 0
+    );
+
+    for (const ev of remindEvents) {
+      const startMs = toEventStartMs(ev);
+      const reminderMinutes = Math.max(0, Number(ev.reminderMinutes || 0));
+      if (!startMs) continue;
+
+      const remindAt = startMs - reminderMinutes * 60_000;
+      const key = `${ev.id}:${remindAt}`;
+      if (firedMap[key]) continue;
+
+      const delay = remindAt - now;
+      const trigger = async () => {
+        await showReminderNotification(ev, reminderMinutes);
+        firedMap[key] = Date.now();
+        writeReminderFiredMap(firedMap);
+      };
+
+      // 과거 2분 이내는 즉시 1회 발송 (새로고침/재실행 대비)
+      if (delay <= 0 && delay >= -120_000) {
+        void trigger();
+        continue;
+      }
+
+      if (delay <= 0 || delay > MAX_TIMEOUT_MS) continue;
+
+      const tid = window.setTimeout(() => {
+        void trigger();
+      }, delay);
+      reminderTimersRef.current.push(tid);
+    }
+
+    return () => {
+      for (const id of reminderTimersRef.current) window.clearTimeout(id);
+      reminderTimersRef.current = [];
+    };
+  }, [events]);
 
   /** =========================
    * 2) persist state (hydrated 이후만)
