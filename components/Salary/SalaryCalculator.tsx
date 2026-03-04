@@ -3,15 +3,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import AdsenseSlot from "@/components/AdsenseSlot";
-
+import { getEarnedIncomeWithholdingTaxWon } from "@/lib/allowances/calculator/tax/earnedIncomeTax";
 import SalaryMenuGrid, { SalaryTabKey } from "@/components/Salary/SalaryTabs";
 import PayTableSection from "@/components/Salary/PayTableSection";
 import AllowanceSection from "@/components/Salary/AllowanceSection";
 import TravelSection from "@/components/Salary/TravelSection";
-import { getEarnedIncomeWithholdingTaxWon } from "@/lib/allowances/calculator/tax/earnedIncomeTax";
 import { PAY_TABLES, getPay, type PayTableId } from "@/lib/payTables"; // ✅ PAY_TABLES 추가
 import {
   calcPwuAllowance,
+
   calcRegularBonus,
   calcRegularAdd,
   calcFamilyAllowance,
