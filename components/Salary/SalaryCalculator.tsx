@@ -365,7 +365,7 @@ export default function SalaryCalculator() {
       : active === "travel"
       ? "여비제도"
       : active === "calculator"
-      ? "실수령 계산"
+      ? "봉급 계산"
       : "봉급·수당·여비";
 
   return (
@@ -1926,18 +1926,27 @@ function AutoDayMoneyLine({
  *  ========================= */
 
 // ✅ 입력칸 표시용(1만원 → 10,000)
+// - 0은 빈칸으로 보여서 "지운 것처럼" 보이게 함
 function formatNumberInput(n: number) {
   if (!Number.isFinite(n)) return "";
   const v = Math.trunc(n);
   return v === 0 ? "" : v.toLocaleString("ko-KR");
 }
 
-function clampInt(v: string, min: number, max: number) {
-  // ✅ 콤마 제거 후 숫자 파싱
+/**
+ * ✅ 숫자 입력 파싱 + 범위 고정
+ * - 빈 문자열("")이면 fallback을 반환 (기본: min)
+ * - 콤마 제거 후 정수로 변환
+ */
+function clampInt(v: string, min: number, max: number, fallback: number = min) {
   const cleaned = String(v).replace(/,/g, "").trim();
-  if (cleaned === "") return Number.NaN;
+
+  // ✅ 여기 핵심: 지웠을 때 NaN 말고 0(또는 min)으로 고정
+  if (cleaned === "") return fallback;
+
   const n = Number(cleaned);
-  if (!Number.isFinite(n)) return Number.NaN;
+  if (!Number.isFinite(n)) return fallback;
+
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
