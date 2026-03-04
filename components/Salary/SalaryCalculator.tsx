@@ -134,7 +134,7 @@ type SalaryInputs = {
   incomeTax_manual: number;
   localTax_mode: MoneyMode;
   localTax_manual: number;
-
+  taxFreeMonthly_manual: number;
   otherDeduction: number;
   management_excluded: boolean;
 };
@@ -289,10 +289,10 @@ function makeInitialInputs(series: SeriesKey = "general" as SeriesKey): SalaryIn
     allow_management_mode: "manual",
     allow_management_manual: 0,
 
-    allow_meal_mode: "manual",
+    allow_meal_mode: "auto",
     allow_meal_manual: 0,
 
-    allow_position_mode: "manual",
+    allow_position_mode: "auto",
     allow_position_manual: 0,
 
     allow_holiday_bonus_mode: "manual",
@@ -315,6 +315,7 @@ function makeInitialInputs(series: SeriesKey = "general" as SeriesKey): SalaryIn
     incomeTax_manual: 0,
     localTax_mode: "auto",
     localTax_manual: 0,
+    taxFreeMonthly_manual: 0,
     otherDeduction: 0,
 
     management_excluded: false,
@@ -350,6 +351,7 @@ export default function SalaryCalculator() {
       bosuMonthly_manual: inputs.bosuMonthly_manual ?? 0,
       standardMonthly_mode: inputs.standardMonthly_mode ?? "auto",
       standardMonthly_manual: inputs.standardMonthly_manual ?? 0,
+      taxFreeMonthly_manual: inputs.taxFreeMonthly_manual ?? 0,
     };
   }, [inputs]);
 
@@ -1081,7 +1083,13 @@ export default function SalaryCalculator() {
                   setInputs((p) => ({ ...p, standardMonthly_manual: v }))
                 }
               />
-
+<MoneyInput
+                label="추가 비과세 월액(세금계산용)"
+                value={safeInputs.taxFreeMonthly_manual}
+                onChange={(v) =>
+                  setInputs((p) => ({ ...p, taxFreeMonthly_manual: v }))
+                }
+              />
               <ReadOnlyMoneyLine label="일반기여금" value={result.breakdown.pension} />
               <ReadOnlyMoneyLine label="건강보험료" value={result.breakdown.health} />
               <ReadOnlyMoneyLine label="장기요양보험료" value={result.breakdown.care} />
@@ -1360,7 +1368,11 @@ function calcSalary(inputs: SalaryInputs): SalaryResult {
 
   // ✅ (세금 자동) 간이세액표 기준 소득세/지방세 계산
   const monthlyGrossPay = gross;
-  const monthlyTaxFree = allow_meal; // 비과세(최소: 정액급식비)
+  // 정액급식비는 비과세, 직급보조비는 과세
+  const monthlyTaxFree = Math.max(
+    0,
+    Math.trunc(allow_meal + (inputs.taxFreeMonthly_manual || 0))
+  );
 
   const tax = calcTaxesMonthly({
     monthlyGrossPay,
@@ -1915,19 +1927,21 @@ function AutoDayMoneyLine({
 
 // ✅ 입력칸 표시용(1만원 → 10,000)
 function formatNumberInput(n: number) {
-  const v = Number.isFinite(n) ? Math.trunc(n) : 0;
-  return v.toLocaleString("ko-KR");
+  if (!Number.isFinite(n)) return "";
+  const v = Math.trunc(n);
+  return v === 0 ? "" : v.toLocaleString("ko-KR");
 }
 
 function clampInt(v: string, min: number, max: number) {
   // ✅ 콤마 제거 후 숫자 파싱
   const cleaned = String(v).replace(/,/g, "").trim();
-  if (cleaned === "") return min;
+  if (cleaned === "") return Number.NaN;
   const n = Number(cleaned);
-  if (!Number.isFinite(n)) return min;
+  if (!Number.isFinite(n)) return Number.NaN;
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
 function formatWon(n: number) {
-  return `${Math.trunc(n).toLocaleString("ko-KR")}원`;
+  const safe = Number.isFinite(n) ? Math.trunc(n) : 0;
+  return `${safe.toLocaleString("ko-KR")}원`;
 }

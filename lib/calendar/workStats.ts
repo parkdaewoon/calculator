@@ -37,7 +37,7 @@ function overlapMinutes(a: Array<[number, number]>, b: Array<[number, number]>):
 }
 
 // ✅ 야간창: 22:00~06:00
-const NIGHT_WINDOW: TimeRange = { start: "18:00", end: "09:00" };
+const NIGHT_WINDOW: TimeRange = { start: "22:00", end: "06:00" };
 
 function getBreakMinutesForCode(workMode: WorkMode, code: ShiftCode): number {
   if (workMode.type === "DAY") {

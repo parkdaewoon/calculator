@@ -85,7 +85,7 @@ function minutesToHours(min: number) {
 }
 
 /** ✅ 야간창: 22:00~06:00 */
-const NIGHT_WINDOW = { start: "18:00", end: "09:00" };
+const NIGHT_WINDOW = { start: "22:00", end: "06:00" };
 
 /**
  * workMode 기준으로 "그 코드의 실제 근무구간"을 가져온다.

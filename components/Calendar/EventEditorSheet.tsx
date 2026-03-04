@@ -723,7 +723,16 @@ const [endTime, setEndTime] = useState("18:00");
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+  if (!canSave) return;
+
+  if (reminderMinutes !== null && typeof Notification !== "undefined") {
+    try {
+      if (Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
+    } catch {}
+  }
   if (!canSave) return;
 
   const base: any = event ? { ...(event as any) } : {};
