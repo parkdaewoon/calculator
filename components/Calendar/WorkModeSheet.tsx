@@ -130,7 +130,7 @@ function getDefaultTimes(): Partial<Record<ShiftCode, TimeRange>> {
   return {
     DAY: { start: "09:00", end: "18:00", breakMinutes: 60 },
     EVE: { start: "14:00", end: "22:00", breakMinutes: 60 },
-    NIGHT: { start: "22:00", end: "06:00", breakMinutes: 60 },
+    NIGHT: { start: "18:00", end: "09:00", breakMinutes: 60 },
     DANG: { start: "09:00", end: "09:00", breakMinutes: 0 },
   };
 }
