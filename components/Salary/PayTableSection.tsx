@@ -86,7 +86,7 @@ export default function PayTableSection({
           <select
             value={tableId}
             onChange={(e) => onChangeTable(e.target.value as PayTableId)}
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+            className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-base"
           >
             {tableIds.map((id) => (
               <option key={id} value={id}>
@@ -114,13 +114,13 @@ export default function PayTableSection({
         <label className="block">
           <div className="mb-1 text-xs text-neutral-500">호봉</div>
           <DraftNumberInput
-            key={`${tableId}:${step}`}
-            value={step}
-            min={1}
-            max={table.maxStep}
-            onCommit={onChangeStep}
-            className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-          />
+  key={`${tableId}:${step}`}
+  value={step}
+  min={1}
+  max={table.maxStep}
+  onCommit={onChangeStep}
+  className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-base"
+/>
         </label>
       </div>
 
