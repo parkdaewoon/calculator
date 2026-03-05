@@ -1,28 +1,66 @@
 import { lookupIncomeTax2024 } from "./lookup";
 
 export type FamilyInputs = {
-  /** 0 or 1 */
   spouse: number;
-  /** number of children (deduction-eligible) */
   children: number;
-  /** other dependents (deduction-eligible) */
   dependents: number;
-  /**
-   * Optional: number of children aged 8~20 (for additional withholding reduction rule in the table notes).
-   * If you don't model ages, set 0.
-   */
   childrenAge8to20?: number;
 };
 
+export type BonusInputs = {
+  /**
+   * 정근수당 "1회분" (원)
+   * - 연 1회분 금액(세전, 과세 기준)
+   */
+  jeonggeunOnce?: number;
+
+  /**
+   * 명절휴가비 "1회분" (원)
+   * - 명절 1회분 금액(세전, 과세 기준)
+   * - ⚠️ 여기서는 '명절1'만 반영 (명절2 곱하기 없음)
+   */
+  holidayOnce?: number;
+
+  /** 월 환산 분모 (요청: 6 고정) */
+  prorationDivisor?: 6;
+};
+
 export type TaxInputs = {
-  /** Monthly gross pay (원): 기본급 + 과세수당 + ... */
+  /** Monthly gross pay (원): 기본급 + 과세수당 + (지급월이면 정근/명절 전액 포함될 수 있음) */
   monthlyGrossPay: number;
-  /** Monthly tax-free total (원): 식대(20만 한도) + 출장여비 + 자녀보육수당(비과세) 등 */
+
+  /**
+   * Monthly tax-free total (원)
+   * ✅ 정액급식비(20만 한도)도 여기로 넣어서 과세에서 제외
+   */
   monthlyTaxFree: number;
+
   /** Monthly scholarship excluded from table (원). Default 0. */
   monthlyScholarship?: number;
+
   /** Family inputs used to determine deduction-eligible family count. */
   family: FamilyInputs;
+
+  /**
+   * ✅ 정근/명절 "연 1회분" 입력 (세금 계산에서 매달 1/6로 반영)
+   * - (정근 1회 + 명절 1회) / 6
+   */
+  bonuses?: BonusInputs;
+
+  /**
+   * ✅ 이번 달에 "실제로 지급된" 정근수당 전액(원)
+   * - 지급월: 전액 입력
+   * - 미지급월: 0
+   * - monthlyGrossPay에 포함되어 있다면, 세금 계산에서는 전액을 빼고 1/6만 더하기 위해 필요
+   */
+  jeonggeunPaidThisMonth?: number;
+
+  /**
+   * ✅ 이번 달에 "실제로 지급된" 명절휴가비 전액(원)
+   * - 지급월: 전액 입력
+   * - 미지급월: 0
+   */
+  holidayPaidThisMonth?: number;
 };
 
 export type TaxResult = {
@@ -46,17 +84,57 @@ export function calcFamilyCount(family: FamilyInputs): number {
   const spouse = family.spouse ? 1 : 0;
   const children = Math.max(0, Math.floor(family.children || 0));
   const dependents = Math.max(0, Math.floor(family.dependents || 0));
-  return 1 + spouse + children + dependents; // 본인 포함
+  return 1 + spouse + children + dependents;
+}
+
+/**
+ * ✅ 정근수당/명절휴가비 월 환산 가산액(세금용)
+ * - (정근 1회 + 명절 1회) / 6
+ */
+export function calcMonthlyBonusProration(bonuses?: BonusInputs): number {
+  if (!bonuses) return 0;
+
+  const jeonggeunOnce = Math.max(0, Math.floor(bonuses.jeonggeunOnce || 0));
+  const holidayOnce = Math.max(0, Math.floor(bonuses.holidayOnce || 0));
+  const divisor = 6; // 요청대로 고정
+
+  const lumpSum = jeonggeunOnce + holidayOnce;
+  return Math.floor(lumpSum / divisor);
 }
 
 /** 간이세액표 기준 소득세(국세) */
-export function calcIncomeTaxMonthly(params: TaxInputs): { taxableMonthlyPay: number; familyCount: number; incomeTax: number } {
+export function calcIncomeTaxMonthly(params: TaxInputs): {
+  taxableMonthlyPay: number;
+  familyCount: number;
+  incomeTax: number;
+} {
   const scholarship = Math.max(0, Math.floor(params.monthlyScholarship || 0));
-  const taxableMonthlyPay = Math.max(0, Math.floor(params.monthlyGrossPay - params.monthlyTaxFree - scholarship));
+  const bonusProration = calcMonthlyBonusProration(params.bonuses);
+
+  const jeonggeunPaid = Math.max(0, Math.floor(params.jeonggeunPaidThisMonth || 0));
+  const holidayPaid = Math.max(0, Math.floor(params.holidayPaidThisMonth || 0));
+
+  /**
+   * ✅ 세금용 과세대상급여
+   * 1) 이번달 실지급 총액에서 비과세/장학금 제외
+   * 2) 지급월에 들어있는 정근/명절 "전액"을 빼고
+   * 3) 대신 (정근1회+명절1회)/6 을 매달 더함
+   */
+  const taxableMonthlyPay = Math.max(
+    0,
+    Math.floor(
+      params.monthlyGrossPay
+        - params.monthlyTaxFree
+        - scholarship
+        - jeonggeunPaid
+        - holidayPaid
+        + bonusProration
+    )
+  );
+
   const familyCount = calcFamilyCount(params.family);
 
   const base = lookupIncomeTax2024(taxableMonthlyPay, familyCount, { clampToBounds: true });
-
   const childReduction = calcChildWithholdingReduction(params.family.childrenAge8to20 || 0);
 
   return {
@@ -68,7 +146,7 @@ export function calcIncomeTaxMonthly(params: TaxInputs): { taxableMonthlyPay: nu
 
 /**
  * 지방소득세 = 소득세의 10%
- * 실무에서 흔한 방식: 10원 단위 절사 (예: 4,906원 -> 4,900원)
+ * 실무에서 흔한 방식: 10원 단위 절사
  */
 export function calcLocalIncomeTaxMonthly(incomeTax: number): number {
   const raw = Math.floor(incomeTax * 0.1);

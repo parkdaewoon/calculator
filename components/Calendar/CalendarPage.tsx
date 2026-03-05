@@ -494,14 +494,18 @@ export default function CalendarPage() {
   return (
     <main className="min-h-screen bg-neutral-50 pb-10">
       <CalendarHeader
-        month={month}
-        onGoToday={() => {
-          setMonth(toMonthKey(today));
-          setSelectedDate(today);
-        }}
-        onOpenWorkMode={() => setWorkModeOpen(true)}
-        onClear={onClear}
-      />
+  month={month}
+  onGoToday={() => {
+    setMonth(toMonthKey(today));
+    setSelectedDate(today);
+  }}
+  onOpenWorkMode={() => setWorkModeOpen(true)}
+  onClear={onClear}
+  onChangeMonth={(next) => {
+  setMonth(next);
+  setSelectedDate((prev) => (toMonthKey(prev) === next ? prev : (next + "-01") as any));
+  }}
+/>
 
       <div className="mt-3 space-y-4">
         <MonthGrid

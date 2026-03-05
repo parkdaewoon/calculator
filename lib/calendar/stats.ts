@@ -141,22 +141,20 @@ function isWeekday(d: YYYYMMDD) {
 }
 
 /**
- * ✅ 반영 규칙
- * holidayDays(휴일근무일수) 카운트는 아래 3가지 경우만:
- *  1) 휴일 + DAY + net>=8h
- *  2) 휴일 + EVE + net>=8h
- *  3) 휴일 + DANG (시간조건 없음)
- *
- * ✅ 추가 요구
- * - SHIFT(교대근무)일 때만:
- *   totalHours(총근무시간) = (총 순근무시간) - (휴일근무로 카운트된 날의 순근무시간)
- *
- * ✅ 변경 요구(중요):
- * - DANG은 휴일근무여도 "총근무시간에서 공제하지 않는다"
- *   → holidayWorkCountedMin 누적에서 DANG 제외
- *
- * ✅ DANG 수당 규칙(유지):
- * - 휴일의 DANG은 휴일근무수당 전제 → nightHours에서 제외
+ * ✅ 규칙(확정)
+ * 1) SHIFT: 월 순근무시간(totalMin)에는 NIGHT 포함(그대로 더함)
+ * 2) 휴일근무일수(holidayDays) 카운트:
+ *    - 휴일 + DAY + net>=8h
+ *    - 휴일 + EVE + net>=8h
+ *    - 휴일 + DANG (조건 없음)
+ *    (NIGHT는 holidayDays에 포함하지 않음)
+ * 3) 휴일공제시간(총근무시간에서 뺄 시간):
+ *    - 휴일 + DAY/EVE + net>=8h  => netWorkMin 공제
+ *    - 휴일 + DANG              => 8h 고정 공제
+ *    - NIGHT는 공제하지 않음(월 순근무시간에 남김)
+ * 4) 야간수당시간(nightHours):
+ *    - "휴일근무로 인정되는 날"(DAY/EVE>=8h 또는 DANG)은 nightHours에서 제외
+ *    - NIGHT는 휴일이라도 제외 대상 아님(=그대로 야간시간 누적)
  */
 export function calcWorkStatsForMonth(
   params: CalcWorkStatsParams & { workMode?: any; holidays?: HolidaysMap }
@@ -171,7 +169,7 @@ export function calcWorkStatsForMonth(
   let nightMin = 0;
   let holidayDays = 0;
 
-  // ✅ "총근무시간에서 뺄" 휴일근무(분) — DANG은 제외할 예정
+  // ✅ 총근무시간에서 뺄 "휴일공제시간"(분)
   let holidayWorkCountedMin = 0;
 
   let normalWorkDays = 0;
@@ -198,6 +196,7 @@ export function calcWorkStatsForMonth(
     const isNormalWorkday = isWeekday(d) && !holidays?.[d]?.isHoliday;
     if (isNormalWorkday) normalWorkDays += 1;
 
+    // DAY 모드: 평일만 합산
     if (workMode?.type === "DAY") {
       if (isNormalWorkday) dayModeTotalMin += dayModeNetPerDayMin;
       continue;
@@ -215,47 +214,58 @@ export function calcWorkStatsForMonth(
     const breakMin = getBreakMinutesFromWorkMode(workMode, code);
     const netWorkMin = Math.max(0, workMin - breakMin);
 
+    // ✅ 1) 월 순근무시간에는 NIGHT 포함(그대로 누적)
     totalMin += netWorkMin;
 
-    // 야간 누적(비율 근사) — 휴일 DANG은 제외
-    if (wr) {
-      if (!(code === "DANG" && isHol)) {
-        const rawNight = overlapMinutes(
-          expandRange(wr.start, wr.end, code),
-          expandRange(NIGHT_WINDOW.start, NIGHT_WINDOW.end)
-        );
+    // ✅ 휴일근무(수당) 인정 여부(= 야간수당 제외 대상)
+    const isHolidayWorkForAllowance =
+      isHol &&
+      (
+        ((code === "DAY" || code === "EVE") && netWorkMin >= 8 * 60) ||
+        code === "DANG"
+      );
 
-        if (workMin > 0) {
-          const ratio = netWorkMin / workMin;
-          nightMin += Math.max(0, Math.round(rawNight * ratio));
-        }
+    // ✅ 4) 야간수당시간: 휴일근무 인정일(DAY/EVE>=8h 또는 DANG)은 제외
+    if (wr && !isHolidayWorkForAllowance) {
+      const rawNight = overlapMinutes(
+        expandRange(wr.start, wr.end, code),
+        expandRange(NIGHT_WINDOW.start, NIGHT_WINDOW.end)
+      );
+
+      if (workMin > 0) {
+        const ratio = netWorkMin / workMin;
+        nightMin += Math.max(0, Math.round(rawNight * ratio));
       }
     }
 
     if (isHol) {
-      // ✅ 휴일근무일수 카운트(기존 유지: DANG 포함)
+      // ✅ 2) holidayDays 카운트(기존 유지: NIGHT 제외)
       const isCountedHolidayDay =
         (code === "DAY" && netWorkMin >= 8 * 60) ||
         (code === "EVE" && netWorkMin >= 8 * 60) ||
         code === "DANG";
 
-      if (isCountedHolidayDay) {
-        holidayDays += 1;
-      }
+      if (isCountedHolidayDay) holidayDays += 1;
 
-      // ✅ 총근무시간 공제는 DAY/EVE만 (DANG 제외!)
+      // ✅ 3) 휴일공제시간(총근무시간에서 뺄 시간)
+      // - DAY/EVE(>=8h): net 공제
+      // - DANG: 8h 고정 공제
+      // - NIGHT: 공제하지 않음
       const isDeductTarget =
         (code === "DAY" && netWorkMin >= 8 * 60) ||
-        (code === "EVE" && netWorkMin >= 8 * 60);
+        (code === "EVE" && netWorkMin >= 8 * 60) ||
+        code === "DANG";
 
       if (isDeductTarget) {
-        holidayWorkCountedMin += netWorkMin;
+        if (code === "DANG") holidayWorkCountedMin += 8 * 60;
+        else holidayWorkCountedMin += netWorkMin; // DAY/EVE
       }
     }
   }
 
   const leaveDays = calcLeaveDaysForRange(events, start, end);
   const normalHours = normalWorkDays * 8;
+  const holidayDeductHours = round1(minutesToHours(holidayWorkCountedMin));
 
   const finalTotalMin =
     workMode?.type === "DAY"
@@ -268,10 +278,15 @@ export function calcWorkStatsForMonth(
     holidayDays,
     leaveDays: round1(leaveDays),
     normalHours: round1(normalHours),
+    holidayDeductHours,
   } as WorkStats;
 }
 
-function calcLeaveDaysForRange(events: CalendarEvent[], start: YYYYMMDD, end: YYYYMMDD) {
+function calcLeaveDaysForRange(
+  events: CalendarEvent[],
+  start: YYYYMMDD,
+  end: YYYYMMDD
+) {
   const leaveEvents = events.filter((e) => e?.type === "LEAVE");
 
   let sum = 0;

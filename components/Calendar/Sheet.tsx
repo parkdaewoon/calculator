@@ -1,15 +1,33 @@
 "use client";
 
 import React, { useEffect } from "react";
+import { X } from "lucide-react";
 
 type SheetProps = {
   open: boolean;
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
+
+  /** ✅ 상단 회색 핸들(윗줄처럼 보이는 것) 표시 여부 */
+  showHandle?: boolean;
+
+  /** ✅ 제목 옆 X 버튼 표시 여부 */
+  showCloseButton?: boolean;
+
+  /** ✅ 하단 구분선(아랫줄) 표시 여부 */
+  showDivider?: boolean;
 };
 
-export default function Sheet({ open, onClose, title, children }: SheetProps) {
+export default function Sheet({
+  open,
+  onClose,
+  title,
+  children,
+  showHandle = true,
+  showCloseButton = false,
+  showDivider = true,
+}: SheetProps) {
   // ✅ ESC 닫기
   useEffect(() => {
     if (!open) return;
@@ -65,21 +83,41 @@ export default function Sheet({ open, onClose, title, children }: SheetProps) {
           "absolute inset-x-0 bottom-0 mx-auto w-full max-w-md",
           "rounded-t-3xl bg-white",
           "shadow-[0_-20px_40px_rgba(0,0,0,0.18)]",
-          "max-h-[85dvh] overflow-hidden", // ✅ 패널 자체 고정
-          "pb-[env(safe-area-inset-bottom)]", // ✅ iOS 하단 안전영역
+          "max-h-[85dvh] overflow-hidden",
+          "pb-[env(safe-area-inset-bottom)]",
         ].join(" ")}
         role="dialog"
         aria-modal="true"
       >
         {/* header (고정) */}
         <div className="sticky top-0 z-10 bg-white px-4 pt-3">
-          <div className="mx-auto h-1.5 w-10 rounded-full bg-neutral-200" />
+          {/* ✅ 윗줄처럼 보이는 핸들 */}
+          {showHandle ? (
+            <div className="mx-auto h-1.5 w-10 rounded-full bg-neutral-200" />
+          ) : null}
+
+          {/* ✅ title + X */}
           {title ? (
-            <div className="mt-3 text-base font-semibold text-neutral-900">
-              {title}
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-base font-semibold text-neutral-900">
+                {title}
+              </div>
+
+              {showCloseButton ? (
+                <button
+                  onClick={onClose}
+                  className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100"
+                  type="button"
+                  aria-label="닫기"
+                >
+                  <X size={18} />
+                </button>
+              ) : null}
             </div>
           ) : null}
-          <div className="mt-3 h-px bg-neutral-100" />
+
+          {/* ✅ 아랫줄(divider) */}
+          {showDivider ? <div className="mt-3 h-px bg-neutral-100" /> : null}
         </div>
 
         {/* body (여기만 스크롤) */}

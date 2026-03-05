@@ -206,27 +206,26 @@ export default function MonthGrid({
     didSwipe.current = false;
   };
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    const sx = touchStartX.current;
-    const sy = touchStartY.current;
-    if (sx == null || sy == null) return;
+const onTouchMove = (e: React.TouchEvent) => {
+  const sx = touchStartX.current;
+  const sy = touchStartY.current;
+  if (sx == null || sy == null) return;
 
-    const t = e.touches[0];
-    const dx = t.clientX - sx;
-    const dy = t.clientY - sy;
+  const t = e.touches[0];
+  const dx = t.clientX - sx;
+  const dy = t.clientY - sy;
 
-    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > thresholdY) return;
+  // 세로 스크롤 의도면 스킵
+  if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > thresholdY) return;
 
-    if (!didSwipe.current && dx > thresholdX) {
-      didSwipe.current = true;
-      onPrevMonth();
-      e.preventDefault();
-    } else if (!didSwipe.current && dx < -thresholdX) {
-      didSwipe.current = true;
-      onNextMonth();
-      e.preventDefault();
-    }
-  };
+  if (!didSwipe.current && dx > thresholdX) {
+    didSwipe.current = true;
+    onPrevMonth();
+  } else if (!didSwipe.current && dx < -thresholdX) {
+    didSwipe.current = true;
+    onNextMonth();
+  }
+};
 
   const onTouchEnd = () => {
     touchStartX.current = null;

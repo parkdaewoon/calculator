@@ -138,7 +138,82 @@ type SalaryInputs = {
   otherDeduction: number;
   management_excluded: boolean;
 };
+// =========================
+// ✅ LocalStorage: Draft + History
+// =========================
+type SalaryHistoryItem = {
+  id: string;
+  savedAt: number; // epoch ms
+  label: string;   // "2026-03-05  9급 3호봉"
+  inputs: SalaryInputs;
+};
 
+const DRAFT_KEY = "salary_calc_inputs_draft_v1";
+const HISTORY_KEY = "salary_calc_inputs_history_v1";
+const HISTORY_MAX = 5;
+
+function safeParseJSON<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function loadDraft(): SalaryInputs | null {
+  if (typeof window === "undefined") return null;
+  return safeParseJSON<SalaryInputs>(localStorage.getItem(DRAFT_KEY));
+}
+
+function saveDraft(inputs: SalaryInputs) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(inputs));
+}
+
+function loadHistory(): SalaryHistoryItem[] {
+  if (typeof window === "undefined") return [];
+  return safeParseJSON<SalaryHistoryItem[]>(localStorage.getItem(HISTORY_KEY)) ?? [];
+}
+
+function saveHistory(list: SalaryHistoryItem[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+}
+
+function ymdLabel(ts: number) {
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// ✅ 날짜 + 직급 + 호봉(입력 기반)
+function makeHistoryLabel(inputs: SalaryInputs) {
+  const gradeGuess = columnKeyToGradeGuess(inputs.series, inputs.columnKey);
+  return `${ymdLabel(Date.now())}  ${gradeGuess}급 ${inputs.step}호봉`;
+}
+
+function addHistorySnapshot(inputs: SalaryInputs) {
+  const now = Date.now();
+  const item: SalaryHistoryItem = {
+    id: `${now}_${Math.random().toString(16).slice(2)}`,
+    savedAt: now,
+    label: makeHistoryLabel(inputs),
+    inputs,
+  };
+
+  const prev = loadHistory();
+  const next = [item, ...prev].slice(0, HISTORY_MAX);
+  saveHistory(next);
+  return next;
+}
+
+function clearHistory() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(HISTORY_KEY);
+}
 type SalaryBreakdown = {
   basePay: number;
 
@@ -323,9 +398,25 @@ function makeInitialInputs(series: SeriesKey = "general" as SeriesKey): SalaryIn
 }
 export default function SalaryCalculator() {
   const [active, setActive] = useState<SalaryTabKey | null>(null);
-  const [inputs, setInputs] = useState<SalaryInputs>(() => makeInitialInputs());
+  const [inputs, setInputs] = useState<SalaryInputs>(() => {
+  const draft = loadDraft();
+  return draft ?? makeInitialInputs();
+});
   const pathname = usePathname();
+// ✅ 히스토리 모달
+const [historyOpen, setHistoryOpen] = useState(false);
+const [history, setHistory] = useState<SalaryHistoryItem[]>([]);
+const [selectedId, setSelectedId] = useState<string | null>(null);
 
+// ✅ 최초 로드: 히스토리 읽기
+useEffect(() => {
+  setHistory(loadHistory());
+}, []);
+
+// ✅ 입력값 바뀔 때마다 draft 자동 저장
+useEffect(() => {
+  saveDraft(inputs);
+}, [inputs]);
   useEffect(() => {
     // ✅ 다른 화면(다른 route)으로 이동하면 초기화
     setInputs(makeInitialInputs());
@@ -386,13 +477,131 @@ export default function SalaryCalculator() {
               type="button"
               onClick={() => {
   setActive(null);
-  setInputs(makeInitialInputs()); // ✅ 입력값 초기화
+  setInputs(makeInitialInputs());
 }}
               className="shrink-0 rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
             >
               전체 메뉴
             </button>
           ) : null}
+          {/* =========================
+    ✅ History Modal
+   ========================= */}
+{historyOpen ? (
+  <div className="fixed inset-0 z-[200]">
+    <div
+      className="absolute inset-0 bg-black/40"
+      onClick={() => setHistoryOpen(false)}
+    />
+    <div className="absolute left-1/2 top-1/2 w-[92%] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-white p-4 shadow-2xl">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold text-neutral-900">이전 기록</div>
+        <button
+          type="button"
+          onClick={() => setHistoryOpen(false)}
+          className="rounded-xl px-3 py-2 text-[13px] font-semibold text-neutral-600 hover:bg-neutral-100"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {history.length === 0 ? (
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-500">
+            저장된 기록이 없습니다.
+          </div>
+        ) : (
+          history.slice(0, HISTORY_MAX).map((h) => {
+  const selected = selectedId === h.id;
+
+  return (
+    <div
+      key={h.id}
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        // ✅ 행 클릭: 바로 불러오기 + 닫기
+        setSelectedId(h.id);
+        setInputs(h.inputs);
+        setHistoryOpen(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setSelectedId(h.id);
+          setInputs(h.inputs);
+          setHistoryOpen(false);
+        }
+      }}
+      className={[
+        "w-full rounded-2xl border px-3 py-3 text-left transition cursor-pointer select-none",
+        selected
+          ? "border-neutral-900 bg-neutral-50"
+          : "border-neutral-200 bg-white hover:bg-neutral-50",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-neutral-900">
+            {h.label}
+          </div>
+          <div className="mt-1 text-[11px] text-neutral-500">
+            {new Date(h.savedAt).toLocaleString("ko-KR")}
+          </div>
+        </div>
+
+        {/* ✅ v 표시 (선택만 하고, 창은 안 닫힘) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation(); // ✅ 행 클릭(불러오기/닫기) 막기
+            setSelectedId(h.id); // ✅ 선택만
+          }}
+          className={[
+            "mt-0.5 grid h-6 w-6 place-items-center rounded-full border text-[14px] font-black",
+            selected
+              ? "border-neutral-900 bg-neutral-900 text-white"
+              : "border-neutral-300 bg-white text-transparent",
+          ].join(" ")}
+          aria-label={selected ? "선택됨" : "선택하기"}
+        >
+          ✓
+        </button>
+      </div>
+    </div>
+  );
+}))}
+      </div>
+
+      {/* ✅ 하단 버튼: 현재 저장 삭제, 기록 삭제만 */}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => {
+            if (!selectedId) {
+              alert("삭제할 기록을 선택하세요.");
+              return;
+            }
+            const ok = confirm("선택한 기록을 삭제할까요?");
+            if (!ok) return;
+
+            const next = history.filter((x) => x.id !== selectedId);
+            setHistory(next);
+            saveHistory(next); // ✅ localStorage 반영
+            setSelectedId(null);
+          }}
+          className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+        >
+          기록 삭제
+        </button>
+      </div>
+
+      <div className="mt-3 text-[11px] text-neutral-400">
+        * 입력값은 자동으로 '임시 저장'되며, 저장 버튼으로 히스토리(최대 5개)에 남깁니다.
+      </div>
+    </div>
+  </div>
+) : null}
         </div>
 
         <p className="mt-3 text-sm text-neutral-500">
@@ -404,11 +613,11 @@ export default function SalaryCalculator() {
 
       {!active && (
   <SalaryMenuGrid
-    onSelect={(next) => {
-      setInputs(makeInitialInputs()); // ✅ 이동할 때 초기화
-      setActive(next);
-    }}
-  />
+  onSelect={(next) => {
+    setInputs(makeInitialInputs());
+    setActive(next);
+  }}
+/>
 )}
 
       {active === "payTable" && (
@@ -442,7 +651,16 @@ export default function SalaryCalculator() {
               <div className="text-sm font-semibold text-neutral-900">
                 기본 정보
               </div>
-              <div className="text-xs text-neutral-400">자동 산출</div>
+              <button
+  type="button"
+  onClick={() => {
+    setHistory(loadHistory());
+    setHistoryOpen(true);
+  }}
+  className="text-xs text-blue-500 hover:underline"
+>
+  이전 기록 보기
+</button>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-3">
@@ -1031,11 +1249,6 @@ export default function SalaryCalculator() {
                   {formatWon(result.allowanceTotal)}
                 </div>
               </div>
-
-              <div className="text-xs text-neutral-400">
-                * 입력값과 자동 계산은 참고용이며, 실제 지급 수당과 차이가 있을 수
-                있습니다. 급여명세서·관련 규정을 확인해 주세요.
-              </div>
             </div>
           </section>
 
@@ -1071,34 +1284,27 @@ export default function SalaryCalculator() {
                   setInputs((p) => ({ ...p, standardMonthly_manual: v }))
                 }
               />
-              <MoneyInput
-                label="추가 비과세 월액(세금계산용)"
-                value={safeInputs.taxFreeMonthly_manual}
-                onChange={(v) =>
-                  setInputs((p) => ({ ...p, taxFreeMonthly_manual: v }))
-                }
-              />
               <ReadOnlyMoneyLine label="일반기여금" value={result.breakdown.pension} />
               <ReadOnlyMoneyLine label="건강보험료" value={result.breakdown.health} />
               <ReadOnlyMoneyLine label="장기요양보험료" value={result.breakdown.care} />
               <ReadOnlyMoneyLine label="소득세(간이)" value={result.breakdown.incomeTax} />
               <ReadOnlyMoneyLine label="지방소득세" value={result.breakdown.localTax} />
-
-              <MoneyInput
-                label="기타공제"
-                value={safeInputs.otherDeduction}
-                onChange={(v) => setInputs((p) => ({ ...p, otherDeduction: v }))}
-              />
+<AllowanceGroup title="기타 공제">
+  <MoneyInput
+    label="기타공제(합산)"
+    value={safeInputs.otherDeduction}
+    onChange={(v) => setInputs((p) => ({ ...p, otherDeduction: v }))}
+  />
+  <div className="text-[11px] text-neutral-500">
+    * 위 항목에 없는 공제(노조비, 상조회비, 대출상환 등)를 합산해서 입력하세요.
+  </div>
+</AllowanceGroup>
 
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
                 <div className="text-xs text-neutral-500">공제(합계)</div>
                 <div className="mt-1 text-base font-semibold text-neutral-900">
                   {formatWon(result.deductionTotal)}
                 </div>
-              </div>
-
-              <div className="text-xs text-neutral-400">
-                * 간이세액표, 예상 보수월액 및 기준소득월액을 참고하여 산정한 값으로 실제 공제액과 다를 수 있습니다.
               </div>
             </div>
           </section>
@@ -1118,10 +1324,39 @@ export default function SalaryCalculator() {
             </div>
           </section>
 
-          <div className="text-xs text-neutral-500">
-            * 실수령액은 입력값 기반 “예상”입니다. (보수월액/기준소득월액만 필요 시
-            “직접”으로 수정 가능)
-          </div>
+          <div className="text-xs text-neutral-500 ml-3">
+  * 실수령액은 '예상액'입니다.<br />
+  (자동 계산된 수당과 공제는 참고용이며 실제 지급액과 다를 수 있습니다.)
+</div>
+          {/* 데이터 저장 */}
+<section className="mt-3 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
+  <div className="flex items-center justify-between">
+    <div className="text-sm font-semibold text-neutral-900">
+      계산 데이터 저장
+    </div>
+
+    <button
+  type="button"
+  onClick={() => {
+    const ok = confirm("현재 계산 데이터를 저장하시겠습니까?");
+    if (!ok) return;
+
+    const next = addHistorySnapshot(inputs);
+    setHistory(next);
+    setSelectedId(next[0]?.id ?? null);
+
+    alert("저장되었습니다."); // ✅ 저장 완료 알림
+  }}
+  className="rounded-xl bg-neutral-900 px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800"
+>
+  저장하기
+</button>
+  </div>
+
+  <div className="mt-2 text-[11px] text-neutral-500">
+    현재 계산된 입력값을 저장하고 이전 기록에서 다시 불러올 수 있습니다.
+  </div>
+</section>
         </>
       )}
 
@@ -1352,29 +1587,56 @@ function calcSalary(inputs: SalaryInputs): SalaryResult {
   const health = auto_health;
   const care = auto_care;
 
-  const gross = basePay + allowanceTotal;
+    const gross = basePay + allowanceTotal;
 
-  // ✅ (세금 자동) 간이세액표 기준 소득세/지방세 계산
-  const monthlyGrossPay = gross;
-  // 정액급식비는 비과세, 직급보조비는 과세
-  const monthlyTaxFree = Math.max(
-    0,
-    Math.trunc(allow_meal + (inputs.taxFreeMonthly_manual || 0))
-  );
+// ✅ 비과세(월): 정액급식비 + 추가 비과세 입력
+const monthlyTaxFree = Math.max(
+  0,
+  Math.trunc(allow_meal + (inputs.taxFreeMonthly_manual || 0))
+);
 
-  const tax = calcTaxesMonthly({
-    monthlyGrossPay,
-    monthlyTaxFree,
-    monthlyScholarship: 0,
-    family: {
-      spouse: inputs.family_spouse,
-      children: inputs.family_children,
-      dependents: inputs.family_dependents,
-    },
-  });
+/** =========================
+ * ✅ 핵심 로직
+ * 1) 1/6 기준값은 항상 AUTO로 만든다 (지급여부/수동입력 무관)
+ * 2) 지급(체크)된 전액은 gross에 들어가되,
+ *    세금 계산에서는 전액을 빼고 1/6만 넣는다
+ * ========================= */
 
-  const auto_incomeTax = tax.incomeTax;
-  const auto_localTax = tax.localIncomeTax;
+// ✅ (A) 세금용 "1회분 기준값" (항상 자동)
+const jeonggeunOnceForTax = Math.max(0, Math.trunc(auto_long_bonus));       // 정근 1회(자동)
+const holidayOnceForTax   = Math.max(0, Math.trunc(auto_holiday_bonus));    // 명절 1회(자동)
+
+// ✅ (B) 매달 들어갈 1/6
+const bonusProration = Math.floor((jeonggeunOnceForTax + holidayOnceForTax) / 6);
+
+// ✅ (C) 이번달 실제 지급 전액(=수당합계에 들어간 값)
+// - 체크했으면 전액, 체크 안 했으면 0이어야 함
+// - 지금 구조에선 allow_* 값이 “이번달 지급액” 역할임
+const jeonggeunPaidThisMonth = Math.max(0, Math.trunc(allow_long_service_bonus));
+const holidayPaidThisMonth   = Math.max(0, Math.trunc(allow_holiday_bonus));
+
+// ✅ (D) 간이세액표에 넣을 월급여액(과세대상 급여의 입력값)
+// - gross에서 “지급된 전액”은 빼고,
+// - 대신 자동 1/6을 더한다
+const monthlyGrossPay = Math.max(
+  0,
+  Math.trunc(gross - jeonggeunPaidThisMonth - holidayPaidThisMonth + bonusProration)
+);
+
+// ✅ 세금 계산
+const tax = calcTaxesMonthly({
+  monthlyGrossPay,
+  monthlyTaxFree,
+  monthlyScholarship: 0,
+  family: {
+    spouse: inputs.family_spouse,
+    children: inputs.family_children,
+    dependents: inputs.family_dependents,
+  },
+});
+
+const auto_incomeTax = tax.incomeTax;
+const auto_localTax = tax.localIncomeTax;
 
   const incomeTax = pick(
     inputs.incomeTax_mode,

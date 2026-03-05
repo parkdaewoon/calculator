@@ -171,6 +171,8 @@ const BREAK_OPTIONS = [
   { label: "4시간", min: 240 },
   { label: "5시간", min: 300 },
   { label: "6시간", min: 360 },
+  { label: "7시간", min: 420 },
+  { label: "8시간", min: 480 },
 ];
 
 function TimeRangePicker({

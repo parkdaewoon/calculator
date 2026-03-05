@@ -72,4 +72,13 @@ export type WorkStats = {
   holidayDays: number;
   leaveDays: number;
   normalHours: number;
+  holidayDeductHours?: number;
+};
+
+export type CalendarHeaderProps = {
+  month: YYYYMM;
+  onGoToday: () => void;
+  onOpenWorkMode: () => void;
+  onClear: () => void;
+  onChangeMonth: (next: YYYYMM) => void;
 };
