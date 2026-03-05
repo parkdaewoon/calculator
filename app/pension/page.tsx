@@ -1,411 +1,195 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import AdsenseSlot from "@/components/AdsenseSlot";
+import PensionMenuGrid from "@/components/pension/PensionMenuGrid";
+import { type PensionTabKey } from "@/components/pension/tabs/PensionTabs";
+import type { BaseProfile } from "@/lib/domain/profile/types";
+import { makeDefaultProfile } from "@/lib/domain/profile/defaults";
+import { makeProfileLabel } from "@/lib/domain/profile/label";
+import {
+  addProfileSnapshot,
+  deleteProfileSnapshot,
+  loadProfileDraft,
+  loadProfileHistory,
+  saveProfileDraft,
+  type ProfileHistoryItem,
+} from "@/lib/services/storage/profileStorage";
 
-type PensionTab = "input" | "result" | "charts" | "detail" | "simulate";
+import BasicInfoForm from "@/components/pension/basic/BasicInfoForm";
+import BasicInfoHistoryModal from "@/components/pension/basic/BasicInfoHistoryModal";
 
-type Inputs = {
-  appointYear: number;
-  currentGrade: number;
-  currentMonthlyPay: number;
-  retireYear: number;
-  expectPromotion: boolean;
-  includeMilitary: boolean;
-};
+import SeveranceStub from "@/components/pension/severance/SeveranceStub";
+import PensionStub from "@/components/pension/pension/PensionStub";
+import CompareStub from "@/components/pension/compare/CompareStub";
 
-function won(n: number) {
-  return `${Math.max(0, Math.trunc(n)).toLocaleString("ko-KR")}원`;
-}
-
-function num(v: string, fallback = 0) {
-  const cleaned = v.replace(/,/g, "").trim();
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function clamp(v: number, lo: number, hi: number) {
-  return Math.min(hi, Math.max(lo, v));
-}
-
-function yearsBetween(start: number, end: number) {
-  return Math.max(0, end - start + 1);
-}
+/** ✅ 메뉴 포함 */
+type Tab = "menu" | PensionTabKey;
 
 export default function PensionPage() {
-  const now = new Date();
-  const thisYear = now.getFullYear();
+  const [tab, setTab] = useState<Tab>("menu");
 
-  const [openInputs, setOpenInputs] = useState(true);
-  const [tab, setTab] = useState<PensionTab>("input");
-  const [inputs, setInputs] = useState<Inputs>({
-    appointYear: thisYear - 12,
-    currentGrade: 7,
-    currentMonthlyPay: 3_397_240,
-    retireYear: thisYear + 23,
-    expectPromotion: true,
-    includeMilitary: true,
-  });
+  // ✅ BaseProfile: 단일 소스
+  const [profile, setProfile] = useState<BaseProfile>(() => makeDefaultProfile());
 
-  const result = useMemo(() => {
-    const serviceYears = yearsBetween(inputs.appointYear, inputs.retireYear);
-    const militaryYears = inputs.includeMilitary ? 2 : 0;
-    const totalYears = serviceYears + militaryYears;
+  // ✅ history modal
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<ProfileHistoryItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-    const growthRate = (inputs.expectPromotion ? 0.032 : 0.022) + 0.015; // 승진 + 물가/임금상승 가정
-    const projectedFinalPay = Math.round(
-      inputs.currentMonthlyPay * Math.pow(1 + growthRate, Math.max(0, inputs.retireYear - thisYear))
-    );
+  // 최초 로드
+  useEffect(() => {
+    const draft = loadProfileDraft();
+    if (draft) setProfile(draft);
+    setHistory(loadProfileHistory());
+  }, []);
 
-    // MVP 추정 모델: 소득대체율 1.9% * 가입연수 (상한 62%)
-    const replacementRate = clamp(totalYears * 0.019, 0.18, 0.62);
-    const estimatedMonthlyPension = Math.round(projectedFinalPay * replacementRate);
+  // profile 바뀔 때마다 draft 저장
+  useEffect(() => {
+    saveProfileDraft(profile);
+  }, [profile]);
 
-    const contributionRate = 0.09;
-    const totalContribution = Math.round(
-      inputs.currentMonthlyPay * contributionRate * 12 * totalYears * 1.12 // 평균 상승분 근사
-    );
-
-    const receive20y = estimatedMonthlyPension * 12 * 20;
-
-    const startAge = 35;
-    const retireAge = startAge + serviceYears;
-    const ages = Array.from({ length: 26 }, (_, i) => retireAge - 5 + i);
-
-    const pensionTrend = ages.map((age) => {
-      const diff = age - retireAge;
-      const factor = diff < 0 ? Math.max(0.72, 1 + diff * 0.05) : 1 + diff * 0.015;
-      return {
-        age,
-        amount: Math.round(estimatedMonthlyPension * factor),
-      };
-    });
-
-    const replacementTrend = ages.map((age) => {
-      const diff = age - retireAge;
-      const factor = diff < 0 ? Math.max(0.8, 1 + diff * 0.03) : 1 + diff * 0.005;
-      return {
-        age,
-        rate: clamp(replacementRate * factor, 0.12, 0.8),
-      };
-    });
-
-    return {
-      serviceYears,
-      totalYears,
-      projectedFinalPay,
-      replacementRate,
-      estimatedMonthlyPension,
-      totalContribution,
-      receive20y,
-      pensionTrend,
-      replacementTrend,
-      retireAge,
-    };
-  }, [inputs, thisYear]);
-
-  const compareCards = [
-    {
-      label: "+1년 더 근무하면?",
-      value: Math.round(result.estimatedMonthlyPension * 1.022),
-    },
-    {
-      label: "승진 반영 OFF",
-      value: Math.round(result.estimatedMonthlyPension * 0.91),
-    },
-    {
-      label: "보수 5% 추가 상승",
-      value: Math.round(result.estimatedMonthlyPension * 1.05),
-    },
-  ];
+  const title =
+    tab === "menu"
+      ? "연금"
+      : tab === "basic"
+      ? "기본 정보"
+      : tab === "severance"
+      ? "퇴직수당"
+      : tab === "pension"
+      ? "연금 계산"
+      : "납부액·수령액 비교";
 
   return (
-    <div className="space-y-4 pb-6">
-      <AdsenseSlot />
+    <div className="space-y-5">
+      {/* 헤더(봉급 페이지 느낌) */}
+      <section className="pt-1">
+        <div className="text-[11px] tracking-[0.25em] text-neutral-400">
+          NOTE KOREAN OFFICER
+        </div>
 
-      <section className="grid grid-cols-2 gap-3">
-        <Card title="예상 퇴직연도" value={`${inputs.retireYear}년`} />
-        <Card title="예상 월 연금액" value={won(result.estimatedMonthlyPension)} />
-        <Card title="총 납부기간" value={`${result.totalYears}년`} />
-        <Card title="소득대체율" value={`${(result.replacementRate * 100).toFixed(1)}%`} />
-      </section>
+        <div className="mt-2 flex items-start justify-between gap-3">
+          <h1 className="text-2xl font-semibold leading-snug tracking-tight">
+            {title}
+            <br />
+          </h1>
 
-      <section className="rounded-3xl border border-neutral-200 bg-white p-2 shadow-sm">
-        <div className="grid grid-cols-5 gap-1">
-          {[
-            ["input", "입력"],
-            ["result", "결과"],
-            ["charts", "그래프"],
-            ["detail", "상세"],
-            ["simulate", "시뮬"],
-          ].map(([key, label]) => (
+          {tab !== "menu" ? (
             <button
-              key={key}
               type="button"
-              onClick={() => setTab(key as PensionTab)}
-              className={[
-                "rounded-2xl px-2 py-2 text-xs font-medium",
-                tab === key ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-50",
-              ].join(" ")}
+              onClick={() => setTab("menu")}
+              className="shrink-0 rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
             >
-              {label}
+              전체 메뉴
             </button>
-          ))}
+          ) : null}
         </div>
+
+        <p className="mt-3 text-sm text-neutral-500">
+          {tab === "menu"
+            ? "기본 정보를 저장하고, 퇴직수당·연금·비교를 한 곳에서 확인하세요."
+            : "기본 정보를 저장하면, 퇴직수당/연금/비교 탭에서 자동 반영됩니다."}
+        </p>
       </section>
 
-      {tab === "input" ? (
-        <section className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between"
-            onClick={() => setOpenInputs((v) => !v)}
-          >
-            <h2 className="text-sm font-semibold text-neutral-900">기본 정보 입력</h2>
-            <span className="text-xs text-neutral-500">{openInputs ? "접기" : "펼치기"}</span>
-          </button>
-
-          {openInputs ? (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <Input
-                label="임용년도"
-                value={inputs.appointYear}
-                onChange={(v) => setInputs((p) => ({ ...p, appointYear: clamp(v, 1980, 2099) }))}
-              />
-              <Input
-                label="현재 직급"
-                value={inputs.currentGrade}
-                onChange={(v) => setInputs((p) => ({ ...p, currentGrade: clamp(v, 1, 9) }))}
-              />
-              <Input
-                label="현재 보수월액"
-                value={inputs.currentMonthlyPay}
-                onChange={(v) => setInputs((p) => ({ ...p, currentMonthlyPay: Math.max(0, v) }))}
-              />
-              <Input
-                label="예상 퇴직년도"
-                value={inputs.retireYear}
-                onChange={(v) => setInputs((p) => ({ ...p, retireYear: clamp(v, thisYear, 2100) }))}
-              />
-
-              <Toggle
-                label="승진 예상"
-                checked={inputs.expectPromotion}
-                onChange={(checked) => setInputs((p) => ({ ...p, expectPromotion: checked }))}
-              />
-              <Toggle
-                label="군복무 포함"
-                checked={inputs.includeMilitary}
-                onChange={(checked) => setInputs((p) => ({ ...p, includeMilitary: checked }))}
-              />
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      {tab === "result" ? (
-        <section className="rounded-3xl bg-neutral-900 p-5 text-white shadow-sm">
-          <div className="text-sm text-white/70">예상 연금 결과</div>
-          <div className="mt-2 text-3xl font-bold tracking-tight">{won(result.estimatedMonthlyPension)}</div>
-          <div className="mt-2 text-sm text-white/80">
-            예상 퇴직 시 총 납부액 {won(result.totalContribution)} · 20년 수령 총액 {won(result.receive20y)}
-          </div>
-        </section>
-      ) : null}
-
-      {tab === "charts" ? (
-        <section className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-neutral-900">그래프 시각화</h3>
-          <SimpleLineChart
-            title="연금 예상 월 수령액 추이"
-            data={result.pensionTrend.map((d) => d.amount)}
-            labels={result.pensionTrend.map((d) => `${d.age}세`)}
-            formatter={(v) => `${Math.round(v / 10000)}만원`}
+      {/* ✅ 메뉴 화면 */}
+      {tab === "menu" ? (
+        <>
+          <PensionMenuGrid
+            onSelect={(next) => {
+              setTab(next);
+            }}
           />
 
-          <BarCompare
-            title="납부액 vs 20년 수령액"
-            leftLabel="총 납부액"
-            leftValue={result.totalContribution}
-            rightLabel="20년 총 수령액"
-            rightValue={result.receive20y}
-          />
-
-          <SimpleLineChart
-            title="소득대체율 변화"
-            data={result.replacementTrend.map((d) => Math.round(d.rate * 1000) / 10)}
-            labels={result.replacementTrend.map((d) => `${d.age}세`)}
-            formatter={(v) => `${v.toFixed(1)}%`}
-          />
-        </section>
-      ) : null}
-
-      {tab === "detail" ? (
-        <section className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-neutral-900">상세 계산 내역</h3>
-          <ul className="mt-2 space-y-1 text-sm text-neutral-600">
-            <li>• 기준소득월액(추정): {won(result.projectedFinalPay)}</li>
-            <li>• 적용률(소득대체율): {(result.replacementRate * 100).toFixed(1)}%</li>
-            <li>• 재직기간(군복무 포함): {result.totalYears}년</li>
-            <li>• 조기퇴직 감액은 연령별 시뮬레이션 그래프에서 반영</li>
-          </ul>
-        </section>
-      ) : null}
-
-      {tab === "simulate" ? (
-        <section className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-neutral-900">시뮬레이션 비교</h3>
-          <div className="mt-3 grid grid-cols-1 gap-2">
-            {compareCards.map((c) => (
-              <div key={c.label} className="rounded-2xl border border-neutral-200 p-3">
-                <div className="text-xs text-neutral-500">{c.label}</div>
-                <div className="mt-1 text-lg font-semibold text-neutral-900">{won(c.value)}</div>
+          {/* 하단 광고(봉급 페이지와 동일 스타일) */}
+          <section className="pt-2 pb-2">
+            <div className="h-px bg-neutral-100" />
+            <div className="mt-4 flex justify-center">
+              <div className="w-full max-w-md rounded-2xl border border-neutral-100 bg-white p-3 text-center shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
+                <AdsenseSlot height={90} />
               </div>
-            ))}
-          </div>
-        </section>
+            </div>
+          </section>
+        </>
       ) : null}
-    </div>
-  );
-}
 
-function Card({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-      <div className="text-xs text-neutral-500">{title}</div>
-      <div className="mt-1 text-base font-semibold text-neutral-900">{value}</div>
-    </div>
-  );
-}
+      {/* 기본 정보 */}
+      {tab === "basic" ? (
+        <>
+          <BasicInfoForm
+            profile={profile}
+            onChange={setProfile}
+            onOpenHistory={() => {
+              setHistory(loadProfileHistory());
+              setHistoryOpen(true);
+            }}
+          />
 
-function Input({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs text-neutral-500">{label}</div>
-      <input
-        inputMode="numeric"
-        value={value.toLocaleString("ko-KR")}
-        onChange={(e) => onChange(Math.trunc(num(e.target.value)))}
-        className="w-full rounded-2xl border border-neutral-200 px-3 py-2 text-sm"
+          {/* 저장 섹션 */}
+          <section className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-neutral-900">
+                기본정보 저장
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const ok = confirm("현재 기본정보를 저장하시겠습니까?");
+                  if (!ok) return;
+
+                  const label = makeProfileLabel(profile);
+                  const next = addProfileSnapshot(label, profile);
+
+                  setHistory(next);
+                  setSelectedId(next[0]?.id ?? null);
+
+                  alert("저장되었습니다.");
+                }}
+                className="rounded-xl bg-neutral-900 px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800"
+              >
+                저장하기
+              </button>
+            </div>
+
+            <div className="mt-2 text-[11px] text-neutral-500">
+              임시저장(draft)은 자동으로 유지되고, 저장하기는 기록(최대 5개)에 남깁니다.
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {/* 다른 탭들: 일단 stub */}
+      {tab === "severance" ? <SeveranceStub profile={profile} /> : null}
+      {tab === "pension" ? <PensionStub profile={profile} /> : null}
+      {tab === "compare" ? <CompareStub profile={profile} /> : null}
+
+      {/* History Modal */}
+      <BasicInfoHistoryModal
+        open={historyOpen}
+        items={history}
+        selectedId={selectedId}
+        onClose={() => setHistoryOpen(false)}
+        onPick={(item) => {
+          setSelectedId(item.id);
+          setProfile(item.profile);
+          setHistoryOpen(false);
+        }}
+        onSelectOnly={(id) => setSelectedId(id)}
+        onDeleteSelected={() => {
+          if (!selectedId) {
+            alert("삭제할 기록을 선택하세요.");
+            return;
+          }
+          const ok = confirm("선택한 기록을 삭제할까요?");
+          if (!ok) return;
+          const next = deleteProfileSnapshot(selectedId);
+          setHistory(next);
+          setSelectedId(null);
+        }}
       />
-    </label>
-  );
-}
 
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={[
-        "rounded-2xl border px-3 py-2 text-left text-sm",
-        checked
-          ? "border-neutral-900 bg-neutral-900 text-white"
-          : "border-neutral-200 bg-white text-neutral-700",
-      ].join(" ")}
-    >
-      {label}: {checked ? "반영" : "미반영"}
-    </button>
-  );
-}
-
-function SimpleLineChart({
-  title,
-  data,
-  labels,
-  formatter,
-}: {
-  title: string;
-  data: number[];
-  labels: string[];
-  formatter: (v: number) => string;
-}) {
-  const w = 320;
-  const h = 120;
-  const pad = 16;
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data, 0);
-  const range = Math.max(1, max - min);
-
-  const points = data
-    .map((v, i) => {
-      const x = pad + (i * (w - pad * 2)) / Math.max(1, data.length - 1);
-      const y = h - pad - ((v - min) * (h - pad * 2)) / range;
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  return (
-    <div className="rounded-2xl border border-neutral-200 p-3">
-      <div className="text-xs font-semibold text-neutral-700">{title}</div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="mt-2 w-full">
-        <polyline fill="none" stroke="#171717" strokeWidth="2" points={points} />
-      </svg>
-      <div className="mt-2 flex items-center justify-between text-[11px] text-neutral-500">
-        <span>{labels[0]}</span>
-        <span>{formatter(data[Math.floor(data.length / 2)] ?? 0)}</span>
-        <span>{labels[data.length - 1]}</span>
-      </div>
-    </div>
-  );
-}
-
-function BarCompare({
-  title,
-  leftLabel,
-  leftValue,
-  rightLabel,
-  rightValue,
-}: {
-  title: string;
-  leftLabel: string;
-  leftValue: number;
-  rightLabel: string;
-  rightValue: number;
-}) {
-  const max = Math.max(leftValue, rightValue, 1);
-  const lw = Math.round((leftValue / max) * 100);
-  const rw = Math.round((rightValue / max) * 100);
-
-  return (
-    <div className="rounded-2xl border border-neutral-200 p-3">
-      <div className="text-xs font-semibold text-neutral-700">{title}</div>
-      <div className="mt-2 space-y-2 text-xs">
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-neutral-500">{leftLabel}</span>
-            <span className="font-medium text-neutral-900">{won(leftValue)}</span>
-          </div>
-          <div className="h-2 rounded-full bg-neutral-100">
-            <div className="h-2 rounded-full bg-neutral-700" style={{ width: `${lw}%` }} />
-          </div>
-        </div>
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-neutral-500">{rightLabel}</span>
-            <span className="font-medium text-neutral-900">{won(rightValue)}</span>
-          </div>
-          <div className="h-2 rounded-full bg-neutral-100">
-            <div className="h-2 rounded-full bg-neutral-900" style={{ width: `${rw}%` }} />
-          </div>
-        </div>
-      </div>
+      <div className="h-2" />
     </div>
   );
 }
