@@ -2010,14 +2010,14 @@ function AutoTimeMoneyLine({
       <div className="mt-2 grid grid-cols-2 gap-2">
         <label className="block">
           <div className="text-xs text-neutral-500">시간</div>
-          <input
-            type="number"
-            min={0}
-            max={300}
-            value={hours}
-            onChange={(e) => onHoursChange(clampInt(e.target.value, 0, 300))}
-            className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-          />
+          <DraftNumberInput
+  key={`hours:${label}:${hours}`}
+  value={hours}
+  min={0}
+  max={300}
+  onCommit={onHoursChange}
+  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+/>
         </label>
 
         {mode === "auto" ? (
@@ -2136,14 +2136,14 @@ function AutoDayMoneyLine({
       <div className="mt-2 grid grid-cols-2 gap-2">
         <label className="block">
           <div className="text-xs text-neutral-500">일수</div>
-          <input
-            type="number"
-            min={0}
-            max={31}
-            value={days}
-            onChange={(e) => onDaysChange(clampInt(e.target.value, 0, 31))}
-            className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-          />
+          <DraftNumberInput
+  key={`days:${label}:${days}`}
+  value={days}
+  min={0}
+  max={31}
+  onCommit={onDaysChange}
+  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+/>
         </label>
 
         {mode === "auto" ? (
