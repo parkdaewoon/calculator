@@ -488,13 +488,13 @@ export default function EventEditorSheet({
   const isEdit = !!event?.id;
 
   // ===== 유형 색상(저장/불러오기) =====
-  const [typeColors, setTypeColors] = useState<TypeColorMap>(() => loadTypeColors());
+  const [typeColors, setTypeColors] = useState<Record<string, string>>(() => loadTypeColors() as any);
   useEffect(() => saveTypeColors(typeColors), [typeColors]);
 
   const newId = () => crypto.randomUUID();
 
   const [colorSheetOpen, setColorSheetOpen] = useState(false);
-  const [colorEditingKey, setColorEditingKey] = useState<TypeKey | null>(null);
+  const [colorEditingKey, setColorEditingKey] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
 
@@ -528,7 +528,10 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
 
   const [typeSheetOpen, setTypeSheetOpen] = useState(false);
   const [reminderSheetOpen, setReminderSheetOpen] = useState(false);
-
+const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
+  work: true,
+  duty: false,
+});
   useEffect(() => {
     if (!menuOpen) return;
     const onDown = (e: MouseEvent) => {
@@ -626,9 +629,6 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
   const removeCurrentTypeItem = () => {
     const { main, sub } = unpackType(typeValue);
     if (!sub) return;
-
-    const defaults = new Set(main === "WORK" ? DEFAULT_WORK_SUBS : DEFAULT_DUTY_SUBS);
-    if (defaults.has(sub)) return;
 
     if (main === "WORK") {
       setWorkSubs((prev) => prev.filter((x) => x !== sub));
@@ -1055,7 +1055,32 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
         }
       >
         <div className="space-y-3">
-          <div className="text-xs font-semibold text-neutral-500">업무</div>
+  {/* ===== Accordion: 업무 ===== */}
+  <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+    <button
+      type="button"
+      onClick={() => setTypeAcc((p) => ({ work: !p.work, duty: false }))}
+      className="flex w-full items-center justify-between px-4 py-3 text-left"
+    >
+      <div className="text-xs font-semibold text-neutral-600">업무</div>
+      <div
+        className={[
+          "text-neutral-400 transition-transform",
+          typeAcc.work ? "rotate-180" : "rotate-0",
+        ].join(" ")}
+      >
+        ▾
+      </div>
+    </button>
+
+    <div
+      className={[
+        "grid transition-[grid-template-rows] duration-200 ease-out",
+        typeAcc.work ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+      ].join(" ")}
+    >
+      <div className="min-h-0 overflow-hidden">
+        <div className="px-3 pb-3">
           <div className="space-y-2">
             {typeOptions.work.map((o) => {
               const active = typeValue === o.value;
@@ -1115,8 +1140,37 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
               );
             })}
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-          <div className="pt-2 text-xs font-semibold text-neutral-500">복무</div>
+  {/* ===== Accordion: 복무 ===== */}
+  <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+    <button
+      type="button"
+      onClick={() => setTypeAcc((p) => ({ work: false, duty: !p.duty }))}
+      className="flex w-full items-center justify-between px-4 py-3 text-left"
+    >
+      <div className="text-xs font-semibold text-neutral-600">복무</div>
+      <div
+        className={[
+          "text-neutral-400 transition-transform",
+          typeAcc.duty ? "rotate-180" : "rotate-0",
+        ].join(" ")}
+      >
+        ▾
+      </div>
+    </button>
+
+    <div
+      className={[
+        "grid transition-[grid-template-rows] duration-200 ease-out",
+        typeAcc.duty ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+      ].join(" ")}
+    >
+      <div className="min-h-0 overflow-hidden">
+        <div className="px-3 pb-3">
           <div className="space-y-2">
             {typeOptions.duty.map((o) => {
               const active = typeValue === o.value;
@@ -1177,46 +1231,53 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
             })}
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
       </BottomSheet>
 
       {/* 색상 선택 */}
-      <BottomSheet
-        open={colorSheetOpen}
-        title="색상 선택"
-        onClose={() => {
-          setColorSheetOpen(false);
-          setColorEditingKey(null);
-        }}
-      >
-        <div className="grid grid-cols-6 gap-3">
-          {COLOR_PRESETS.map((c) => {
-            const active = !!colorEditingKey && typeColors[colorEditingKey] === c;
+<BottomSheet
+  open={colorSheetOpen}
+  title="색상 선택"
+  onClose={() => {
+    setColorSheetOpen(false);
+    setColorEditingKey(null);
+  }}
+>
+  <div className="grid grid-cols-6 gap-3">
+    {COLOR_PRESETS.map((c) => {
+      const active =
+        !!colorEditingKey && (typeColors?.[colorEditingKey] === c);
 
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => {
-                  if (!colorEditingKey) return;
-                  setTypeColors((p) => ({ ...p, [colorEditingKey]: c }));
-                  setColorSheetOpen(false);
-                  setColorEditingKey(null);
-                }}
-                className={[
-                  "grid place-items-center rounded-2xl p-2",
-                  active ? "bg-neutral-100" : "hover:bg-neutral-50",
-                ].join(" ")}
-                aria-label={`색상 ${c}`}
-              >
-                <span
-                  className="h-7 w-7 rounded-full border border-black/10"
-                  style={{ backgroundColor: c }}
-                />
-              </button>
-            );
-          })}
-        </div>
-      </BottomSheet>
+      return (
+        <button
+          key={c}
+          type="button"
+          onClick={() => {
+            if (!colorEditingKey) return;
+
+            setTypeColors((p) => ({ ...(p ?? {}), [colorEditingKey]: c }));
+
+            setColorSheetOpen(false);
+            setColorEditingKey(null);
+          }}
+          className={[
+            "grid place-items-center rounded-2xl p-2",
+            active ? "bg-neutral-100" : "hover:bg-neutral-50",
+          ].join(" ")}
+          aria-label={`색상 ${c}`}
+        >
+          <span
+            className="h-7 w-7 rounded-full border border-black/10"
+            style={{ backgroundColor: c }}
+          />
+        </button>
+      );
+    })}
+  </div>
+</BottomSheet>
 
       {/* 알림 선택 */}
       <BottomSheet

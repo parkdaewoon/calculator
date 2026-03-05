@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { MonthGridProps } from "./types";
 import DayCell from "./DayCell";
 import { buildMonthGrid, getMonthRange } from "@/lib/calendar";
 
-import { loadTypeColors } from "@/lib/storage/typeColorStorage";
+import { loadTypeColors, TYPE_COLORS_UPDATED_EVENT } from "@/lib/storage/typeColorStorage";
 import { hexToRgba } from "@/lib/calendar/typeColors";
 
 const DOW = ["일", "월", "화", "수", "목", "금", "토"] as const;
@@ -54,7 +54,22 @@ export default function MonthGrid({
     });
   }, [events, start, end]);
 
-  const typeColors = useMemo(() => loadTypeColors(), []);
+  const [typeColors, setTypeColors] = useState(() => loadTypeColors());
+
+useEffect(() => {
+  const refresh = () => setTypeColors(loadTypeColors());
+
+  // ✅ 같은 탭에서 저장해도 반영
+  window.addEventListener(TYPE_COLORS_UPDATED_EVENT, refresh);
+
+  // ✅ 다른 탭에서 바뀐 경우(storage 이벤트)
+  window.addEventListener("storage", refresh);
+
+  return () => {
+    window.removeEventListener(TYPE_COLORS_UPDATED_EVENT, refresh);
+    window.removeEventListener("storage", refresh);
+  };
+}, []);
 
   // ✅ 하루/기간 이벤트를 모두 "주(row) 점유"로 라인 배치해서 seg로 만들기
   const segments = useMemo(() => {
