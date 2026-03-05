@@ -25,6 +25,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useLockBodyScroll } from "@/lib/hooks/useLockBodyScroll";
+import DateWheelModal from "@/components/ui/wheel/presets/DateWheelModal";
+import TimeWheelModal from "@/components/ui/wheel/presets/TimeWheelModal";
+import type { HHMM } from "@/components/Calendar/types";
+
 type Props = {
   open: boolean;
   date: YYYYMMDD;
@@ -498,9 +502,14 @@ export default function EventEditorSheet({
   const [endDate, setEndDate] = useState<YYYYMMDD>(normalizeYmd(date));
 
   const [allDay, setAllDay] = useState(false);
-  const [startTime, setStartTime] = useState("09:00");
-const [endTime, setEndTime] = useState("18:00");
+  const [startTime, setStartTime] = useState<HHMM>("09:00" as HHMM);
+const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
+  // ✅ Wheel modal picker state (날짜/시간 어떤 모달 열지)
+  type PickerKey = "startDate" | "endDate" | "startTime" | "endTime" | null;
+  const [picker, setPicker] = useState<PickerKey>(null);
 
+  const openPicker = (k: Exclude<PickerKey, null>) => setPicker(k);
+  const closePicker = () => setPicker(null);
   const [location, setLocation] = useState("");
   const [url, setUrl] = useState("");
   const [memo, setMemo] = useState("");
@@ -517,47 +526,8 @@ const [endTime, setEndTime] = useState("18:00");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const [pick, setPick] = useState<null | { kind: "startDate" | "endDate" | "startTime" | "endTime" }>(null);
-  const [tempValue, setTempValue] = useState("");
-
-  const [datePickerCenter, setDatePickerCenter] = useState<YYYYMMDD>(normalizeYmd(date));
-
   const [typeSheetOpen, setTypeSheetOpen] = useState(false);
   const [reminderSheetOpen, setReminderSheetOpen] = useState(false);
-
-  const timeItems = useMemo(() => buildTimeList(5), []);
-  const dateItems = useMemo(() => {
-    if (!pick) return [];
-    if (pick.kind !== "startDate" && pick.kind !== "endDate") return [];
-    const base = pick.kind === "startDate" ? startDate : endDate;
-    const center = normalizeYmd(base || date);
-    return buildDateListAround(center, 120);
-  }, [pick, startDate, endDate, date]);
-
-  useEffect(() => {
-    if (!pick) return;
-
-    if (pick.kind === "startDate") {
-      const v = normalizeYmd(startDate || date);
-      setTempValue(v);
-      setDatePickerCenter(v);
-      return;
-    }
-
-    if (pick.kind === "endDate") {
-      const v = normalizeYmd(endDate || date);
-      setTempValue(v);
-      setDatePickerCenter(v);
-      return;
-    }
-
-    if (pick.kind === "startTime") {
-      setTempValue(startTime);
-      return;
-    }
-
-    setTempValue(endTime);
-  }, [pick, startDate, endDate, startTime, endTime, date]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -592,8 +562,8 @@ const [endTime, setEndTime] = useState("18:00");
     setEndDate(baseEnd || baseStart || normalizeYmd(date));
 
     setAllDay(!!e?.allDay);
-    setStartTime((e?.startTime ?? "09:00") as string);
-    setEndTime((e?.endTime ?? "18:00") as string);
+    setStartTime(((e?.startTime ?? "09:00") as any) as HHMM);
+    setEndTime(((e?.endTime ?? "18:00") as any) as HHMM);
 
     setLocation((e?.location ?? "") as string);
     setUrl((e?.url ?? e?.link ?? "") as string);
@@ -615,11 +585,6 @@ const [endTime, setEndTime] = useState("18:00");
     setAddingType(false);
     setNewTypeInput("");
     setMenuOpen(false);
-    setPick(null);
-    setTempValue("");
-
-    setDatePickerCenter(baseStart || normalizeYmd(date));
-
     setTypeSheetOpen(false);
     setReminderSheetOpen(false);
   }, [open, event, date]);
@@ -640,53 +605,6 @@ const [endTime, setEndTime] = useState("18:00");
 
   return true;
 }, [title, startDate, endDate, allDay, startTime, endTime]);
-
-  const openPicker = (kind: "startDate" | "endDate" | "startTime" | "endTime") => {
-    if (kind === "startDate") {
-      const v = normalizeYmd(startDate || date);
-      setTempValue(v);
-      setDatePickerCenter(v);
-      setPick({ kind });
-      return;
-    }
-    if (kind === "endDate") {
-      const v = normalizeYmd(endDate || date);
-      setTempValue(v);
-      setDatePickerCenter(v);
-      setPick({ kind });
-      return;
-    }
-    if (kind === "startTime") {
-      setTempValue(startTime);
-      setPick({ kind });
-      return;
-    }
-    setTempValue(endTime);
-    setPick({ kind });
-  };
-
-  const confirmPicker = () => {
-    if (!pick) return;
-
-    if (pick.kind === "startDate") {
-      const v = normalizeYmd(tempValue);
-      if (v) {
-        setStartDate(v);
-        if (v > endDate) setEndDate(v);
-      }
-    }
-    if (pick.kind === "endDate") {
-      const v = normalizeYmd(tempValue);
-      if (v) {
-        setEndDate(v);
-        if (v < startDate) setStartDate(v);
-      }
-    }
-    if (pick.kind === "startTime") setStartTime(tempValue);
-    if (pick.kind === "endTime") setEndTime(tempValue);
-
-    setPick(null);
-  };
 
   const addTypeItem = () => {
     const v = newTypeInput.trim();
@@ -1021,36 +939,60 @@ const [endTime, setEndTime] = useState("18:00");
         </button>
       </div>
 
-      {/* Picker */}
-      <WheelModal
-        open={!!pick}
-        title={
-          pick?.kind === "startDate"
-            ? "시작 날짜 선택"
-            : pick?.kind === "endDate"
-            ? "종료 날짜 선택"
-            : pick?.kind === "startTime"
-            ? "시작 시간 선택"
-            : "종료 시간 선택"
-        }
-        onClose={() => setPick(null)}
-        onConfirm={confirmPicker}
-      >
-        {pick?.kind === "startDate" || pick?.kind === "endDate" ? (
-          <Wheel
-            items={dateItems}
-            value={normalizeYmd(
-              tempValue ||
-                (pick?.kind === "startDate" ? startDate : endDate) ||
-                date
-            )}
-            onChange={setTempValue}
-            format={fmtWheelDateLabel}
-          />
-        ) : (
-          <Wheel items={timeItems} value={tempValue} onChange={setTempValue} />
-        )}
-      </WheelModal>
+            {/* ✅ Date/Time Wheel Modals */}
+      <DateWheelModal
+        open={picker === "startDate"}
+        title="시작 날짜 선택"
+        value={startDate}
+        onClose={closePicker}
+        onConfirm={(next) => {
+          const v = normalizeYmd(next);
+          if (v) {
+            setStartDate(v);
+            if (v > endDate) setEndDate(v);
+          }
+          closePicker();
+        }}
+      />
+
+      <DateWheelModal
+        open={picker === "endDate"}
+        title="종료 날짜 선택"
+        value={endDate}
+        onClose={closePicker}
+        onConfirm={(next) => {
+          const v = normalizeYmd(next);
+          if (v) {
+            setEndDate(v);
+            if (v < startDate) setStartDate(v);
+          }
+          closePicker();
+        }}
+      />
+
+      <TimeWheelModal
+        open={picker === "startTime"}
+        title="시작 시간 선택"
+        value={startTime}
+        stepMin={5}
+        onClose={closePicker}
+        onConfirm={(next) => {
+          setStartTime(next);
+          closePicker();
+        }}
+      />
+
+      <TimeWheelModal
+        open={picker === "endTime"}
+        title="종료 시간 선택"
+        value={endTime}
+        stepMin={5}
+        onClose={closePicker}
+        onConfirm={(next) => {
+          setEndTime(next);
+          closePicker();
+        }}
+      />
 
       {/* 유형 선택 */}
       <BottomSheet

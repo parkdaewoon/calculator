@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
+import { createPortal } from "react-dom";
 import AdsenseSlot from "@/components/AdsenseSlot";
 
 import SalaryMenuGrid, { SalaryTabKey } from "@/components/Salary/SalaryTabs";
@@ -31,6 +32,153 @@ import {
 } from "@/lib/allowances/calculator/deductions";
 import { calcTaxesMonthly } from "@/lib/allowances/calculator/tax";
 
+type Opt = { value: string; label: string };
+
+function NiceSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: Opt[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = React.useRef<HTMLButtonElement | null>(null);
+  const popRef = React.useRef<HTMLDivElement | null>(null);
+
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? "선택";
+
+  const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(
+    null
+  );
+
+  const updatePos = () => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ left: r.left, top: r.bottom + 8, width: r.width });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    updatePos();
+    const onResize = () => updatePos();
+    const onScroll = () => updatePos();
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={[
+          "relative flex w-full items-center justify-between",
+          "h-10 rounded-2xl border border-neutral-200 bg-white px-3",
+          "text-left text-sm text-neutral-900 shadow-sm transition",
+          "hover:border-neutral-300",
+          "focus:outline-none focus:ring-4 focus:ring-neutral-200/60 focus:border-neutral-400",
+        ].join(" ")}
+      >
+        <span className="truncate">{selectedLabel}</span>
+
+        <span className="ml-2 flex h-6 w-6 items-center justify-center rounded-xl text-neutral-500">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M5 7.5L10 12.5L15 7.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </button>
+
+      {open && pos
+        ? createPortal(
+            <div
+              ref={popRef}
+              style={{
+                position: "fixed",
+                left: pos.left,
+                top: pos.top,
+                width: pos.width,
+                zIndex: 2000,
+              }}
+              className={[
+                "overflow-hidden rounded-2xl border border-neutral-200 bg-white",
+                "shadow-[0_20px_60px_rgba(0,0,0,0.18)]",
+              ].join(" ")}
+            >
+              <div className="max-h-[260px] overflow-auto p-1">
+                {options.map((o) => {
+                  const active = o.value === value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => {
+                        onChange(o.value);
+                        setOpen(false);
+                      }}
+                      className={[
+                        "w-full rounded-xl px-3 py-2 text-left text-xs transition",
+                        active
+                          ? "bg-neutral-900 text-white"
+                          : "text-neutral-900 hover:bg-neutral-100",
+                      ].join(" ")}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
+}
+
+const STEP_OPTIONS: Opt[] = Array.from({ length: 32 }, (_, i) => {
+  const n = i + 1;
+  return { value: String(n), label: `${n}호봉` };
+});
+
+const YEAR_OPTIONS: Opt[] = Array.from({ length: 41 }, (_, i) => {
+  // 0~40
+  return { value: String(i), label: `${i}년` };
+});
 type SeriesKey = PayTableId;
 type MoneyMode = "auto" | "manual";
 
@@ -646,97 +794,82 @@ useEffect(() => {
       {active === "calculator" && (
         <>
           {/* 1) 기본 정보 */}
-          <section className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-neutral-900">
-                기본 정보
-              </div>
-              <button
-  type="button"
-  onClick={() => {
-    setHistory(loadHistory());
-    setHistoryOpen(true);
-  }}
-  className="text-xs text-blue-500 hover:underline"
->
-  이전 기록 보기
-</button>
-            </div>
+<section className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
+  <div className="flex items-center justify-between">
+    <div className="text-sm font-semibold text-neutral-900">기본 정보</div>
 
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <Field label="직렬">
-                <select
-                  value={safeInputs.series}
-                  onChange={(e) => {
-                    const series = e.target.value as SeriesKey;
-                    setInputs((p) => ({
-                      ...p,
-                      series,
-                      columnKey: getFirstColumnKey(series) || p.columnKey,
-                      step: 1,
-                    }));
-                  }}
-                  className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-                >
-                  {Object.keys(PAY_TABLES).map((id) => {
-                    const key = id as SeriesKey;
-                    return (
-                      <option key={key} value={key}>
-                        {PAY_TABLES[key]?.title ?? key}
-                      </option>
-                    );
-                  })}
-                </select>
-              </Field>
+    <button
+      type="button"
+      onClick={() => {
+        setHistory(loadHistory());
+        setHistoryOpen(true);
+      }}
+      className="text-xs text-blue-500 hover:underline"
+    >
+      이전 기록 보기
+    </button>
+  </div>
 
-              <Field label="직급">
-                <select
-                  value={safeInputs.columnKey}
-                  onChange={(e) =>
-                    setInputs((p) => ({ ...p, columnKey: e.target.value }))
-                  }
-                  className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-                >
-                  {(PAY_TABLES[safeInputs.series]?.columns ?? []).map((c) => (
-                    <option key={c.key} value={c.key}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+  <div className="mt-3 grid grid-cols-2 gap-3">
+    <Field label="직렬">
+      <NiceSelect
+        value={String(safeInputs.series)}
+        options={Object.keys(PAY_TABLES).map((id) => {
+          const key = id as SeriesKey;
+          return {
+            value: key,
+            label: PAY_TABLES[key]?.title ?? key,
+          };
+        })}
+        onChange={(v) => {
+          const series = v as SeriesKey;
+          setInputs((p) => ({
+            ...p,
+            series,
+            columnKey: getFirstColumnKey(series) || p.columnKey,
+            step: 1,
+          }));
+        }}
+      />
+    </Field>
 
-              <Field label="호봉(1~31)">
-                <DraftNumberInput
-                  key={`${safeInputs.series}:${safeInputs.step}`}
-                  value={safeInputs.step}
-                  min={1}
-                  max={PAY_TABLES[safeInputs.series]?.maxStep ?? 31}
-                  onCommit={(step) => setInputs((p) => ({ ...p, step }))}
-                  className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-                />
-              </Field>
+    <Field label="직급">
+      <NiceSelect
+        value={String(safeInputs.columnKey)}
+        options={(PAY_TABLES[safeInputs.series]?.columns ?? []).map((c) => ({
+          value: c.key,
+          label: c.label,
+        }))}
+        onChange={(v) => setInputs((p) => ({ ...p, columnKey: v }))}
+      />
+    </Field>
 
-              <Field label="근무연수">
-                <DraftNumberInput
-                  key={`years:${safeInputs.yearsOfService}`}
-                  value={safeInputs.yearsOfService}
-                  min={0}
-                  max={40}
-                  onCommit={(yearsOfService) =>
-                    setInputs((p) => ({ ...p, yearsOfService }))
-                  }
-                  className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-                />
-              </Field>
+    <Field label="호봉(1~32)">
+      <NiceSelect
+        value={String(safeInputs.step)}
+        options={STEP_OPTIONS}
+        onChange={(v) => setInputs((p) => ({ ...p, step: Number(v) }))}
+      />
+    </Field>
 
-              <div className="col-span-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                <div className="text-xs text-neutral-500">기본급(월)</div>
-                <div className="mt-1 text-lg font-semibold text-neutral-900">
-                  {formatWon(result.breakdown.basePay)}
-                </div>
-              </div>
-            </div>
-          </section>
+    <Field label="근무연수(0~40)">
+      <NiceSelect
+        value={String(safeInputs.yearsOfService)}
+        options={YEAR_OPTIONS}
+        onChange={(v) =>
+          setInputs((p) => ({ ...p, yearsOfService: Number(v) }))
+        }
+      />
+    </Field>
+
+    <div className="col-span-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+      <div className="text-xs text-neutral-500">기본급(월)</div>
+      <div className="mt-1 text-lg font-semibold text-neutral-900">
+        {formatWon(result.breakdown.basePay)}
+      </div>
+    </div>
+  </div>
+</section>
 
           {/* 2) 수당(월) */}
           <section className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">

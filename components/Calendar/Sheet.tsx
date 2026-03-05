@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 type SheetProps = {
   open: boolean;
   onClose: () => void;
-  title?: string;
+  title?: React.ReactNode; 
   children: React.ReactNode;
 
   /** ✅ 상단 회색 핸들(윗줄처럼 보이는 것) 표시 여부 */
@@ -97,24 +97,24 @@ export default function Sheet({
           ) : null}
 
           {/* ✅ title + X */}
-          {title ? (
-            <div className="mt-3 flex items-center justify-between">
-              <div className="text-base font-semibold text-neutral-900">
-                {title}
-              </div>
+{title ? (
+  <div className="mt-3 flex w-full items-center justify-between">
+    <div className="flex-1 text-base font-semibold text-neutral-900">
+      {title}
+    </div>
 
-              {showCloseButton ? (
-                <button
-                  onClick={onClose}
-                  className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100"
-                  type="button"
-                  aria-label="닫기"
-                >
-                  <X size={18} />
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+    {showCloseButton ? (
+      <button
+        onClick={onClose}
+        className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100"
+        type="button"
+        aria-label="닫기"
+      >
+        <X size={18} />
+      </button>
+    ) : null}
+  </div>
+) : null}
 
           {/* ✅ 아랫줄(divider) */}
           {showDivider ? <div className="mt-3 h-px bg-neutral-100" /> : null}
