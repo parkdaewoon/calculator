@@ -16,7 +16,7 @@ export default function BottomTabs() {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 flex justify-center">
       <nav className="w-full max-w-[430px] border-t border-neutral-100 bg-white">
-        <div className="grid grid-cols-4 h-[64px] items-center pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-4 h-[68px] items-center pb-[env(safe-area-inset-bottom)]">
           {tabs.map((t) => {
             const active = pathname === t.href;
 

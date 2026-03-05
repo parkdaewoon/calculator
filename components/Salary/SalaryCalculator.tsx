@@ -748,7 +748,7 @@ useEffect(() => {
 
             <div className="mt-3 space-y-3">
               {/* 상여수당 */}
-              <AllowanceGroup title="상여수당" defaultOpen>
+              <AllowanceGroup title="상여수당">
                 <AutoMoneyLine
                   label="대우공무원수당"
                   mode={safeInputs.allow_pwu_mode}
