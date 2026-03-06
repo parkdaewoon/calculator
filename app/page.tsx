@@ -6,13 +6,13 @@ import PushTest from "@/components/PushTest";
 export default function HomePage() {
   return (
     <div className="space-y-6">
-      
       {/* 안내 카드 */}
       <section className="pt-4 pb-1">
         <div className="flex justify-center">
           <div className="w-full rounded-2xl border border-neutral-100 bg-white px-5 py-3 text-center shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
             <p className="text-[14px] leading-relaxed text-neutral-700">
-              공무원 급여와 연금을 간편하게 확인하고<br />
+              공무원 급여와 연금을 간편하게 확인하고
+              <br />
               업무 일정을 관리하세요.
             </p>
           </div>
@@ -78,6 +78,11 @@ export default function HomePage() {
           }
           disabled
         />
+      </section>
+
+      {/* 푸시 테스트 */}
+      <section className="pt-2">
+        <PushTest />
       </section>
 
       {/* 광고 영역: 콘텐츠 끝(하단) */}
