@@ -28,6 +28,7 @@ import { useLockBodyScroll } from "@/lib/hooks/useLockBodyScroll";
 import DateWheelModal from "@/components/ui/wheel/presets/DateWheelModal";
 import TimeWheelModal from "@/components/ui/wheel/presets/TimeWheelModal";
 import type { HHMM } from "@/components/Calendar/types";
+import { calcRemindAt } from "@/lib/calendar/reminder";
 
 type Props = {
   open: boolean;
@@ -642,52 +643,67 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
   };
 
   const handleSave = async () => {
-    if (!canSave) return;
+  if (!canSave) return;
 
-    if (reminderMinutes !== null && typeof Notification !== "undefined") {
-      try {
-        if (Notification.permission === "default") {
-          await Notification.requestPermission();
-        }
-      } catch {}
-    }
+  if (reminderMinutes !== null && typeof Notification !== "undefined") {
+    try {
+      if (Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
+    } catch {}
+  }
 
-    const base: any = event ? { ...(event as any) } : {};
-    const { main: typeMain, sub: typeSub } = unpackType(typeValue);
+  const base: any = event ? { ...(event as any) } : {};
+  const { main: typeMain, sub: typeSub } = unpackType(typeValue);
 
-    const safeStart = startDate;
-    const safeEnd = endDate && endDate >= startDate ? endDate : startDate;
+  const safeStart = startDate;
+  const safeEnd = endDate && endDate >= startDate ? endDate : startDate;
 
-    // ✅ 00:00 / 00:00이면 "시간 미지정"으로 저장(시간 필드 제거)
-    const timeUnspecified =
-      !allDay && startTime === "00:00" && endTime === "00:00";
+  // ✅ 00:00 / 00:00이면 "시간 미지정"으로 저장(시간 필드 제거)
+  const timeUnspecified =
+    !allDay && startTime === "00:00" && endTime === "00:00";
 
-    const next: any = {
-      ...base,
-      id: base.id ?? newId(),
+  // ✅ 실제 저장될 시작 시각 ISO 만들기
+  // - 종일이면 해당 날짜 09:00 기준으로 일단 고정
+  // - 시간이 있으면 선택한 시간 사용
+  const startIso = (() => {
+    const time = allDay || timeUnspecified ? "09:00" : startTime;
+    return `${safeStart}T${time}:00`;
+  })();
 
-      dateStart: safeStart,
-      dateEnd: safeEnd === safeStart ? undefined : safeEnd,
+  // ✅ 알림 시각 계산
+  const remindAt = calcRemindAt(startIso, reminderMinutes);
 
-      title: title.trim(),
-      allDay,
+  const next: any = {
+    ...base,
+    id: base.id ?? newId(),
 
-      startTime: allDay || timeUnspecified ? undefined : startTime,
-      endTime: allDay || timeUnspecified ? undefined : endTime,
+    dateStart: safeStart,
+    dateEnd: safeEnd === safeStart ? undefined : safeEnd,
 
-      location: location?.trim() ? location.trim() : undefined,
-      url: url?.trim() ? url.trim() : undefined,
+    title: title.trim(),
+    allDay,
 
-      typeMain,
-      typeSub: typeSub || undefined,
+    startTime: allDay || timeUnspecified ? undefined : startTime,
+    endTime: allDay || timeUnspecified ? undefined : endTime,
 
-      reminderMinutes: reminderMinutes ?? undefined,
-      memo: memo?.trim() ? memo.trim() : undefined,
-    };
+    location: location?.trim() ? location.trim() : undefined,
+    url: url?.trim() ? url.trim() : undefined,
 
-    onSave(next as CalendarEvent);
-    onClose();
+    typeMain,
+    typeSub: typeSub || undefined,
+
+    // ✅ 알림 관련 저장
+    reminderMinutes: reminderMinutes ?? undefined,
+    remindAt: remindAt ?? undefined,
+    reminderSent: false,
+
+    memo: memo?.trim() ? memo.trim() : undefined,
   };
+
+  onSave(next as CalendarEvent);
+  onClose();
+};
 
   const currentTypeLabel = useMemo(() => {
     const { main, sub } = unpackType(typeValue);

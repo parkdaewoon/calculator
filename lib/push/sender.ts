@@ -1,5 +1,16 @@
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createClient } from "@supabase/supabase-js";
 import { ensureWebPushConfigured, webpush } from "@/lib/push/webpush";
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
 
 type PushPayload = {
   title: string;
@@ -9,21 +20,12 @@ type PushPayload = {
   badge?: string;
 };
 
-type SubscriptionRow = {
-  id: string;
-  user_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-  enabled: boolean;
-};
-
 export async function sendPushToUser(userId: string, payload: PushPayload) {
   ensureWebPushConfigured();
 
   const { data, error } = await supabaseAdmin
     .from("push_subscriptions")
-    .select("id,user_id,endpoint,p256dh,auth,enabled")
+    .select("id, endpoint, p256dh, auth, enabled")
     .eq("user_id", userId)
     .eq("enabled", true);
 
@@ -32,7 +34,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
 
   let sent = 0;
 
-  for (const row of data as SubscriptionRow[]) {
+  for (const row of data) {
     try {
       await webpush.sendNotification(
         {
@@ -45,7 +47,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
         JSON.stringify({
           title: payload.title,
           body: payload.body,
-          url: payload.url || "/",
+          url: payload.url || "/calendar",
           icon: payload.icon || "/icon-192.png",
           badge: payload.badge || "/icon-192.png",
         })
@@ -64,7 +66,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
           })
           .eq("id", row.id);
       } else {
-        console.error("push send failed:", row.user_id, e);
+        console.error("push send failed", e);
       }
     }
   }

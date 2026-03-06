@@ -12,19 +12,18 @@ function urlBase64ToUint8Array(base64String: string) {
   return out;
 }
 
-type Props = {
-  userId: string;
-};
-
-export default function NotificationSettingsCard({ userId }: Props) {
+export default function NotificationSettingsCard() {
+  const [userId, setUserId] = useState("");
   const [pushEnabled, setPushEnabled] = useState(false);
-  const [salaryEnabled, setSalaryEnabled] = useState(true);
-  const [shiftEnabled, setShiftEnabled] = useState(true);
-  const [leaveEnabled, setLeaveEnabled] = useState(true);
-  const [noticeEnabled, setNoticeEnabled] = useState(true);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    setUserId(getOrCreateDeviceUserId());
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+
     (async () => {
       const res = await fetch(`/api/push/settings?userId=${encodeURIComponent(userId)}`, {
         cache: "no-store",
@@ -34,10 +33,6 @@ export default function NotificationSettingsCard({ userId }: Props) {
 
       if (s) {
         setPushEnabled(!!s.push_enabled);
-        setSalaryEnabled(!!s.salary_enabled);
-        setShiftEnabled(!!s.shift_enabled);
-        setLeaveEnabled(!!s.leave_enabled);
-        setNoticeEnabled(!!s.notice_enabled);
       }
     })();
   }, [userId]);
@@ -62,9 +57,7 @@ export default function NotificationSettingsCard({ userId }: Props) {
     const res = await fetch("/api/push/public-key", { cache: "no-store" });
     const { key } = await res.json();
 
-    if (!key) {
-      throw new Error("VAPID 공개키 없음");
-    }
+    if (!key) throw new Error("VAPID 공개키 없음");
 
     let sub = await reg.pushManager.getSubscription();
     if (!sub) {
@@ -77,11 +70,7 @@ export default function NotificationSettingsCard({ userId }: Props) {
     const saveRes = await fetch("/api/push/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        subscription: sub,
-        deviceLabel: "PWA",
-      }),
+      body: JSON.stringify({ userId, subscription: sub, deviceLabel: "PWA" }),
     });
 
     if (!saveRes.ok) {
@@ -103,23 +92,18 @@ export default function NotificationSettingsCard({ userId }: Props) {
     }
   }
 
-  async function updateSettings(next: Partial<Record<string, boolean>>) {
+  async function updateSettings(next: boolean) {
     await fetch("/api/push/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userId,
-        push_enabled: pushEnabled,
-        salary_enabled: salaryEnabled,
-        shift_enabled: shiftEnabled,
-        leave_enabled: leaveEnabled,
-        notice_enabled: noticeEnabled,
-        ...next,
+        push_enabled: next,
       }),
     });
   }
 
-  async function onTogglePush(next: boolean) {
+  async function onToggle(next: boolean) {
     try {
       setLoading(true);
 
@@ -130,99 +114,42 @@ export default function NotificationSettingsCard({ userId }: Props) {
       }
 
       setPushEnabled(next);
-      await updateSettings({ push_enabled: next });
+      await updateSettings(next);
     } finally {
       setLoading(false);
     }
   }
 
+  if (!userId) return null;
+
   return (
     <section className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
-      <div className="text-sm font-semibold text-neutral-900">알림 설정</div>
+      <div className="text-sm font-semibold text-neutral-900">일정 알림</div>
+      <div className="mt-2 text-xs text-neutral-500">
+        아이폰은 홈 화면에 추가한 앱에서만 푸시가 동작해요.
+      </div>
 
-      <div className="mt-4 space-y-3 text-sm">
-        <ToggleRow
-          label="푸시 알림 받기"
-          checked={pushEnabled}
+      <div className="mt-4 flex items-center justify-between">
+        <span className="text-sm">푸시 알림 받기</span>
+
+        <button
+          type="button"
           disabled={loading}
-          onChange={async (v) => onTogglePush(v)}
-        />
-
-        <ToggleRow
-          label="월급일 전날 알림"
-          checked={salaryEnabled}
-          disabled={!pushEnabled}
-          onChange={async (v) => {
-            setSalaryEnabled(v);
-            await updateSettings({ salary_enabled: v });
-          }}
-        />
-
-        <ToggleRow
-          label="당직·야간근무 전날 알림"
-          checked={shiftEnabled}
-          disabled={!pushEnabled}
-          onChange={async (v) => {
-            setShiftEnabled(v);
-            await updateSettings({ shift_enabled: v });
-          }}
-        />
-
-        <ToggleRow
-          label="연가 종료 전날 알림"
-          checked={leaveEnabled}
-          disabled={!pushEnabled}
-          onChange={async (v) => {
-            setLeaveEnabled(v);
-            await updateSettings({ leave_enabled: v });
-          }}
-        />
-
-        <ToggleRow
-          label="공지사항 알림"
-          checked={noticeEnabled}
-          disabled={!pushEnabled}
-          onChange={async (v) => {
-            setNoticeEnabled(v);
-            await updateSettings({ notice_enabled: v });
-          }}
-        />
+          onClick={() => onToggle(!pushEnabled)}
+          className={[
+            "relative h-7 w-12 rounded-full transition",
+            pushEnabled ? "bg-neutral-900" : "bg-neutral-300",
+            loading ? "opacity-50" : "",
+          ].join(" ")}
+        >
+          <span
+            className={[
+              "absolute top-1 h-5 w-5 rounded-full bg-white transition",
+              pushEnabled ? "left-6" : "left-1",
+            ].join(" ")}
+          />
+        </button>
       </div>
     </section>
-  );
-}
-
-function ToggleRow({
-  label,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (next: boolean) => void | Promise<void>;
-}) {
-  return (
-    <label className="flex items-center justify-between gap-4">
-      <span>{label}</span>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={[
-          "relative h-7 w-12 rounded-full transition",
-          checked ? "bg-neutral-900" : "bg-neutral-300",
-          disabled ? "opacity-50" : "",
-        ].join(" ")}
-      >
-        <span
-          className={[
-            "absolute top-1 h-5 w-5 rounded-full bg-white transition",
-            checked ? "left-6" : "left-1",
-          ].join(" ")}
-        />
-      </button>
-    </label>
   );
 }

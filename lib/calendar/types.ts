@@ -50,8 +50,8 @@ export type CalendarEvent = {
 
   leaveUnit?: LeaveUnit;
   leaveHours?: number;
-
-  // legacy fields
+remindAt?: string;
+reminderSent?: boolean;
   date?: any;
   startDate?: any;
   endDate_legacy?: any;
