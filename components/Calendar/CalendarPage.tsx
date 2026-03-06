@@ -100,7 +100,7 @@ async function showReminderNotification(ev: CalendarEvent, minutes: number) {
         icon: "/icon-192.png",
         badge: "/icon-192.png",
         tag: `cal-reminder-${ev.id}-${minutes}`,
-        data: { url: "/" },
+        data: { url: "/calendar" },
       });
       return;
     }

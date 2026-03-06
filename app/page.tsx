@@ -1,7 +1,6 @@
 import AdsenseSlot from "@/components/AdsenseSlot";
 import IconCard from "@/components/IconCard";
 import { Calculator, Landmark, Calendar, Clock } from "lucide-react";
-import NotificationSettingsCard from "@/components/NotificationSettingsCard";
 
 export default function HomePage() {
   return (
@@ -47,7 +46,6 @@ export default function HomePage() {
         />
       </section>
 
-      <NotificationSettingsCard />
 
       <section className="pt-2">
         <div className="mt-2 h-px bg-neutral-100" />
