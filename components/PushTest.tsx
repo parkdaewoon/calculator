@@ -265,7 +265,7 @@ export default function PushTest() {
     status.permission === "unsupported" ? "unsupported" : status.permission;
 
   return (
-    <div className="space-y-3">
+    <div className="relative z-30 space-y-3 pointer-events-auto">
       <div className="rounded-2xl border bg-white p-3 text-sm">
         <div className="font-semibold">Push 상태</div>
 
@@ -321,28 +321,29 @@ export default function PushTest() {
         </button>
       </div>
 
-      <div className="space-y-2">
-        <button
-          onClick={enablePush}
-          className="w-full rounded-xl bg-black px-4 py-2 text-white"
-        >
-          푸시 알림 켜기(구독)
-        </button>
+      <button
+  type="button"
+  onClick={enablePush}
+  className="relative z-30 pointer-events-auto w-full rounded-xl bg-black px-4 py-2 text-white"
+>
+  푸시 알림 켜기(구독)
+</button>
 
-        <button
-          onClick={sendTest}
-          className="w-full rounded-xl border px-4 py-2"
-        >
-          테스트 푸시 보내기
-        </button>
+<button
+  type="button"
+  onClick={sendTest}
+  className="relative z-30 pointer-events-auto w-full rounded-xl border px-4 py-2"
+>
+  테스트 푸시 보내기
+</button>
 
-        <button
-          onClick={unsubscribe}
-          className="w-full rounded-xl border px-4 py-2 text-neutral-600"
-        >
-          구독 해제(리셋)
-        </button>
-      </div>
+<button
+  type="button"
+  onClick={unsubscribe}
+  className="relative z-30 pointer-events-auto w-full rounded-xl border px-4 py-2 text-neutral-600"
+>
+  구독 해제(리셋)
+</button>
 
       <div className="rounded-2xl bg-neutral-50 p-3 text-[13px] text-neutral-600">
         iPhone이면 사파리에서 홈 화면에 추가한 뒤, 그 아이콘으로 실행해서 구독해야 해.

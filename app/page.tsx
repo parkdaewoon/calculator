@@ -80,10 +80,12 @@ export default function HomePage() {
         />
       </section>
 
-      {/* 푸시 테스트 */}
-      <section className="pt-2">
-        <PushTest />
-      </section>
+{/* 푸시 테스트 */}
+<section className="relative z-30 pt-2 pointer-events-auto">
+  <div className="relative z-30 pointer-events-auto">
+    <PushTest />
+  </div>
+</section>
 
       {/* 광고 영역: 콘텐츠 끝(하단) */}
       <section className="pt-2">

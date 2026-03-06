@@ -14,9 +14,9 @@ export default function BottomTabs() {
   const pathname = usePathname();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 flex justify-center">
-      <nav className="w-full max-w-[430px] border-t border-neutral-100 bg-white">
-        <div className="grid grid-cols-4 h-[68px] items-center pb-[env(safe-area-inset-bottom)]">
+    <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-40 flex justify-center">
+      <nav className="pointer-events-auto w-full max-w-[430px] border-t border-neutral-100 bg-white">
+        <div className="grid h-[68px] grid-cols-4 items-center pb-[env(safe-area-inset-bottom)]">
           {tabs.map((t) => {
             const active = pathname === t.href;
 
@@ -27,8 +27,8 @@ export default function BottomTabs() {
                   className={[
                     "text-[13px] font-medium transition",
                     active
-                      ? "bg-neutral-900 text-white px-5 py-[7px] rounded-full"
-                      : "text-neutral-600 px-3 py-[6px] rounded-lg hover:bg-neutral-50",
+                      ? "rounded-full bg-neutral-900 px-5 py-[7px] text-white"
+                      : "rounded-lg px-3 py-[6px] text-neutral-600 hover:bg-neutral-50",
                   ].join(" ")}
                 >
                   {t.label}
