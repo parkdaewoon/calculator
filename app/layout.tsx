@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
 import SplashScreen from "@/components/SplashScreen";
@@ -19,7 +19,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "공무원 노트",
   },
+};
 
+export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 

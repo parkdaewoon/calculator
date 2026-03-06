@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import webpush from "web-push";
 
 function ensureWebPushConfigured() {
@@ -16,20 +19,43 @@ export async function POST(req: Request) {
   try {
     ensureWebPushConfigured();
 
-    const { subscription } = await req.json();
+    const body = await req.json();
+    const subscription = body?.subscription;
+
+    if (!subscription?.endpoint) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Invalid subscription" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
 
     await webpush.sendNotification(
       subscription,
-      JSON.stringify({ title: "공무원 노트", body: "테스트 알림입니다!", url: "/" })
+      JSON.stringify({
+        title: "공무원 노트",
+        body: "테스트 알림입니다!",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        url: "/",
+      })
     );
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (e: any) {
-    return new Response(JSON.stringify({ ok: false, error: e?.message || String(e) }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: e?.message || String(e),
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 }

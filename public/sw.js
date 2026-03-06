@@ -1,15 +1,20 @@
 self.addEventListener("push", (event) => {
   let data = {};
+
   try {
     data = event.data ? event.data.json() : {};
-  } catch (e) {}
+  } catch (e) {
+    data = {};
+  }
 
   const title = data.title || "공무원 노트";
   const options = {
     body: data.body || "알림이 도착했어요.",
     icon: data.icon || "/icon-192.png",
     badge: data.badge || "/icon-192.png",
-    data: data.url ? { url: data.url } : undefined,
+    data: {
+      url: data.url || "/",
+    },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -17,6 +22,17 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+
   const url = event.notification?.data?.url || "/";
-  event.waitUntil(clients.openWindow(url));
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client) {
+          return client.focus();
+        }
+      }
+      return clients.openWindow(url);
+    })
+  );
 });
