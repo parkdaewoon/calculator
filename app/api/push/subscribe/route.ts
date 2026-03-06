@@ -1,66 +1,51 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type PushSubscriptionLike = {
-  endpoint: string;
-  expirationTime?: number | null;
-  keys?: {
-    p256dh?: string;
-    auth?: string;
-  };
-};
-
-let SUBS: PushSubscriptionLike[] = []; // 데모용
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(req: Request) {
   try {
-    const sub = (await req.json()) as PushSubscriptionLike;
+    const body = await req.json();
+    const { userId, subscription, deviceLabel } = body ?? {};
 
-    if (!sub?.endpoint) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Invalid subscription" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+    if (!userId) {
+      return Response.json({ ok: false, error: "Missing userId" }, { status: 400 });
     }
 
-    if (!SUBS.find((s) => s.endpoint === sub.endpoint)) {
-      SUBS.push(sub);
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      return Response.json({ ok: false, error: "Invalid subscription" }, { status: 400 });
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        count: SUBS.length,
-      }),
-      {
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    const payload = {
+      user_id: userId,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+      device_label: deviceLabel ?? null,
+      enabled: true,
+      last_seen_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabaseAdmin
+      .from("push_subscriptions")
+      .upsert(payload, { onConflict: "endpoint" });
+
+    if (error) throw error;
+
+    await supabaseAdmin
+      .from("notification_settings")
+      .upsert({
+        user_id: userId,
+        push_enabled: true,
+        updated_at: new Date().toISOString(),
+      });
+
+    return Response.json({ ok: true });
   } catch (e: any) {
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: e?.message || String(e),
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+    return Response.json(
+      { ok: false, error: e?.message || String(e) },
+      { status: 500 }
     );
   }
-}
-
-export async function GET() {
-  return new Response(
-    JSON.stringify({
-      ok: true,
-      count: SUBS.length,
-    }),
-    {
-      headers: { "Content-Type": "application/json" },
-    }
-  );
 }

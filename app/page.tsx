@@ -1,9 +1,11 @@
 import AdsenseSlot from "@/components/AdsenseSlot";
 import IconCard from "@/components/IconCard";
 import { Calculator, Landmark, Calendar, Clock } from "lucide-react";
-import PushTest from "@/components/PushTest";
+import NotificationSettingsCard from "@/components/NotificationSettingsCard";
 
 export default function HomePage() {
+  const userId = "demo-user-001"; // 나중엔 로그인/로컬 사용자 식별값 연결
+
   return (
     <div className="space-y-6">
       {/* 안내 카드 */}
@@ -80,12 +82,8 @@ export default function HomePage() {
         />
       </section>
 
-{/* 푸시 테스트 */}
-<section className="relative z-30 pt-2 pointer-events-auto">
-  <div className="relative z-30 pointer-events-auto">
-    <PushTest />
-  </div>
-</section>
+      {/* 알림 설정 카드 */}
+      <NotificationSettingsCard userId={userId} />
 
       {/* 광고 영역: 콘텐츠 끝(하단) */}
       <section className="pt-2">
