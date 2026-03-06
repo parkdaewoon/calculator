@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import TopBar from "@/components/TopBar";
 import SideMenu from "@/components/SideMenu";
 import BottomTabs from "@/components/BottomTabs";
-
+import NotificationPermissionPrompt from "@/components/NotificationPermissionPrompt";
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -26,6 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </main>
 
         <BottomTabs />
+        <NotificationPermissionPrompt />
       </div>
     </div>
   );

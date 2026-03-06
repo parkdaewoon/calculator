@@ -15,9 +15,8 @@ export async function POST(req: Request) {
 
     const { data: users, error } = await supabaseAdmin
       .from("notification_settings")
-      .select("user_id, push_enabled, notice_enabled")
-      .eq("push_enabled", true)
-      .eq("notice_enabled", true);
+      .select("user_id, push_enabled")
+      .eq("push_enabled", true);
 
     if (error) throw error;
 

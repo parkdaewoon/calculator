@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-
+import NotificationSettingsCard from "@/components/NotificationSettingsCard";
 export default function SideMenu({
   open,
   onClose,
@@ -11,7 +11,6 @@ export default function SideMenu({
 }) {
   return (
     <>
-      {/* Overlay */}
       <div
         onClick={onClose}
         className={[
@@ -20,13 +19,10 @@ export default function SideMenu({
         ].join(" ")}
       />
 
-      {/* Drawer */}
       <aside
         className={[
           "fixed right-0 top-0 z-[60] h-dvh w-[320px] bg-white shadow-2xl transition-transform",
-          open
-  ? "translate-x-0 pointer-events-auto"
-  : "translate-x-full pointer-events-none",
+          open ? "translate-x-0 pointer-events-auto" : "translate-x-full pointer-events-none",
         ].join(" ")}
         role="dialog"
         aria-modal="true"
@@ -42,7 +38,7 @@ export default function SideMenu({
           </button>
         </div>
 
-        <nav className="px-5 py-4">
+        <nav className="flex h-[calc(100dvh-58px)] flex-col px-5 py-4">
           <div className="text-xs text-neutral-500">바로가기</div>
           <div className="mt-3 space-y-2">
             <MenuLink href="/" label="홈" onClick={onClose} />
@@ -59,6 +55,9 @@ export default function SideMenu({
             <button className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50">
               문의 (추가 예정)
             </button>
+          </div>
+          <div className="mt-auto pb-2 pt-6">
+            <NotificationSettingsCard compact />
           </div>
         </nav>
       </aside>
