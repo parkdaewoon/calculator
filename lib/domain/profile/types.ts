@@ -1,5 +1,12 @@
 export type MoneyMode = "auto" | "manual";
 
+export type PromotionEntry = {
+  series: string;
+  columnKey: string;
+  promotedAt: string;
+  years: number;
+};
+
 /** ✅ 페이지들(퇴직/연금/비교)에서 공통으로 쓰는 '기본 정보' */
 export type BaseProfile = {
   version: 1;
@@ -15,4 +22,19 @@ export type BaseProfile = {
 
   // 옵션
   birthDate?: string; // 필요 시(연금 수령개시 나이 계산)
+
+  pensionStartAge?: number;
+
+  startSeries?: string;
+  startColumnKey?: string;
+  startStep?: number;
+
+  currentSeries?: string;
+  currentColumnKey?: string;
+  currentStep?: number;
+
+  promotions?: PromotionEntry[];
+
+  incomeMode?: MoneyMode;
+  avgIncomeMonthly?: number;
 };

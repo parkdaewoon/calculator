@@ -6,7 +6,6 @@ function todayISO() {
 
 export function makeDefaultProfile(): BaseProfile {
   const today = todayISO();
-  // ✅ 기본: 오늘 임용/오늘 퇴직(사용자가 바꾸게)
   return {
     version: 1,
     series: "general",
@@ -14,5 +13,18 @@ export function makeDefaultProfile(): BaseProfile {
     step: 1,
     startDate: today,
     retireDate: today,
+    birthDate: today,
+
+    startSeries: "general",
+    startColumnKey: "g9",
+    startStep: 1,
+
+    currentSeries: "general",
+    currentColumnKey: "g9",
+    currentStep: 1,
+
+    promotions: [],
+    incomeMode: "auto",
+    avgIncomeMonthly: 0,
   };
 }
