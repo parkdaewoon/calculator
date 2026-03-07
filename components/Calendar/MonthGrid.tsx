@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { MonthGridProps } from "./types";
 import DayCell from "./DayCell";
-import { buildMonthGrid, getMonthRange } from "@/lib/calendar";
+import { buildMonthGrid } from "@/lib/calendar";
 
 import { loadTypeColors, TYPE_COLORS_UPDATED_EVENT } from "@/lib/storage/typeColorStorage";
 import { hexToRgba } from "@/lib/calendar/typeColors";
@@ -35,7 +35,6 @@ export default function MonthGrid({
   holidays,
 }: MonthGridProps) {
   const grid = useMemo(() => buildMonthGrid(month), [month]);
-  const { start, end } = useMemo(() => getMonthRange(month), [month]);
 
   function normYMD(v: string) {
     const m = String(v ?? "").match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
@@ -44,15 +43,15 @@ export default function MonthGrid({
   }
 
   const eventsInView = useMemo(() => {
-    const s = normYMD(start);
-    const e = normYMD(end);
+    const s = normYMD(grid[0]?.date ?? "");
+    const e = normYMD(grid[grid.length - 1]?.date ?? "");
 
     return (events ?? []).filter((ev: any) => {
       const a = normYMD(ev.dateStart);
       const b = normYMD(ev.dateEnd ?? ev.dateStart);
       return !(b < s || a > e);
     });
-  }, [events, start, end]);
+  }, [events, grid]);
 
   const [typeColors, setTypeColors] = useState(() => loadTypeColors());
 
@@ -108,9 +107,10 @@ useEffect(() => {
     };
 
     const eventTypeKey = (ev: any) => {
-      const main = (ev?.typeMain ?? ev?.categoryMain ?? "WORK") as string;
+      const main = String(ev?.typeMain ?? ev?.categoryMain ?? "WORK");
+      const normalizedMain = ["WORK", "DUTY", "SALARY", "ETC"].includes(main) ? main : "WORK";
       const sub = (ev?.typeSub ?? ev?.categorySub ?? "") as string;
-      return `${main === "DUTY" ? "DUTY" : "WORK"}|${sub}`;
+      return `${normalizedMain}|${sub}`;
     };
 
     const sorted = [...(eventsInView ?? [])].sort((a: any, b: any) => {
@@ -355,6 +355,7 @@ const onTouchMove = (e: React.TouchEvent) => {
                   onChangeEvents={onChangeEvents}
                   showWorkBadge={showWorkBadges}
                   isHoliday={Boolean(h?.isHoliday)}
+                  holidayName={h?.name}
                   hasMore={more > 0}
                 />
               </div>

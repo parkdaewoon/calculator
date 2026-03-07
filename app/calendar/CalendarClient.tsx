@@ -1,11 +1,5 @@
 "use client";
-
-import dynamic from "next/dynamic";
-
-const CalendarPage = dynamic(
-  () => import("@/components/Calendar/CalendarPage"),
-  { ssr: false }
-);
+import CalendarPage from "@/components/Calendar/CalendarPage";
 
 export default function CalendarClient() {
   return <CalendarPage />;

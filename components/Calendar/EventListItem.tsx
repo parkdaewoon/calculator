@@ -14,13 +14,18 @@ function normalizeToDash(input: any): string {
   if (!s) return "";
 
   // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split("-").map(Number);
+    if (y > 0 && m >= 1 && m <= 12 && d >= 1 && d <= 31) return s;
+    return "";
+  }
 
   // YYYYMMDD
   if (/^\d{8}$/.test(s)) {
     const y = s.slice(0, 4);
     const m = s.slice(4, 6);
     const d = s.slice(6, 8);
+    if (Number(y) <= 0 || Number(m) < 1 || Number(m) > 12 || Number(d) < 1 || Number(d) > 31) return "";
     return `${y}-${m}-${d}`;
   }
 
@@ -30,6 +35,7 @@ function normalizeToDash(input: any): string {
     const y = m[1];
     const mm = m[2].padStart(2, "0");
     const dd = m[3].padStart(2, "0");
+    if (Number(y) <= 0 || Number(mm) < 1 || Number(mm) > 12 || Number(dd) < 1 || Number(dd) > 31) return "";
     return `${y}-${mm}-${dd}`;
   }
 

@@ -83,7 +83,7 @@ export default function Sheet({
           "absolute inset-x-0 bottom-0 mx-auto w-full max-w-md",
           "rounded-t-3xl bg-white",
           "shadow-[0_-20px_40px_rgba(0,0,0,0.18)]",
-          "max-h-[85dvh] overflow-hidden",
+          "max-h-[85dvh] overflow-hidden flex flex-col",
           "pb-[env(safe-area-inset-bottom)]",
         ].join(" ")}
         role="dialog"
@@ -121,7 +121,7 @@ export default function Sheet({
         </div>
 
         {/* body (여기만 스크롤) */}
-        <div className="px-4 pb-6 pt-4 overflow-y-auto overscroll-contain max-h-[calc(85dvh-64px)]">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-4">
           {children}
         </div>
       </div>

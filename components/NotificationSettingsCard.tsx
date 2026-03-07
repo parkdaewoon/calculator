@@ -27,7 +27,7 @@ export default function NotificationSettingsCard({ compact = false }: { compact?
   }, [userId]);
 
   async function onToggle(next: boolean) {
-    if (!userId) return;
+    if (!userId || loading) return;
     try {
       setLoading(true);
 
@@ -37,7 +37,13 @@ export default function NotificationSettingsCard({ compact = false }: { compact?
         await unsubscribeCalendarPush(userId);
       }
 
-      setPushEnabled(next);
+      const enabled = await fetchPushEnabled(userId);
+      setPushEnabled(enabled);
+    } catch (e) {
+      console.error("notification toggle failed", e);
+      alert(next ? "알림 권한/구독 설정에 실패했어요." : "알림 해제에 실패했어요.");
+      const enabled = await fetchPushEnabled(userId).catch(() => pushEnabled);
+      setPushEnabled(enabled);
     } finally {
       setLoading(false);
     }

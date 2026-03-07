@@ -61,6 +61,9 @@ export const DEFAULT_TYPE_COLORS: TypeColorMap = {
   "DUTY|연가": "#22C55E",
   "DUTY|병가": "#EF4444",
   "DUTY|공가": "#06B6D4",
+
+  "SALARY|월급": "#F43F5E",
+  "ETC|기타": "#64748B",
 };
 
 export function hexToRgba(hex: string, alpha = 1) {

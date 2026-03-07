@@ -383,14 +383,17 @@ function WheelModal({
   );
 }
 
-/** ===== 유형(업무/복무) ===== */
-type MainType = "WORK" | "DUTY";
+/** ===== 유형(업무/복무/월급/기타) ===== */
+type MainType = "WORK" | "DUTY" | "SALARY" | "ETC";
 const DEFAULT_WORK_SUBS = ["미팅", "회의", "교육", "회식"];
 const DEFAULT_DUTY_SUBS = ["연가", "병가", "공가"];
+const DEFAULT_ETC_SUBS = ["기타"];
+const SALARY_SUB = "월급";
 
 function unpackType(v: string): { main: MainType; sub: string } {
   const [m, s] = (v || "").split("|");
-  return { main: m === "DUTY" ? "DUTY" : "WORK", sub: s ?? "" };
+  const main: MainType = m === "DUTY" || m === "SALARY" || m === "ETC" ? (m as MainType) : "WORK";
+  return { main, sub: s ?? "" };
 }
 
 /** ===== 알림 ===== */
@@ -404,7 +407,8 @@ const REMINDER_PRESETS: Array<{ label: string; minutes: number | null }> = [
   { label: "1주일 전", minutes: 60 * 24 * 7 },
 ];
 
-function reminderLabel(min: number | null) {
+function reminderLabel(min: number | null, salaryMode = false, salaryEnabled = false) {
+  if (salaryMode) return salaryEnabled ? "당일 오전 08:00" : "꺼짐";
   const found = REMINDER_PRESETS.find((x) => x.minutes === min);
   return found?.label ?? "없음";
 }
@@ -519,7 +523,10 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
 
   const [workSubs, setWorkSubs] = useState<string[]>(DEFAULT_WORK_SUBS);
   const [dutySubs, setDutySubs] = useState<string[]>(DEFAULT_DUTY_SUBS);
+  const [etcSubs, setEtcSubs] = useState<string[]>(DEFAULT_ETC_SUBS);
   const [typeValue, setTypeValue] = useState<string>("WORK|미팅");
+  const [selectedMain, setSelectedMain] = useState<MainType>("WORK");
+  const [salaryReminderEnabled, setSalaryReminderEnabled] = useState(false);
 
   const [addingType, setAddingType] = useState(false);
   const [newTypeInput, setNewTypeInput] = useState("");
@@ -529,10 +536,6 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
 
   const [typeSheetOpen, setTypeSheetOpen] = useState(false);
   const [reminderSheetOpen, setReminderSheetOpen] = useState(false);
-const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
-  work: true,
-  duty: false,
-});
   useEffect(() => {
     if (!menuOpen) return;
     const onDown = (e: MouseEvent) => {
@@ -574,16 +577,21 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
     setMemo((e?.memo ?? "") as string);
 
     setReminderMinutes(typeof e?.reminderMinutes === "number" ? e.reminderMinutes : null);
+    setSalaryReminderEnabled(Boolean(e?.salaryReminderEnabled));
 
-    const savedMain = (e?.typeMain ?? e?.categoryMain) as string | undefined;
+    const savedMainRaw = String(e?.typeMain ?? e?.categoryMain ?? "WORK");
+    const savedMain: MainType = savedMainRaw === "DUTY" || savedMainRaw === "SALARY" || savedMainRaw === "ETC" ? (savedMainRaw as MainType) : "WORK";
     const savedSub = (e?.typeSub ?? e?.categorySub) as string | undefined;
     if (savedMain && savedSub) {
       const packed = `${savedMain}|${savedSub}`;
       if (savedMain === "WORK") setWorkSubs((p) => (p.includes(savedSub) ? p : [...p, savedSub]));
       if (savedMain === "DUTY") setDutySubs((p) => (p.includes(savedSub) ? p : [...p, savedSub]));
+      if (savedMain === "ETC") setEtcSubs((p) => (p.includes(savedSub) ? p : [...p, savedSub]));
       setTypeValue(packed);
+      setSelectedMain(savedMain);
     } else {
       setTypeValue("WORK|미팅");
+      setSelectedMain("WORK");
     }
 
     setAddingType(false);
@@ -595,32 +603,39 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
 
   const typeOptions = useMemo(() => {
     return {
-      work: workSubs.map((s) => ({ value: `WORK|${s}`, label: s })),
-      duty: dutySubs.map((s) => ({ value: `DUTY|${s}`, label: s })),
-    };
-  }, [workSubs, dutySubs]);
+      WORK: workSubs.map((s) => ({ value: `WORK|${s}`, label: s })),
+      DUTY: dutySubs.map((s) => ({ value: `DUTY|${s}`, label: s })),
+      SALARY: [{ value: `SALARY|${SALARY_SUB}`, label: SALARY_SUB }],
+      ETC: etcSubs.map((s) => ({ value: `ETC|${s}`, label: s })),
+    } as const;
+  }, [workSubs, dutySubs, etcSubs]);
+
+  const isSalarySelected = useMemo(() => unpackType(typeValue).main === "SALARY", [typeValue]);
 
   const canSave = useMemo(() => {
-  if (title.trim().length === 0) return false;
+  if (!isSalarySelected && title.trim().length === 0) return false;
   if (startDate > endDate) return false;
 
   const timeUnspecified = !allDay && startTime === "09:00" && endTime === "18:00";
   if (!allDay && !timeUnspecified && startDate === endDate && startTime >= endTime) return false;
 
   return true;
-}, [title, startDate, endDate, allDay, startTime, endTime]);
+}, [isSalarySelected, title, startDate, endDate, allDay, startTime, endTime]);
 
   const addTypeItem = () => {
     const v = newTypeInput.trim();
     if (!v) return;
 
-    const { main } = unpackType(typeValue);
-    if (main === "WORK") {
+    if (selectedMain === "SALARY") return;
+    if (selectedMain === "WORK") {
       setWorkSubs((prev) => (prev.includes(v) ? prev : [...prev, v]));
       setTypeValue(`WORK|${v}`);
-    } else {
+    } else if (selectedMain === "DUTY") {
       setDutySubs((prev) => (prev.includes(v) ? prev : [...prev, v]));
       setTypeValue(`DUTY|${v}`);
+    } else {
+      setEtcSubs((prev) => (prev.includes(v) ? prev : [...prev, v]));
+      setTypeValue(`ETC|${v}`);
     }
 
     setNewTypeInput("");
@@ -629,23 +644,31 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
 
   const removeCurrentTypeItem = () => {
     const { main, sub } = unpackType(typeValue);
-    if (!sub) return;
+    if (!sub || main === "SALARY") return;
 
     if (main === "WORK") {
       setWorkSubs((prev) => prev.filter((x) => x !== sub));
       const next = workSubs.filter((x) => x !== sub)[0] ?? DEFAULT_WORK_SUBS[0];
       setTypeValue(`WORK|${next}`);
-    } else {
+      return;
+    }
+
+    if (main === "DUTY") {
       setDutySubs((prev) => prev.filter((x) => x !== sub));
       const next = dutySubs.filter((x) => x !== sub)[0] ?? DEFAULT_DUTY_SUBS[0];
       setTypeValue(`DUTY|${next}`);
+      return;
     }
+
+    setEtcSubs((prev) => prev.filter((x) => x !== sub));
+    const next = etcSubs.filter((x) => x !== sub)[0] ?? DEFAULT_ETC_SUBS[0];
+    setTypeValue(`ETC|${next}`);
   };
 
   const handleSave = async () => {
   if (!canSave) return;
 
-  if (reminderMinutes !== null && typeof Notification !== "undefined") {
+  if ((reminderMinutes !== null || salaryReminderEnabled) && typeof Notification !== "undefined") {
     try {
       if (Notification.permission === "default") {
         await Notification.requestPermission();
@@ -655,6 +678,7 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
 
   const base: any = event ? { ...(event as any) } : {};
   const { main: typeMain, sub: typeSub } = unpackType(typeValue);
+  const salaryMode = typeMain === "SALARY";
 
   const safeStart = startDate;
   const safeEnd = endDate && endDate >= startDate ? endDate : startDate;
@@ -662,17 +686,21 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
   // ✅ 00:00 / 00:00이면 "시간 미지정"으로 저장(시간 필드 제거)
   const timeUnspecified =
     !allDay && startTime === "00:00" && endTime === "00:00";
+  const forcedAllDay = salaryMode ? true : allDay;
 
   // ✅ 실제 저장될 시작 시각 ISO 만들기
   // - 종일이면 해당 날짜 09:00 기준으로 일단 고정
   // - 시간이 있으면 선택한 시간 사용
   const startIso = (() => {
-    const time = allDay || timeUnspecified ? "09:00" : startTime;
+    if (salaryMode) return `${safeStart}T08:00:00`;
+    const time = forcedAllDay || timeUnspecified ? "09:00" : startTime;
     return `${safeStart}T${time}:00`;
   })();
 
   // ✅ 알림 시각 계산
-  const remindAt = calcRemindAt(startIso, reminderMinutes);
+  const remindAt = salaryMode
+    ? (salaryReminderEnabled ? new Date(`${safeStart}T08:00:00`).toISOString() : null)
+    : calcRemindAt(startIso, reminderMinutes);
 
   const next: any = {
     ...base,
@@ -681,33 +709,35 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
     dateStart: safeStart,
     dateEnd: safeEnd === safeStart ? undefined : safeEnd,
 
-    title: title.trim(),
-    allDay,
+    title: salaryMode ? "월급" : title.trim(),
+    allDay: forcedAllDay,
 
-    startTime: allDay || timeUnspecified ? undefined : startTime,
-    endTime: allDay || timeUnspecified ? undefined : endTime,
+    startTime: forcedAllDay || timeUnspecified ? undefined : startTime,
+    endTime: forcedAllDay || timeUnspecified ? undefined : endTime,
 
-    location: location?.trim() ? location.trim() : undefined,
-    url: url?.trim() ? url.trim() : undefined,
+    location: salaryMode ? undefined : (location?.trim() ? location.trim() : undefined),
+    url: salaryMode ? undefined : (url?.trim() ? url.trim() : undefined),
 
     typeMain,
     typeSub: typeSub || undefined,
 
     // ✅ 알림 관련 저장
-    reminderMinutes: reminderMinutes ?? undefined,
+    reminderMinutes: salaryMode ? undefined : (reminderMinutes ?? undefined),
+    salaryReminderEnabled: salaryMode ? salaryReminderEnabled : undefined,
     remindAt: remindAt ?? undefined,
     reminderSent: false,
 
-    memo: memo?.trim() ? memo.trim() : undefined,
+    memo: salaryMode ? undefined : (memo?.trim() ? memo.trim() : undefined),
   };
 
   onSave(next as CalendarEvent);
   onClose();
 };
 
+
   const currentTypeLabel = useMemo(() => {
     const { main, sub } = unpackType(typeValue);
-    const head = main === "WORK" ? "업무" : "복무";
+    const head = main === "WORK" ? "업무" : main === "DUTY" ? "복무" : main === "SALARY" ? "월급" : "기타";
     return sub ? `${head} · ${sub}` : head;
   }, [typeValue]);
 
@@ -775,10 +805,11 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
             <div className="flex items-start gap-3">
               <div className="mt-2 h-8 w-1 rounded-full" style={{ backgroundColor: currentTypeColor }} />
               <input
-                value={title}
+                value={isSalarySelected ? "월급" : title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="제목"
-                className="w-full bg-transparent text-[34px] leading-[38px] font-semibold tracking-tight text-neutral-900 outline-none placeholder:text-neutral-300"
+                disabled={isSalarySelected}
+                className="w-full bg-transparent text-[34px] leading-[38px] font-semibold tracking-tight text-neutral-900 outline-none placeholder:text-neutral-300 disabled:text-neutral-400"
               />
             </div>
           </div>
@@ -803,6 +834,7 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
 </div>
 
 {/* 종일 (배경 없음, 우측 정렬) */}
+{!isSalarySelected ? (
 <div className="mt-2 flex items-center justify-end gap-3 px-1">
   <span className="text-[12px] font-semibold text-neutral-600">하루종일</span>
 
@@ -823,9 +855,10 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
     />
   </button>
 </div>
+) : null}
 
 {/* 시간 카드 (종일이면 숨김) */}
-{!allDay ? (
+{!allDay && !isSalarySelected ? (
   <div className="mt-3 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
     <Row
       icon={<Clock size={18} strokeWidth={1.8} className="text-neutral-500" />}
@@ -851,7 +884,7 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
               icon={<Calendar size={18} strokeWidth={1.8} className="text-neutral-500" />}
               label="캘린더"
               value={currentTypeLabel}
-              onClick={() => setTypeSheetOpen(true)}
+              onClick={() => { setSelectedMain(unpackType(typeValue).main); setTypeSheetOpen(true); }}
               valueTone="text-neutral-700"
               rightSlot={
                 <div className="flex items-center gap-2">
@@ -867,13 +900,32 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
             <Row
               icon={<Bell size={18} strokeWidth={1.8} className="text-neutral-500" />}
               label="알림"
-              value={reminderLabel(reminderMinutes)}
-              onClick={() => setReminderSheetOpen(true)}
+              value={reminderLabel(reminderMinutes, isSalarySelected, salaryReminderEnabled)}
+              onClick={isSalarySelected ? () => {} : () => setReminderSheetOpen(true)}
               valueTone="text-neutral-700"
+              rightSlot={isSalarySelected ? (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setSalaryReminderEnabled((p) => !p); }}
+                  className={[
+                    "h-6 w-10 rounded-full relative transition",
+                    salaryReminderEnabled ? "bg-neutral-900" : "bg-neutral-200",
+                  ].join(" ")}
+                  aria-label="월급 알림 토글"
+                >
+                  <span
+                    className={[
+                      "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition",
+                      salaryReminderEnabled ? "translate-x-4" : "translate-x-0",
+                    ].join(" ")}
+                  />
+                </button>
+              ) : undefined}
             />
           </div>
 
           {/* 위치/URL/메모 카드 */}
+          {!isSalarySelected ? (
           <div className="mt-4 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
             <div className="px-4 py-3">
               <div className="flex items-center gap-3">
@@ -917,6 +969,7 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
               </div>
             </div>
           </div>
+          ) : null}
 
           {/* 삭제 (iOS 느낌: 아래쪽 버튼) */}
           {isEdit && onDelete ? (
@@ -1025,15 +1078,17 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
               <button
                 type="button"
                 onClick={() => setAddingType((p) => !p)}
-                className="text-sm font-semibold text-neutral-700 hover:underline"
+                disabled={selectedMain === "SALARY"}
+                className="text-sm font-semibold text-neutral-700 hover:underline disabled:text-neutral-300"
               >
                 + 항목 추가
               </button>
               <button
                 type="button"
                 onClick={removeCurrentTypeItem}
-                className="text-sm font-semibold text-neutral-500 hover:text-neutral-800"
-                title="기본 항목은 삭제 불가"
+                disabled={selectedMain === "SALARY"}
+                className="text-sm font-semibold text-neutral-500 hover:text-neutral-800 disabled:text-neutral-300"
+                title="월급 항목은 삭제 불가"
               >
                 현재 항목 삭제
               </button>
@@ -1055,50 +1110,42 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
                 >
                   저장
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddingType(false);
-                    setNewTypeInput("");
-                  }}
-                  className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-                >
-                  취소
-                </button>
               </div>
             )}
           </div>
         }
       >
         <div className="space-y-3">
-  {/* ===== Accordion: 업무 ===== */}
-  <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-    <button
-      type="button"
-      onClick={() => setTypeAcc((p) => ({ work: !p.work, duty: false }))}
-      className="flex w-full items-center justify-between px-4 py-3 text-left"
-    >
-      <div className="text-xs font-semibold text-neutral-600">업무</div>
-      <div
-        className={[
-          "text-neutral-400 transition-transform",
-          typeAcc.work ? "rotate-180" : "rotate-0",
-        ].join(" ")}
-      >
-        ▾
-      </div>
-    </button>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              ["WORK", "업무"],
+              ["DUTY", "복무"],
+              ["SALARY", "월급"],
+              ["ETC", "기타"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setSelectedMain(key);
+                  const first = typeOptions[key][0]?.value;
+                  if (first) setTypeValue(first);
+                  if (key === "SALARY") { setAllDay(true); setTitle("월급"); }
+                }}
+                className={[
+                  "rounded-2xl border px-3 py-2 text-sm font-semibold",
+                  selectedMain === key
+                    ? "border-neutral-900 bg-neutral-900 text-white"
+                    : "border-neutral-200 bg-white text-neutral-700",
+                ].join(" ")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-    <div
-      className={[
-        "grid transition-[grid-template-rows] duration-200 ease-out",
-        typeAcc.work ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-      ].join(" ")}
-    >
-      <div className="min-h-0 overflow-hidden">
-        <div className="px-3 pb-3">
-          <div className="space-y-2">
-            {typeOptions.work.map((o) => {
+          <div className="space-y-2 rounded-2xl border border-neutral-200 bg-white p-2">
+            {typeOptions[selectedMain].map((o) => {
               const active = typeValue === o.value;
               const key = o.value as TypeKey;
               const color = typeColors[key] ?? COLOR_PRESETS[0];
@@ -1109,6 +1156,7 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
                   type="button"
                   onClick={() => {
                     setTypeValue(o.value);
+                    if (selectedMain === "SALARY") { setSalaryReminderEnabled(true); setAllDay(true); setTitle("월급"); }
                     setTypeSheetOpen(false);
                   }}
                   className={[
@@ -1157,100 +1205,6 @@ const [typeAcc, setTypeAcc] = useState<{ work: boolean; duty: boolean }>({
             })}
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  {/* ===== Accordion: 복무 ===== */}
-  <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-    <button
-      type="button"
-      onClick={() => setTypeAcc((p) => ({ work: false, duty: !p.duty }))}
-      className="flex w-full items-center justify-between px-4 py-3 text-left"
-    >
-      <div className="text-xs font-semibold text-neutral-600">복무</div>
-      <div
-        className={[
-          "text-neutral-400 transition-transform",
-          typeAcc.duty ? "rotate-180" : "rotate-0",
-        ].join(" ")}
-      >
-        ▾
-      </div>
-    </button>
-
-    <div
-      className={[
-        "grid transition-[grid-template-rows] duration-200 ease-out",
-        typeAcc.duty ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-      ].join(" ")}
-    >
-      <div className="min-h-0 overflow-hidden">
-        <div className="px-3 pb-3">
-          <div className="space-y-2">
-            {typeOptions.duty.map((o) => {
-              const active = typeValue === o.value;
-              const key = o.value as TypeKey;
-              const color = typeColors[key] ?? COLOR_PRESETS[0];
-
-              return (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => {
-                    setTypeValue(o.value);
-                    setTypeSheetOpen(false);
-                  }}
-                  className={[
-                    "w-full rounded-2xl border px-4 py-3 text-left",
-                    active
-                      ? "border-neutral-900 bg-neutral-900 text-white"
-                      : "border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400",
-                  ].join(" ")}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <ColorDot color={color} />
-                      <div className="text-sm font-semibold">{o.label}</div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setColorEditingKey(key);
-                          setColorSheetOpen(true);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key !== "Enter" && e.key !== " ") return;
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setColorEditingKey(key);
-                          setColorSheetOpen(true);
-                        }}
-                        className={[
-                          "inline-flex items-center justify-center rounded-xl border px-2 py-1 text-xs font-semibold select-none",
-                          active
-                            ? "border-white/30 text-white/90 hover:bg-white/10"
-                            : "border-neutral-200 text-neutral-700 hover:bg-neutral-50",
-                        ].join(" ")}
-                      >
-                        색 선택
-                      </span>
-                      {active && <div className="text-sm">✓</div>}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
       </BottomSheet>
 
       {/* 색상 선택 */}

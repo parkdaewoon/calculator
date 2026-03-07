@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body>
-        <SplashScreen minDurationMs={2000}>
+        <SplashScreen minDurationMs={700}>
           <AppShell>{children}</AppShell>
         </SplashScreen>
       </body>

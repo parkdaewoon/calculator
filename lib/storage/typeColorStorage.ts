@@ -10,7 +10,7 @@ function isHexColor(v: unknown): v is string {
 }
 
 function isAllowedKey(k: string) {
-  return k.startsWith("WORK|") || k.startsWith("DUTY|");
+  return k.startsWith("WORK|") || k.startsWith("DUTY|") || k.startsWith("SALARY|") || k.startsWith("ETC|");
 }
 
 export function loadTypeColors(): TypeColorMap {
