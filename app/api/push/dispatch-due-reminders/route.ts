@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
     const { data: dueEvents, error } = await supabaseAdmin
       .from("calendar_events")
-      .select("id, user_id, title, starts_at, remind_at, reminder_sent")
+      .select("id, user_id, title, starts_at, remind_at, reminder_sent, type_main")
       .not("remind_at", "is", null)
       .eq("reminder_sent", false)
       .lte("remind_at", nowIso)
@@ -39,12 +39,18 @@ export async function POST(req: Request) {
 
     for (const ev of dueEvents ?? []) {
       const startsAt = new Date(ev.starts_at);
+      const month = String(startsAt.getMonth() + 1).padStart(2, "0");
+      const day = String(startsAt.getDate()).padStart(2, "0");
       const hh = String(startsAt.getHours()).padStart(2, "0");
       const mm = String(startsAt.getMinutes()).padStart(2, "0");
+      const isSalary = String((ev as any).type_main ?? "") === "SALARY" || String(ev.title ?? "").includes("월급");
 
       await sendPushToUser(ev.user_id, {
-        title: "일정 알림",
-        body: `${ev.title} 일정이 ${hh}:${mm}에 시작돼요.`,
+        title: "공무원 노트",
+        body: isSalary
+          ? "월급 확인하기!!"
+          : `(일정) ${ev.title ?? "일정"}
+일정 놓치지 않기!! (${month}.${day}. ${hh}:${mm})`,
         url: "/calendar",
       });
 

@@ -22,7 +22,7 @@ export type WorkPattern = {
 export type CalendarEventType = "EVENT" | "LEAVE";
 export type LeaveUnit = "DAY" | "HALF" | "HOUR";
 
-export type EventTypeMain = "WORK" | "DUTY";
+export type EventTypeMain = "WORK" | "DUTY" | "SALARY" | "ETC";
 
 export type CalendarEvent = {
   id: string;
@@ -45,6 +45,7 @@ export type CalendarEvent = {
   typeSub?: string;
 
   reminderMinutes?: number;
+  salaryReminderEnabled?: boolean;
 
   memo?: string;
 

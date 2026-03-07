@@ -100,9 +100,10 @@ function sortByTime(a: any, b: any) {
 }
 
 function eventTypeKey(ev: any): TypeKey {
-  const main = (ev?.typeMain ?? ev?.categoryMain ?? "WORK") as string;
+  const main = String(ev?.typeMain ?? ev?.categoryMain ?? "WORK");
+  const normalizedMain = ["WORK", "DUTY", "SALARY", "ETC"].includes(main) ? main : "WORK";
   const sub = (ev?.typeSub ?? ev?.categorySub ?? "") as string;
-  return `${main === "DUTY" ? "DUTY" : "WORK"}|${sub}` as TypeKey;
+  return `${normalizedMain}|${sub}` as TypeKey;
 }
 
 export default function DayDetailSheet({
