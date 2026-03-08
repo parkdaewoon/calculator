@@ -50,10 +50,10 @@ export default function SideMenu({
           <div className="mt-8 text-xs text-neutral-500">정보</div>
           <div className="mt-3 space-y-2">
             <button className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50">
-              면책/출처 (추가 예정)
+              면책/출처 (준비중)
             </button>
             <button className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50">
-              문의 (추가 예정)
+              문의 (준비중)
             </button>
           </div>
           <div className="mt-auto pb-2 pt-6">
