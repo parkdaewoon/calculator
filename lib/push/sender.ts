@@ -31,9 +31,14 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
     .eq("enabled", true);
 
   if (error) throw error;
-  if (!data?.length) return { ok: true, sent: 0 };
+
+  if (!data?.length) {
+    console.warn("[push] no active subscriptions for user:", userId);
+    return { ok: true, sent: 0, total: 0 };
+  }
 
   let sent = 0;
+  let failed = 0;
 
   for (const row of data) {
     try {
@@ -48,16 +53,26 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
         JSON.stringify({
           title: payload.title,
           body: payload.body,
-          url: payload.url || "/calendar",
-          icon: payload.icon || "/icon-192.png",
-          badge: payload.badge || "/icon-192.png",
-          tag: payload.tag || "gongmuwon-note-push",
+          url: payload.url ?? "/calendar",
+          icon: payload.icon ?? "/icon-192.png",
+          badge: payload.badge ?? "/icon-192.png",
+          tag: payload.tag ?? "gongmuwon-note-push",
         })
       );
 
       sent += 1;
     } catch (e: any) {
+      failed += 1;
+
       const statusCode = e?.statusCode;
+      const body = e?.body ?? e?.message ?? String(e);
+
+      console.error("[push] send failed", {
+        userId,
+        endpoint: row.endpoint,
+        statusCode,
+        body,
+      });
 
       if (statusCode === 404 || statusCode === 410) {
         await supabaseAdmin
@@ -67,11 +82,14 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
             updated_at: new Date().toISOString(),
           })
           .eq("id", row.id);
-      } else {
-        console.error("push send failed", e);
       }
     }
   }
 
-  return { ok: true, sent };
+  return {
+    ok: true,
+    sent,
+    failed,
+    total: data.length,
+  };
 }

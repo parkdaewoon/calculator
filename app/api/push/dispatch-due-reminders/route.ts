@@ -36,36 +36,44 @@ export async function POST(req: Request) {
     if (error) throw error;
 
     let count = 0;
+    let failed = 0;
 
     for (const ev of dueEvents ?? []) {
-      const startsAt = new Date(ev.starts_at);
-      const month = String(startsAt.getMonth() + 1).padStart(2, "0");
-      const day = String(startsAt.getDate()).padStart(2, "0");
-      const hh = String(startsAt.getHours()).padStart(2, "0");
-      const mm = String(startsAt.getMinutes()).padStart(2, "0");
-      const isSalary = String((ev as any).type_main ?? "") === "SALARY" || String(ev.title ?? "").includes("월급");
+      try {
+        const startsAt = new Date(ev.starts_at);
+        const month = String(startsAt.getMonth() + 1).padStart(2, "0");
+        const day = String(startsAt.getDate()).padStart(2, "0");
+        const hh = String(startsAt.getHours()).padStart(2, "0");
+        const mm = String(startsAt.getMinutes()).padStart(2, "0");
 
-      await sendPushToUser(ev.user_id, {
-        title: "공무원 노트",
-        body: isSalary
-          ? "월급 확인하기!!"
-          : `(일정) ${ev.title ?? "일정"}
-일정 놓치지 않기!! (${month}.${day}. ${hh}:${mm})`,
-        url: "/calendar",
-      });
+        const isSalary =
+          String(ev.type_main ?? "") === "SALARY" ||
+          String(ev.title ?? "").includes("월급");
 
-      await supabaseAdmin
-        .from("calendar_events")
-        .update({
-          reminder_sent: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", ev.id);
+        await sendPushToUser(ev.user_id, {
+          title: "공무원 노트",
+          body: isSalary
+            ? "월급 확인하기!!"
+            : `(일정) ${ev.title ?? "일정"}\n일정 놓치지 않기!! (${month}.${day}. ${hh}:${mm})`,
+          url: "/calendar",
+        });
 
-      count += 1;
+        await supabaseAdmin
+          .from("calendar_events")
+          .update({
+            reminder_sent: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ev.id);
+
+        count += 1;
+      } catch (err) {
+        console.error("dispatch reminder failed:", ev.id, err);
+        failed += 1;
+      }
     }
 
-    return Response.json({ ok: true, count });
+    return Response.json({ ok: true, count, failed });
   } catch (e: any) {
     return Response.json(
       { ok: false, error: e?.message || String(e) },

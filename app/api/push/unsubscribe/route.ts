@@ -6,21 +6,48 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { endpoint } = body ?? {};
+    const { userId, endpoint } = body ?? {};
 
-    if (!endpoint) {
-      return Response.json({ ok: false, error: "Missing endpoint" }, { status: 400 });
+    if (!userId) {
+      return Response.json({ ok: false, error: "Missing userId" }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin
-      .from("push_subscriptions")
-      .update({
-        enabled: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("endpoint", endpoint);
+    const now = new Date().toISOString();
 
-    if (error) throw error;
+    if (endpoint) {
+      const { error: subError } = await supabaseAdmin
+        .from("push_subscriptions")
+        .update({
+          enabled: false,
+          updated_at: now,
+        })
+        .eq("endpoint", endpoint);
+
+      if (subError) throw subError;
+    } else {
+      const { error: subError } = await supabaseAdmin
+        .from("push_subscriptions")
+        .update({
+          enabled: false,
+          updated_at: now,
+        })
+        .eq("user_id", userId);
+
+      if (subError) throw subError;
+    }
+
+    const { error: settingsError } = await supabaseAdmin
+      .from("notification_settings")
+      .upsert(
+        {
+          user_id: userId,
+          push_enabled: false,
+          updated_at: now,
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (settingsError) throw settingsError;
 
     return Response.json({ ok: true });
   } catch (e: any) {

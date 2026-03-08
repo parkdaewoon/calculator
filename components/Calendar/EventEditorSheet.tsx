@@ -611,7 +611,20 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
   }, [workSubs, dutySubs, etcSubs]);
 
   const isSalarySelected = useMemo(() => unpackType(typeValue).main === "SALARY", [typeValue]);
+const prevIsSalaryRef = useRef(isSalarySelected);
 
+useEffect(() => {
+  const wasSalary = prevIsSalaryRef.current;
+
+  // 월급 -> 다른 유형으로 바뀐 순간
+  if (wasSalary && !isSalarySelected) {
+    if (title === "월급") setTitle("");
+    if (allDay) setAllDay(false);
+    if (salaryReminderEnabled) setSalaryReminderEnabled(false);
+  }
+
+  prevIsSalaryRef.current = isSalarySelected;
+}, [isSalarySelected, title, allDay, salaryReminderEnabled]);
   const canSave = useMemo(() => {
   if (!isSalarySelected && title.trim().length === 0) return false;
   if (startDate > endDate) return false;
@@ -904,23 +917,35 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
               onClick={isSalarySelected ? () => {} : () => setReminderSheetOpen(true)}
               valueTone="text-neutral-700"
               rightSlot={isSalarySelected ? (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setSalaryReminderEnabled((p) => !p); }}
-                  className={[
-                    "h-6 w-10 rounded-full relative transition",
-                    salaryReminderEnabled ? "bg-neutral-900" : "bg-neutral-200",
-                  ].join(" ")}
-                  aria-label="월급 알림 토글"
-                >
-                  <span
-                    className={[
-                      "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition",
-                      salaryReminderEnabled ? "translate-x-4" : "translate-x-0",
-                    ].join(" ")}
-                  />
-                </button>
-              ) : undefined}
+  <div
+    role="switch"
+    aria-checked={salaryReminderEnabled}
+    tabIndex={0}
+    onClick={(e) => {
+      e.stopPropagation();
+      setSalaryReminderEnabled((p) => !p);
+    }}
+    onKeyDown={(e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        setSalaryReminderEnabled((p) => !p);
+      }
+    }}
+    className={[
+      "h-6 w-10 rounded-full relative transition cursor-pointer",
+      salaryReminderEnabled ? "bg-neutral-900" : "bg-neutral-200",
+    ].join(" ")}
+    aria-label="월급 알림 토글"
+  >
+    <span
+      className={[
+        "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition",
+        salaryReminderEnabled ? "translate-x-4" : "translate-x-0",
+      ].join(" ")}
+    />
+  </div>
+) : undefined}
             />
           </div>
 
@@ -1127,11 +1152,22 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
                 key={key}
                 type="button"
                 onClick={() => {
-                  setSelectedMain(key);
-                  const first = typeOptions[key][0]?.value;
-                  if (first) setTypeValue(first);
-                  if (key === "SALARY") { setAllDay(true); setTitle("월급"); }
-                }}
+  const wasSalary = unpackType(typeValue).main === "SALARY";
+
+  setSelectedMain(key);
+  const first = typeOptions[key][0]?.value;
+  if (first) setTypeValue(first);
+
+  if (key === "SALARY") {
+    setAllDay(true);
+    setTitle("월급");
+    setSalaryReminderEnabled(true);
+  } else if (wasSalary) {
+    if (title === "월급") setTitle("");
+    setAllDay(false);
+    setSalaryReminderEnabled(false);
+  }
+}}
                 className={[
                   "rounded-2xl border px-3 py-2 text-sm font-semibold",
                   selectedMain === key
@@ -1155,10 +1191,23 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
                   key={o.value}
                   type="button"
                   onClick={() => {
-                    setTypeValue(o.value);
-                    if (selectedMain === "SALARY") { setSalaryReminderEnabled(true); setAllDay(true); setTitle("월급"); }
-                    setTypeSheetOpen(false);
-                  }}
+  const prevMain = unpackType(typeValue).main;
+  const nextMain = unpackType(o.value).main;
+
+  setTypeValue(o.value);
+
+  if (nextMain === "SALARY") {
+    setSalaryReminderEnabled(true);
+    setAllDay(true);
+    setTitle("월급");
+  } else if (prevMain === "SALARY") {
+    if (title === "월급") setTitle("");
+    setAllDay(false);
+    setSalaryReminderEnabled(false);
+  }
+
+  setTypeSheetOpen(false);
+}}
                   className={[
                     "w-full rounded-2xl border px-4 py-3 text-left",
                     active

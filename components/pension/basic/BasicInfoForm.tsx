@@ -380,32 +380,81 @@ export default function BasicInfoForm({
           </div>
 
           <div className="rounded-2xl border border-neutral-200 p-3">
-            <div className="text-sm font-semibold text-neutral-900">평균 기준 소득월액</div>
-            <div className="mt-2 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => update({ incomeMode: "auto" })}
-                className={["rounded-xl px-3 py-2 text-xs font-semibold", incomeMode === "auto" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-700"].join(" ")}
-              >
-                자동
-              </button>
-              <button
-                type="button"
-                onClick={() => update({ incomeMode: "manual" })}
-                className={["rounded-xl px-3 py-2 text-xs font-semibold", incomeMode === "manual" ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-700"].join(" ")}
-              >
-                직접
-              </button>
-              <input
-                inputMode="numeric"
-                value={incomeMode === "manual" ? Number(profile.avgIncomeMonthly ?? 0) : avgIncome}
-                onChange={(e) => update({ avgIncomeMonthly: Math.max(0, Number(e.target.value || 0)) })}
-                disabled={incomeMode !== "manual"}
-                className="h-10 flex-1 rounded-2xl border border-neutral-200 bg-white px-3 text-right text-sm disabled:bg-neutral-100"
-              />
-              <span className="text-sm text-neutral-500">원</span>
-            </div>
+  <div className="flex items-center justify-between gap-2">
+    <button
+      type="button"
+      onClick={() => setPromotionOpen((p) => !p)}
+      className="flex flex-1 items-center justify-between text-left"
+    >
+      <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
+        승진
+      </div>
+      <span className="text-neutral-400">{promotionOpen ? "▴" : "▾"}</span>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setPromotionGuideOpen(true)}
+      className="h-5 w-5 shrink-0 rounded-full border border-neutral-300 text-xs text-neutral-600"
+      aria-label="승진 평균연수 안내"
+    >
+      ?
+    </button>
+  </div>
+
+  {promotionOpen ? (
+    <div className="mt-3 space-y-2">
+      {promotionItems.map((row, idx) => {
+        const colOpts = makeColumnOptions(row.series);
+        return (
+          <div key={`${idx}-${row.promotedAt}`} className="grid grid-cols-4 gap-2">
+            <ProfileSelect
+              value={row.series}
+              options={seriesOptions}
+              onChange={(series) => {
+                const first = makeColumnOptions(series)[0]?.value ?? "g9";
+                setPromotion(idx, { series, columnKey: first });
+              }}
+            />
+            <ProfileSelect
+              value={row.columnKey}
+              options={colOpts}
+              onChange={(v) => setPromotion(idx, { columnKey: v })}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setPromotionPickerIndex(idx);
+                openDate("promotionDate");
+              }}
+              className="h-10 rounded-2xl border border-neutral-200 bg-white px-3 text-left text-sm"
+            >
+              {fmtYmd(row.promotedAt)}
+            </button>
+            <input
+              inputMode="numeric"
+              value={row.years}
+              onChange={(e) =>
+                setPromotion(idx, {
+                  years: clampInt(Number(e.target.value), 1, 30),
+                })
+              }
+              className="h-10 rounded-2xl border border-neutral-200 bg-white px-3 text-sm"
+              placeholder="승진연수"
+            />
           </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={addPromotionRow}
+        className="rounded-xl border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700"
+      >
+        + 승진 이력 추가
+      </button>
+    </div>
+  ) : null}
+</div>
         </div>
       </SectionCard>
 

@@ -16,6 +16,8 @@ export async function POST(req: Request) {
       return Response.json({ ok: false, error: "Invalid subscription" }, { status: 400 });
     }
 
+    const now = new Date().toISOString();
+
     const payload = {
       user_id: userId,
       endpoint: subscription.endpoint,
@@ -23,26 +25,28 @@ export async function POST(req: Request) {
       auth: subscription.keys.auth,
       device_label: deviceLabel ?? null,
       enabled: true,
-      last_seen_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_seen_at: now,
+      updated_at: now,
     };
 
-    const { error } = await supabaseAdmin
+    const { error: subError } = await supabaseAdmin
       .from("push_subscriptions")
       .upsert(payload, { onConflict: "endpoint" });
 
-    if (error) throw error;
+    if (subError) throw subError;
 
-    await supabaseAdmin
-  .from("notification_settings")
-  .upsert(
-    {
-      user_id: userId,
-      push_enabled: true,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  );
+    const { error: settingsError } = await supabaseAdmin
+      .from("notification_settings")
+      .upsert(
+        {
+          user_id: userId,
+          push_enabled: true,
+          updated_at: now,
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (settingsError) throw settingsError;
 
     return Response.json({ ok: true });
   } catch (e: any) {

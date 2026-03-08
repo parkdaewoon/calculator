@@ -43,7 +43,7 @@ export default function SideMenu({
           <div className="mt-3 space-y-2">
             <MenuLink href="/" label="홈" onClick={onClose} />
             <MenuLink href="/salary" label="봉급" onClick={onClose} />
-            <MenuLink href="/pension" label="연금 (준비중)" onClick={onClose} />
+            <MenuLink href="/pension" label="연금" onClick={onClose} />
             <MenuLink href="/calendar" label="달력" onClick={onClose} />
           </div>
 
