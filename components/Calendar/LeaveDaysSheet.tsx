@@ -68,7 +68,7 @@ export default function LeaveDaysSheet({ open, onClose }: LeaveDaysSheetProps) {
   const parsedUsedDay = useMemo(() => {
     const n = Number(usedDayInput);
     if (!Number.isFinite(n)) return null;
-    return clampInt(n, 0, 3650); // 넉넉히 가득다그
+    return clampInt(n, 0, 3650); // 넉넉히 가
   }, [usedDayInput]);
 
   const parsedUsedHour = useMemo(() => {
