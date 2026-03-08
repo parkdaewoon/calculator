@@ -18,12 +18,14 @@ const supabaseAdmin = createClient(
 async function handle(req: Request) {
   try {
     const isVercelCron = req.headers.get("x-vercel-cron");
+    console.log("[dispatch] x-vercel-cron =", isVercelCron);
 
     if (!isVercelCron) {
       return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
     const nowIso = new Date().toISOString();
+    console.log("[dispatch] nowIso =", nowIso);
 
     const { data: dueEvents, error } = await supabaseAdmin
       .from("calendar_events")
@@ -34,13 +36,27 @@ async function handle(req: Request) {
       .order("remind_at", { ascending: true })
       .limit(100);
 
-    if (error) throw error;
+    if (error) {
+      console.error("[dispatch] dueEvents error =", error);
+      throw error;
+    }
+
+    console.log("[dispatch] dueCount =", dueEvents?.length ?? 0);
 
     let count = 0;
     let failed = 0;
 
     for (const ev of dueEvents ?? []) {
       try {
+        console.log("[dispatch] processing =", {
+          eventId: ev.id,
+          userId: ev.user_id,
+          title: ev.title,
+          starts_at: ev.starts_at,
+          remind_at: ev.remind_at,
+          type_main: ev.type_main,
+        });
+
         const startsAt = new Date(ev.starts_at);
         const month = String(startsAt.getMonth() + 1).padStart(2, "0");
         const day = String(startsAt.getDate()).padStart(2, "0");
@@ -59,13 +75,13 @@ async function handle(req: Request) {
           url: "/calendar",
         });
 
-        console.log("[dispatch] result", {
+        console.log("[dispatch] pushResult =", {
           eventId: ev.id,
           userId: ev.user_id,
           pushResult,
         });
 
-        await supabaseAdmin
+        const { error: updateError } = await supabaseAdmin
           .from("calendar_events")
           .update({
             reminder_sent: true,
@@ -73,9 +89,18 @@ async function handle(req: Request) {
           })
           .eq("id", ev.id);
 
+        if (updateError) {
+          console.error("[dispatch] update reminder_sent failed =", {
+            eventId: ev.id,
+            updateError,
+          });
+          failed += 1;
+          continue;
+        }
+
         count += 1;
       } catch (err) {
-        console.error("dispatch reminder failed:", ev.id, err);
+        console.error("[dispatch] reminder failed =", ev.id, err);
         failed += 1;
       }
     }
@@ -87,6 +112,7 @@ async function handle(req: Request) {
       dueCount: dueEvents?.length ?? 0,
     });
   } catch (e: any) {
+    console.error("[dispatch] fatal =", e);
     return Response.json(
       { ok: false, error: e?.message || String(e) },
       { status: 500 }
