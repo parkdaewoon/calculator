@@ -1,3 +1,21 @@
+let CURRENT_USER_ID = null;
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("message", (event) => {
+  const data = event.data || {};
+
+  if (data.type === "SET_USER_ID" && data.userId) {
+    CURRENT_USER_ID = data.userId;
+  }
+});
+
 self.addEventListener("push", (event) => {
   let data = {};
 
@@ -13,6 +31,7 @@ self.addEventListener("push", (event) => {
     body: data.body || "알림이 도착했어요.",
     icon: data.icon || "/icon-192.png",
     badge: data.badge || "/icon-192.png",
+    tag: data.tag || "gongmuwon-note-push",
     data: {
       url: data.url || "/",
     },
@@ -29,11 +48,16 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if ("focus" in client) {
-          client.navigate?.(url);
-          return client.focus();
+        const clientUrl = new URL(client.url);
+
+        if (clientUrl.origin === self.location.origin) {
+          if ("focus" in client) {
+            client.postMessage({ type: "OPEN_URL", url });
+            return client.focus();
+          }
         }
       }
+
       return clients.openWindow(url);
     })
   );
@@ -43,24 +67,31 @@ self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
     (async () => {
       try {
+        const userId = await getStoredUserId();
+        if (!userId) {
+          console.warn("pushsubscriptionchange: missing userId");
+          return;
+        }
+
         const res = await fetch("/api/push/public-key", { cache: "no-store" });
-        const { key } = await res.json();
-        if (!key) return;
+        const json = await res.json().catch(() => null);
+        const key = json?.key;
+
+        if (!res.ok || !key) {
+          throw new Error("Missing public key");
+        }
 
         const newSub = await self.registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(key),
         });
 
-        const userId = await getStoredUserId();
-        if (!userId) return;
-
         await fetch("/api/push/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId,
-            subscription: newSub,
+            subscription: newSub.toJSON(),
             deviceLabel: "PWA",
           }),
         });
@@ -81,9 +112,18 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 async function getStoredUserId() {
-  const allClients = await clients.matchAll({ includeUncontrolled: true, type: "window" });
+  if (CURRENT_USER_ID) return CURRENT_USER_ID;
+
+  const allClients = await clients.matchAll({
+    includeUncontrolled: true,
+    type: "window",
+  });
+
   for (const client of allClients) {
-    client.postMessage({ type: "GET_USER_ID" });
+    client.postMessage({ type: "REQUEST_USER_ID" });
   }
-  return null;
+
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  return CURRENT_USER_ID;
 }

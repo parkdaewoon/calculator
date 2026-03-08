@@ -50,12 +50,18 @@ export async function POST(req: Request) {
           String(ev.type_main ?? "") === "SALARY" ||
           String(ev.title ?? "").includes("월급");
 
-        await sendPushToUser(ev.user_id, {
+        const pushResult = await sendPushToUser(ev.user_id, {
           title: "공무원 노트",
           body: isSalary
             ? "월급 확인하기!!"
             : `(일정) ${ev.title ?? "일정"}\n일정 놓치지 않기!! (${month}.${day}. ${hh}:${mm})`,
           url: "/calendar",
+        });
+
+        console.log("[dispatch] result", {
+          eventId: ev.id,
+          userId: ev.user_id,
+          pushResult,
         });
 
         await supabaseAdmin
@@ -73,7 +79,12 @@ export async function POST(req: Request) {
       }
     }
 
-    return Response.json({ ok: true, count, failed });
+    return Response.json({
+      ok: true,
+      count,
+      failed,
+      dueCount: dueEvents?.length ?? 0,
+    });
   } catch (e: any) {
     return Response.json(
       { ok: false, error: e?.message || String(e) },
