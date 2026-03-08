@@ -1,20 +1,5 @@
 {
   "crons": [
-    {
-      "path": "/api/push/cron/salary",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/push/cron/shift",
-      "schedule": "0 11 * * *"
-    },
-    {
-      "path": "/api/push/cron/leave",
-      "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/push/cron/notices",
-      "schedule": "0 13 * * *"
-    }
+    { "path": "/api/push/dispatch-due-reminders", "schedule": "*/10 * * * *" }
   ]
 }

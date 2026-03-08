@@ -15,10 +15,11 @@ const supabaseAdmin = createClient(
   }
 );
 
-export async function POST(req: Request) {
+async function handle(req: Request) {
   try {
-    const auth = req.headers.get("authorization");
-    if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    const isVercelCron = req.headers.get("x-vercel-cron");
+
+    if (!isVercelCron) {
       return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
@@ -91,4 +92,12 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function GET(req: Request) {
+  return handle(req);
+}
+
+export async function POST(req: Request) {
+  return handle(req);
 }
