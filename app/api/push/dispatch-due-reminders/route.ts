@@ -4,126 +4,83 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { sendPushToUser } from "@/lib/push/sender";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+  }
+
+  if (!serviceRoleKey) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
-  }
-);
+  });
+}
 
-async function handle(req: Request) {
+export async function POST(req: Request) {
   try {
-    const isVercelCron = req.headers.get("x-vercel-cron");
-    console.log("[dispatch] x-vercel-cron =", isVercelCron);
-
-    if (!isVercelCron) {
+    const auth = req.headers.get("authorization");
+    if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
       return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
+
     const nowIso = new Date().toISOString();
-    console.log("[dispatch] nowIso =", nowIso);
 
     const { data: dueEvents, error } = await supabaseAdmin
       .from("calendar_events")
       .select("id, user_id, title, starts_at, remind_at, reminder_sent, type_main")
       .not("remind_at", "is", null)
       .eq("reminder_sent", false)
-      .lte("remind_at", nowIso)
-      .order("remind_at", { ascending: true })
-      .limit(100);
+      .lte("remind_at", nowIso);
 
     if (error) {
-      console.error("[dispatch] dueEvents error =", error);
-      throw error;
+      console.error("dueEvents query failed", error);
+      return Response.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    console.log("[dispatch] dueCount =", dueEvents?.length ?? 0);
+    if (!dueEvents || dueEvents.length === 0) {
+      return Response.json({ ok: true, sent: 0 });
+    }
 
-    let count = 0;
-    let failed = 0;
+    let sent = 0;
 
-    for (const ev of dueEvents ?? []) {
+    for (const ev of dueEvents) {
       try {
-        console.log("[dispatch] processing =", {
-          eventId: ev.id,
-          userId: ev.user_id,
-          title: ev.title,
-          starts_at: ev.starts_at,
-          remind_at: ev.remind_at,
-          type_main: ev.type_main,
-        });
-
-        const startsAt = new Date(ev.starts_at);
-        const month = String(startsAt.getMonth() + 1).padStart(2, "0");
-        const day = String(startsAt.getDate()).padStart(2, "0");
-        const hh = String(startsAt.getHours()).padStart(2, "0");
-        const mm = String(startsAt.getMinutes()).padStart(2, "0");
-
-        const isSalary =
-          String(ev.type_main ?? "") === "SALARY" ||
-          String(ev.title ?? "").includes("월급");
-
-        const pushResult = await sendPushToUser(ev.user_id, {
-          title: "공무원 노트",
-          body: isSalary
-            ? "월급 확인하기!!"
-            : `(일정) ${ev.title ?? "일정"}\n일정 놓치지 않기!! (${month}.${day}. ${hh}:${mm})`,
+        await sendPushToUser(ev.user_id, {
+          title: "일정 알림",
+          body: ev.title ?? "예정된 일정이 있어요.",
           url: "/calendar",
         });
 
-        console.log("[dispatch] pushResult =", {
-          eventId: ev.id,
-          userId: ev.user_id,
-          pushResult,
-        });
-
-        const { error: updateError } = await supabaseAdmin
+        await supabaseAdmin
           .from("calendar_events")
-          .update({
-            reminder_sent: true,
-            updated_at: new Date().toISOString(),
-          })
+          .update({ reminder_sent: true })
           .eq("id", ev.id);
 
-        if (updateError) {
-          console.error("[dispatch] update reminder_sent failed =", {
-            eventId: ev.id,
-            updateError,
-          });
-          failed += 1;
-          continue;
-        }
-
-        count += 1;
-      } catch (err) {
-        console.error("[dispatch] reminder failed =", ev.id, err);
-        failed += 1;
+        sent += 1;
+      } catch (e) {
+        console.error("sendPushToUser failed", ev.id, e);
       }
     }
 
-    return Response.json({
-      ok: true,
-      count,
-      failed,
-      dueCount: dueEvents?.length ?? 0,
-    });
-  } catch (e: any) {
-    console.error("[dispatch] fatal =", e);
+    return Response.json({ ok: true, sent });
+  } catch (e) {
+    console.error("dispatch-due-reminders failed", e);
     return Response.json(
-      { ok: false, error: e?.message || String(e) },
+      {
+        ok: false,
+        error: e instanceof Error ? e.message : "Unknown error",
+      },
       { status: 500 }
     );
   }
-}
-
-export async function GET(req: Request) {
-  return handle(req);
-}
-
-export async function POST(req: Request) {
-  return handle(req);
 }
