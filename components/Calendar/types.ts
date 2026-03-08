@@ -61,6 +61,7 @@ export type CalendarHeaderProps = {
   onGoToday: () => void;
   onOpenWorkMode: () => void;
   onClear: () => void;
+  onChangeMonth: (next: YYYYMM) => void;
 };
 
 export type MonthGridProps = {

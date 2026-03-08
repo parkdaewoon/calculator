@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { MonthGridProps } from "./types";
 import DayCell from "./DayCell";
-import { buildMonthGrid, getMonthRange } from "@/lib/calendar";
+import { buildMonthGrid } from "@/lib/calendar";
 
-import { loadTypeColors } from "@/lib/storage/typeColorStorage";
+import { loadTypeColors, TYPE_COLORS_UPDATED_EVENT } from "@/lib/storage/typeColorStorage";
 import { hexToRgba } from "@/lib/calendar/typeColors";
 
 const DOW = ["일", "월", "화", "수", "목", "금", "토"] as const;
@@ -35,7 +35,6 @@ export default function MonthGrid({
   holidays,
 }: MonthGridProps) {
   const grid = useMemo(() => buildMonthGrid(month), [month]);
-  const { start, end } = useMemo(() => getMonthRange(month), [month]);
 
   function normYMD(v: string) {
     const m = String(v ?? "").match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
@@ -44,17 +43,32 @@ export default function MonthGrid({
   }
 
   const eventsInView = useMemo(() => {
-    const s = normYMD(start);
-    const e = normYMD(end);
+    const s = normYMD(grid[0]?.date ?? "");
+    const e = normYMD(grid[grid.length - 1]?.date ?? "");
 
     return (events ?? []).filter((ev: any) => {
       const a = normYMD(ev.dateStart);
       const b = normYMD(ev.dateEnd ?? ev.dateStart);
       return !(b < s || a > e);
     });
-  }, [events, start, end]);
+  }, [events, grid]);
 
-  const typeColors = useMemo(() => loadTypeColors(), []);
+  const [typeColors, setTypeColors] = useState(() => loadTypeColors());
+
+useEffect(() => {
+  const refresh = () => setTypeColors(loadTypeColors());
+
+  // ✅ 같은 탭에서 저장해도 반영
+  window.addEventListener(TYPE_COLORS_UPDATED_EVENT, refresh);
+
+  // ✅ 다른 탭에서 바뀐 경우(storage 이벤트)
+  window.addEventListener("storage", refresh);
+
+  return () => {
+    window.removeEventListener(TYPE_COLORS_UPDATED_EVENT, refresh);
+    window.removeEventListener("storage", refresh);
+  };
+}, []);
 
   // ✅ 하루/기간 이벤트를 모두 "주(row) 점유"로 라인 배치해서 seg로 만들기
   const segments = useMemo(() => {
@@ -93,9 +107,10 @@ export default function MonthGrid({
     };
 
     const eventTypeKey = (ev: any) => {
-      const main = (ev?.typeMain ?? ev?.categoryMain ?? "WORK") as string;
+      const main = String(ev?.typeMain ?? ev?.categoryMain ?? "WORK");
+      const normalizedMain = ["WORK", "DUTY", "SALARY", "ETC"].includes(main) ? main : "WORK";
       const sub = (ev?.typeSub ?? ev?.categorySub ?? "") as string;
-      return `${main === "DUTY" ? "DUTY" : "WORK"}|${sub}`;
+      return `${normalizedMain}|${sub}`;
     };
 
     const sorted = [...(eventsInView ?? [])].sort((a: any, b: any) => {
@@ -206,27 +221,26 @@ export default function MonthGrid({
     didSwipe.current = false;
   };
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    const sx = touchStartX.current;
-    const sy = touchStartY.current;
-    if (sx == null || sy == null) return;
+const onTouchMove = (e: React.TouchEvent) => {
+  const sx = touchStartX.current;
+  const sy = touchStartY.current;
+  if (sx == null || sy == null) return;
 
-    const t = e.touches[0];
-    const dx = t.clientX - sx;
-    const dy = t.clientY - sy;
+  const t = e.touches[0];
+  const dx = t.clientX - sx;
+  const dy = t.clientY - sy;
 
-    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > thresholdY) return;
+  // 세로 스크롤 의도면 스킵
+  if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > thresholdY) return;
 
-    if (!didSwipe.current && dx > thresholdX) {
-      didSwipe.current = true;
-      onPrevMonth();
-      e.preventDefault();
-    } else if (!didSwipe.current && dx < -thresholdX) {
-      didSwipe.current = true;
-      onNextMonth();
-      e.preventDefault();
-    }
-  };
+  if (!didSwipe.current && dx > thresholdX) {
+    didSwipe.current = true;
+    onPrevMonth();
+  } else if (!didSwipe.current && dx < -thresholdX) {
+    didSwipe.current = true;
+    onNextMonth();
+  }
+};
 
   const onTouchEnd = () => {
     touchStartX.current = null;
@@ -341,6 +355,7 @@ export default function MonthGrid({
                   onChangeEvents={onChangeEvents}
                   showWorkBadge={showWorkBadges}
                   isHoliday={Boolean(h?.isHoliday)}
+                  holidayName={h?.name}
                   hasMore={more > 0}
                 />
               </div>

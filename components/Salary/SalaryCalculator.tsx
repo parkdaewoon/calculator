@@ -2,16 +2,17 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
+import { createPortal } from "react-dom";
 import AdsenseSlot from "@/components/AdsenseSlot";
-import { getEarnedIncomeWithholdingTaxWon } from "@/lib/allowances/calculator/tax/earnedIncomeTax";
+
 import SalaryMenuGrid, { SalaryTabKey } from "@/components/Salary/SalaryTabs";
 import PayTableSection from "@/components/Salary/PayTableSection";
 import AllowanceSection from "@/components/Salary/AllowanceSection";
 import TravelSection from "@/components/Salary/TravelSection";
+
 import { PAY_TABLES, getPay, type PayTableId } from "@/lib/payTables"; // ✅ PAY_TABLES 추가
 import {
   calcPwuAllowance,
-
   calcRegularBonus,
   calcRegularAdd,
   calcFamilyAllowance,
@@ -29,7 +30,155 @@ import {
   calcLongTermCare,
   calcPensionContribution,
 } from "@/lib/allowances/calculator/deductions";
+import { calcTaxesMonthly } from "@/lib/allowances/calculator/tax";
 
+type Opt = { value: string; label: string };
+
+function NiceSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: Opt[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = React.useRef<HTMLButtonElement | null>(null);
+  const popRef = React.useRef<HTMLDivElement | null>(null);
+
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? "선택";
+
+  const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(
+    null
+  );
+
+  const updatePos = () => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ left: r.left, top: r.bottom + 8, width: r.width });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    updatePos();
+    const onResize = () => updatePos();
+    const onScroll = () => updatePos();
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={[
+          "relative flex w-full items-center justify-between",
+          "h-10 rounded-2xl border border-neutral-200 bg-white px-3",
+          "text-left text-sm text-neutral-900 shadow-sm transition",
+          "hover:border-neutral-300",
+          "focus:outline-none focus:ring-4 focus:ring-neutral-200/60 focus:border-neutral-400",
+        ].join(" ")}
+      >
+        <span className="truncate">{selectedLabel}</span>
+
+        <span className="ml-2 flex h-6 w-6 items-center justify-center rounded-xl text-neutral-500">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M5 7.5L10 12.5L15 7.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </button>
+
+      {open && pos
+        ? createPortal(
+            <div
+              ref={popRef}
+              style={{
+                position: "fixed",
+                left: pos.left,
+                top: pos.top,
+                width: pos.width,
+                zIndex: 2000,
+              }}
+              className={[
+                "overflow-hidden rounded-2xl border border-neutral-200 bg-white",
+                "shadow-[0_20px_60px_rgba(0,0,0,0.18)]",
+              ].join(" ")}
+            >
+              <div className="max-h-[260px] overflow-auto p-1">
+                {options.map((o) => {
+                  const active = o.value === value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => {
+                        onChange(o.value);
+                        setOpen(false);
+                      }}
+                      className={[
+                        "w-full rounded-xl px-3 py-2 text-left text-xs transition",
+                        active
+                          ? "bg-neutral-900 text-white"
+                          : "text-neutral-900 hover:bg-neutral-100",
+                      ].join(" ")}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
+}
+
+const STEP_OPTIONS: Opt[] = Array.from({ length: 32 }, (_, i) => {
+  const n = i + 1;
+  return { value: String(n), label: `${n}호봉` };
+});
+
+const YEAR_OPTIONS: Opt[] = Array.from({ length: 41 }, (_, i) => {
+  // 0~40
+  return { value: String(i), label: `${i}년` };
+});
 type SeriesKey = PayTableId;
 type MoneyMode = "auto" | "manual";
 
@@ -115,18 +264,6 @@ type SalaryInputs = {
   allow_leave_comp_mode: MoneyMode; // (자동) 연가보상비
   allow_leave_comp_manual: number;
 
-  // ===== 소방/경찰/교정 관련 수당(수동) =====
-  fire_field_manual: number;        // 소방: 현장(출동/현장활동 등)
-  fire_rescue_manual: number;       // 소방: 구조/구급 등
-  fire_other_manual: number;        // 소방: 기타
-
-  police_security_manual: number;   // 경찰: 치안/경비/순찰 등
-  police_invest_manual: number;     // 경찰: 수사/정보/형사 등
-  police_other_manual: number;      // 경찰: 기타
-
-  corrections_duty_manual: number;  // 교정: 계호/보안/근무수당 등
-  corrections_other_manual: number; // 교정: 기타
-
   allow_other_manual: number;
   leave_comp_days: number;
 
@@ -149,7 +286,82 @@ type SalaryInputs = {
   otherDeduction: number;
   management_excluded: boolean;
 };
+// =========================
+// ✅ LocalStorage: Draft + History
+// =========================
+type SalaryHistoryItem = {
+  id: string;
+  savedAt: number; // epoch ms
+  label: string;   // "2026-03-05  9급 3호봉"
+  inputs: SalaryInputs;
+};
 
+const DRAFT_KEY = "salary_calc_inputs_draft_v1";
+const HISTORY_KEY = "salary_calc_inputs_history_v1";
+const HISTORY_MAX = 5;
+
+function safeParseJSON<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function loadDraft(): SalaryInputs | null {
+  if (typeof window === "undefined") return null;
+  return safeParseJSON<SalaryInputs>(localStorage.getItem(DRAFT_KEY));
+}
+
+function saveDraft(inputs: SalaryInputs) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(inputs));
+}
+
+function loadHistory(): SalaryHistoryItem[] {
+  if (typeof window === "undefined") return [];
+  return safeParseJSON<SalaryHistoryItem[]>(localStorage.getItem(HISTORY_KEY)) ?? [];
+}
+
+function saveHistory(list: SalaryHistoryItem[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+}
+
+function ymdLabel(ts: number) {
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// ✅ 날짜 + 직급 + 호봉(입력 기반)
+function makeHistoryLabel(inputs: SalaryInputs) {
+  const gradeGuess = columnKeyToGradeGuess(inputs.series, inputs.columnKey);
+  return `${ymdLabel(Date.now())}  ${gradeGuess}급 ${inputs.step}호봉`;
+}
+
+function addHistorySnapshot(inputs: SalaryInputs) {
+  const now = Date.now();
+  const item: SalaryHistoryItem = {
+    id: `${now}_${Math.random().toString(16).slice(2)}`,
+    savedAt: now,
+    label: makeHistoryLabel(inputs),
+    inputs,
+  };
+
+  const prev = loadHistory();
+  const next = [item, ...prev].slice(0, HISTORY_MAX);
+  saveHistory(next);
+  return next;
+}
+
+function clearHistory() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(HISTORY_KEY);
+}
 type SalaryBreakdown = {
   basePay: number;
 
@@ -321,18 +533,6 @@ function makeInitialInputs(series: SeriesKey = "general" as SeriesKey): SalaryIn
     standardMonthly_mode: "manual",
     standardMonthly_manual: 0,
 
-    // ===== 소방/경찰/교정 관련 수당(수동) =====
-    fire_field_manual: 0,
-    fire_rescue_manual: 0,
-    fire_other_manual: 0,
-
-    police_security_manual: 0,
-    police_invest_manual: 0,
-    police_other_manual: 0,
-
-    corrections_duty_manual: 0,
-    corrections_other_manual: 0,
-
     employment: 0,
     incomeTax_mode: "auto",
     incomeTax_manual: 0,
@@ -346,9 +546,25 @@ function makeInitialInputs(series: SeriesKey = "general" as SeriesKey): SalaryIn
 }
 export default function SalaryCalculator() {
   const [active, setActive] = useState<SalaryTabKey | null>(null);
-  const [inputs, setInputs] = useState<SalaryInputs>(() => makeInitialInputs());
+  const [inputs, setInputs] = useState<SalaryInputs>(() => {
+  const draft = loadDraft();
+  return draft ?? makeInitialInputs();
+});
   const pathname = usePathname();
+// ✅ 히스토리 모달
+const [historyOpen, setHistoryOpen] = useState(false);
+const [history, setHistory] = useState<SalaryHistoryItem[]>([]);
+const [selectedId, setSelectedId] = useState<string | null>(null);
 
+// ✅ 최초 로드: 히스토리 읽기
+useEffect(() => {
+  setHistory(loadHistory());
+}, []);
+
+// ✅ 입력값 바뀔 때마다 draft 자동 저장
+useEffect(() => {
+  saveDraft(inputs);
+}, [inputs]);
   useEffect(() => {
     // ✅ 다른 화면(다른 route)으로 이동하면 초기화
     setInputs(makeInitialInputs());
@@ -356,6 +572,7 @@ export default function SalaryCalculator() {
   }, [pathname]);
   // ✅ series/columnKey가 어긋나도 안전하게 보정
   const safeInputs = useMemo<SalaryInputs>(() => {
+    
     const safeSeries: SeriesKey = inputs.series;
     const safeColumnKey = getSafeColumnKey(safeSeries, inputs.columnKey);
 
@@ -407,14 +624,132 @@ export default function SalaryCalculator() {
             <button
               type="button"
               onClick={() => {
-                setActive(null);
-                setInputs(makeInitialInputs()); // ✅ 입력값 초기화
-              }}
+  setActive(null);
+  setInputs(makeInitialInputs());
+}}
               className="shrink-0 rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
             >
               전체 메뉴
             </button>
           ) : null}
+          {/* =========================
+    ✅ History Modal
+   ========================= */}
+{historyOpen ? (
+  <div className="fixed inset-0 z-[200]">
+    <div
+      className="absolute inset-0 bg-black/40"
+      onClick={() => setHistoryOpen(false)}
+    />
+    <div className="absolute left-1/2 top-1/2 w-[92%] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-white p-4 shadow-2xl">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold text-neutral-900">이전 기록</div>
+        <button
+          type="button"
+          onClick={() => setHistoryOpen(false)}
+          className="rounded-xl px-3 py-2 text-[13px] font-semibold text-neutral-600 hover:bg-neutral-100"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {history.length === 0 ? (
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-500">
+            저장된 기록이 없습니다.
+          </div>
+        ) : (
+          history.slice(0, HISTORY_MAX).map((h) => {
+  const selected = selectedId === h.id;
+
+  return (
+    <div
+      key={h.id}
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        // ✅ 행 클릭: 바로 불러오기 + 닫기
+        setSelectedId(h.id);
+        setInputs(h.inputs);
+        setHistoryOpen(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setSelectedId(h.id);
+          setInputs(h.inputs);
+          setHistoryOpen(false);
+        }
+      }}
+      className={[
+        "w-full rounded-2xl border px-3 py-3 text-left transition cursor-pointer select-none",
+        selected
+          ? "border-neutral-900 bg-neutral-50"
+          : "border-neutral-200 bg-white hover:bg-neutral-50",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-neutral-900">
+            {h.label}
+          </div>
+          <div className="mt-1 text-[11px] text-neutral-500">
+            {new Date(h.savedAt).toLocaleString("ko-KR")}
+          </div>
+        </div>
+
+        {/* ✅ v 표시 (선택만 하고, 창은 안 닫힘) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation(); // ✅ 행 클릭(불러오기/닫기) 막기
+            setSelectedId(h.id); // ✅ 선택만
+          }}
+          className={[
+            "mt-0.5 grid h-6 w-6 place-items-center rounded-full border text-[14px] font-black",
+            selected
+              ? "border-neutral-900 bg-neutral-900 text-white"
+              : "border-neutral-300 bg-white text-transparent",
+          ].join(" ")}
+          aria-label={selected ? "선택됨" : "선택하기"}
+        >
+          ✓
+        </button>
+      </div>
+    </div>
+  );
+}))}
+      </div>
+
+      {/* ✅ 하단 버튼: 현재 저장 삭제, 기록 삭제만 */}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => {
+            if (!selectedId) {
+              alert("삭제할 기록을 선택하세요.");
+              return;
+            }
+            const ok = confirm("선택한 기록을 삭제할까요?");
+            if (!ok) return;
+
+            const next = history.filter((x) => x.id !== selectedId);
+            setHistory(next);
+            saveHistory(next); // ✅ localStorage 반영
+            setSelectedId(null);
+          }}
+          className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+        >
+          기록 삭제
+        </button>
+      </div>
+
+      <div className="mt-3 text-[11px] text-neutral-400">
+        * 입력값은 자동으로 '임시 저장'되며, 저장 버튼으로 히스토리(최대 5개)에 남깁니다.
+      </div>
+    </div>
+  </div>
+) : null}
         </div>
 
         <p className="mt-3 text-sm text-neutral-500">
@@ -425,13 +760,13 @@ export default function SalaryCalculator() {
       </section>
 
       {!active && (
-        <SalaryMenuGrid
-          onSelect={(next) => {
-            setInputs(makeInitialInputs()); // ✅ 이동할 때 초기화
-            setActive(next);
-          }}
-        />
-      )}
+  <SalaryMenuGrid
+  onSelect={(next) => {
+    setInputs(makeInitialInputs());
+    setActive(next);
+  }}
+/>
+)}
 
       {active === "payTable" && (
         <PayTableSection
@@ -459,88 +794,82 @@ export default function SalaryCalculator() {
       {active === "calculator" && (
         <>
           {/* 1) 기본 정보 */}
-          <section className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-neutral-900">
-                기본 정보
-              </div>
-              <div className="text-xs text-neutral-400">자동 산출</div>
-            </div>
+<section className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
+  <div className="flex items-center justify-between">
+    <div className="text-sm font-semibold text-neutral-900">기본 정보</div>
 
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <Field label="직렬">
-                <select
-                  value={safeInputs.series}
-                  onChange={(e) => {
-                    const series = e.target.value as SeriesKey;
-                    setInputs((p) => ({
-                      ...p,
-                      series,
-                      columnKey: getFirstColumnKey(series) || p.columnKey,
-                      step: 1,
-                    }));
-                  }}
-                  className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-                >
-                  {Object.keys(PAY_TABLES).map((id) => {
-                    const key = id as SeriesKey;
-                    return (
-                      <option key={key} value={key}>
-                        {PAY_TABLES[key]?.title ?? key}
-                      </option>
-                    );
-                  })}
-                </select>
-              </Field>
+    <button
+      type="button"
+      onClick={() => {
+        setHistory(loadHistory());
+        setHistoryOpen(true);
+      }}
+      className="text-xs text-blue-500 hover:underline"
+    >
+      이전 기록 보기
+    </button>
+  </div>
 
-              <Field label="직급">
-                <select
-                  value={safeInputs.columnKey}
-                  onChange={(e) =>
-                    setInputs((p) => ({ ...p, columnKey: e.target.value }))
-                  }
-                  className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-                >
-                  {(PAY_TABLES[safeInputs.series]?.columns ?? []).map((c) => (
-                    <option key={c.key} value={c.key}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+  <div className="mt-3 grid grid-cols-2 gap-3">
+    <Field label="직렬">
+      <NiceSelect
+        value={String(safeInputs.series)}
+        options={Object.keys(PAY_TABLES).map((id) => {
+          const key = id as SeriesKey;
+          return {
+            value: key,
+            label: PAY_TABLES[key]?.title ?? key,
+          };
+        })}
+        onChange={(v) => {
+          const series = v as SeriesKey;
+          setInputs((p) => ({
+            ...p,
+            series,
+            columnKey: getFirstColumnKey(series) || p.columnKey,
+            step: 1,
+          }));
+        }}
+      />
+    </Field>
 
-              <Field label="호봉(1~31)">
-                <DraftNumberInput
-                  key={`${safeInputs.series}:${safeInputs.step}`}
-                  value={safeInputs.step}
-                  min={1}
-                  max={PAY_TABLES[safeInputs.series]?.maxStep ?? 31}
-                  onCommit={(step) => setInputs((p) => ({ ...p, step }))}
-                  className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-                />
-              </Field>
+    <Field label="직급">
+      <NiceSelect
+        value={String(safeInputs.columnKey)}
+        options={(PAY_TABLES[safeInputs.series]?.columns ?? []).map((c) => ({
+          value: c.key,
+          label: c.label,
+        }))}
+        onChange={(v) => setInputs((p) => ({ ...p, columnKey: v }))}
+      />
+    </Field>
 
-              <Field label="근무연수">
-                <DraftNumberInput
-                  key={`years:${safeInputs.yearsOfService}`}
-                  value={safeInputs.yearsOfService}
-                  min={0}
-                  max={40}
-                  onCommit={(yearsOfService) =>
-                    setInputs((p) => ({ ...p, yearsOfService }))
-                  }
-                  className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-                />
-              </Field>
+    <Field label="호봉(1~32)">
+      <NiceSelect
+        value={String(safeInputs.step)}
+        options={STEP_OPTIONS}
+        onChange={(v) => setInputs((p) => ({ ...p, step: Number(v) }))}
+      />
+    </Field>
 
-              <div className="col-span-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                <div className="text-xs text-neutral-500">기본급(월)</div>
-                <div className="mt-1 text-lg font-semibold text-neutral-900">
-                  {formatWon(result.breakdown.basePay)}
-                </div>
-              </div>
-            </div>
-          </section>
+    <Field label="근무연수(0~40)">
+      <NiceSelect
+        value={String(safeInputs.yearsOfService)}
+        options={YEAR_OPTIONS}
+        onChange={(v) =>
+          setInputs((p) => ({ ...p, yearsOfService: Number(v) }))
+        }
+      />
+    </Field>
+
+    <div className="col-span-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+      <div className="text-xs text-neutral-500">기본급(월)</div>
+      <div className="mt-1 text-lg font-semibold text-neutral-900">
+        {formatWon(result.breakdown.basePay)}
+      </div>
+    </div>
+  </div>
+</section>
 
           {/* 2) 수당(월) */}
           <section className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
@@ -773,29 +1102,29 @@ export default function SalaryCalculator() {
                     <label className="block">
                       <div className="text-xs text-neutral-500">구분</div>
                       <select
-                        value={safeInputs.risk_type}
-                        onChange={(e) =>
-                          setInputs((p) => {
-                            const next = e.target.value as SalaryInputs["risk_type"];
-                            const isOther = next === "OTHER";
+  value={safeInputs.risk_type}
+  onChange={(e) =>
+    setInputs((p) => {
+      const next = e.target.value as SalaryInputs["risk_type"];
+      const isOther = next === "OTHER";
 
-                            return {
-                              ...p,
-                              risk_type: next,
+      return {
+        ...p,
+        risk_type: next,
 
-                              // ✅ 갑/을/병 선택하면 자동 금액이 보이고 합산되게
-                              allow_risk_mode: isOther ? "manual" : "auto",
+        // ✅ 갑/을/병 선택하면 자동 금액이 보이고 합산되게
+        allow_risk_mode: isOther ? "manual" : "auto",
 
-                              // ✅ OTHER가 아니면 기타금액은 0으로 정리
-                              risk_other_manual: isOther ? p.risk_other_manual : 0,
+        // ✅ OTHER가 아니면 기타금액은 0으로 정리
+        risk_other_manual: isOther ? p.risk_other_manual : 0,
 
-                              // (선택) OTHER면 allow_risk_manual을 기타금액으로 맞춰두면 더 직관적
-                              allow_risk_manual: isOther ? (p.risk_other_manual ?? 0) : 0,
-                            };
-                          })
-                        }
-                        className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-                      >
+        // (선택) OTHER면 allow_risk_manual을 기타금액으로 맞춰두면 더 직관적
+        allow_risk_manual: isOther ? (p.risk_other_manual ?? 0) : 0,
+      };
+    })
+  }
+  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+>
                         <option value="NONE">해당없음</option>
                         <option value="A">갑 (60,000원)</option>
                         <option value="B">을 (50,000원)</option>
@@ -811,16 +1140,16 @@ export default function SalaryCalculator() {
                           inputMode="numeric"
                           value={formatNumberInput(safeInputs.risk_other_manual)}
                           onChange={(e) =>
-                            setInputs((p) => {
-                              const v = clampInt(e.target.value, 0, 1_000_000_000);
-                              return {
-                                ...p,
-                                risk_other_manual: v,
-                                allow_risk_mode: "manual",
-                                allow_risk_manual: v, // ✅ 기타 입력 = 실제 합산 값
-                              };
-                            })
-                          }
+  setInputs((p) => {
+    const v = clampInt(e.target.value, 0, 1_000_000_000);
+    return {
+      ...p,
+      risk_other_manual: v,
+      allow_risk_mode: "manual",
+      allow_risk_manual: v, // ✅ 기타 입력 = 실제 합산 값
+    };
+  })
+}
                           className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
                         />
                       </label>
@@ -1029,97 +1358,6 @@ export default function SalaryCalculator() {
                 />
               </AllowanceGroup>
 
-              {/* ✅ 소방/경찰/교정 관련 수당 */}
-              <AllowanceGroup title="소방/경찰/교정 관련 수당">
-                <div className="text-[11px] text-neutral-500">
-                  * 소속/직무/지급기준에 따라 금액이 달라서, 우선 급여명세서 기준으로 입력하세요.
-                </div>
-
-                {/* 소방 */}
-                <div className="rounded-2xl border border-neutral-200 p-3">
-                  <div className="text-sm font-semibold text-neutral-900">소방수당</div>
-                  <div className="mt-2 space-y-2">
-                    <ManualMoneyLine
-                      label="현장(출동/현장활동 등)"
-                      value={safeInputs.fire_field_manual}
-                      onChange={(v) => setInputs((p) => ({ ...p, fire_field_manual: v }))}
-                    />
-                    <ManualMoneyLine
-                      label="구조/구급 등"
-                      value={safeInputs.fire_rescue_manual}
-                      onChange={(v) => setInputs((p) => ({ ...p, fire_rescue_manual: v }))}
-                    />
-                    <ManualMoneyLine
-                      label="기타(합산)"
-                      value={safeInputs.fire_other_manual}
-                      onChange={(v) => setInputs((p) => ({ ...p, fire_other_manual: v }))}
-                    />
-                  </div>
-                </div>
-
-                {/* 경찰 */}
-                <div className="rounded-2xl border border-neutral-200 p-3">
-                  <div className="text-sm font-semibold text-neutral-900">경찰수당</div>
-                  <div className="mt-2 space-y-2">
-                    <ManualMoneyLine
-                      label="치안/경비/순찰 등"
-                      value={safeInputs.police_security_manual}
-                      onChange={(v) =>
-                        setInputs((p) => ({ ...p, police_security_manual: v }))
-                      }
-                    />
-                    <ManualMoneyLine
-                      label="수사/형사/정보 등"
-                      value={safeInputs.police_invest_manual}
-                      onChange={(v) => setInputs((p) => ({ ...p, police_invest_manual: v }))}
-                    />
-                    <ManualMoneyLine
-                      label="기타(합산)"
-                      value={safeInputs.police_other_manual}
-                      onChange={(v) => setInputs((p) => ({ ...p, police_other_manual: v }))}
-                    />
-                  </div>
-                </div>
-
-                {/* 교정 */}
-                <div className="rounded-2xl border border-neutral-200 p-3">
-                  <div className="text-sm font-semibold text-neutral-900">교정수당</div>
-                  <div className="mt-2 space-y-2">
-                    <ManualMoneyLine
-                      label="계호/보안/교정근무 등"
-                      value={safeInputs.corrections_duty_manual}
-                      onChange={(v) =>
-                        setInputs((p) => ({ ...p, corrections_duty_manual: v }))
-                      }
-                    />
-                    <ManualMoneyLine
-                      label="기타(합산)"
-                      value={safeInputs.corrections_other_manual}
-                      onChange={(v) =>
-                        setInputs((p) => ({ ...p, corrections_other_manual: v }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* 소방/경찰/교정 합계 표시 */}
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                  <div className="text-xs text-neutral-500">소방/경찰/교정 수당 합계</div>
-                  <div className="mt-1 text-sm font-semibold text-neutral-900">
-                    {formatWon(
-                      (safeInputs.fire_field_manual ?? 0) +
-                        (safeInputs.fire_rescue_manual ?? 0) +
-                        (safeInputs.fire_other_manual ?? 0) +
-                        (safeInputs.police_security_manual ?? 0) +
-                        (safeInputs.police_invest_manual ?? 0) +
-                        (safeInputs.police_other_manual ?? 0) +
-                        (safeInputs.corrections_duty_manual ?? 0) +
-                        (safeInputs.corrections_other_manual ?? 0)
-                    )}
-                  </div>
-                </div>
-              </AllowanceGroup>
-
               {/* ✅ 기타 수당 */}
               <AllowanceGroup title="기타 수당">
                 <ManualMoneyLine
@@ -1143,10 +1381,6 @@ export default function SalaryCalculator() {
                 <div className="mt-1 text-base font-semibold text-neutral-900">
                   {formatWon(result.allowanceTotal)}
                 </div>
-              </div>
-
-              <div className="text-xs text-neutral-400">
-                * 입력값과 자동 계산은 참고용이며, 실제 지급 수당과 차이가 있을 수 있습니다. 급여명세서·관련 규정을 확인해 주세요.
               </div>
             </div>
           </section>
@@ -1188,21 +1422,22 @@ export default function SalaryCalculator() {
               <ReadOnlyMoneyLine label="장기요양보험료" value={result.breakdown.care} />
               <ReadOnlyMoneyLine label="소득세(간이)" value={result.breakdown.incomeTax} />
               <ReadOnlyMoneyLine label="지방소득세" value={result.breakdown.localTax} />
-              <EditableMoneyLine
-                label="기타공제"
-                value={safeInputs.otherDeduction}
-                onChange={(v) => setInputs((p) => ({ ...p, otherDeduction: v }))}
-              />
+<AllowanceGroup title="기타 공제">
+  <MoneyInput
+    label="기타공제(합산)"
+    value={safeInputs.otherDeduction}
+    onChange={(v) => setInputs((p) => ({ ...p, otherDeduction: v }))}
+  />
+  <div className="text-[11px] text-neutral-500">
+    * 위 항목에 없는 공제(노조비, 상조회비, 대출상환 등)를 합산해서 입력하세요.
+  </div>
+</AllowanceGroup>
 
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
                 <div className="text-xs text-neutral-500">공제(합계)</div>
                 <div className="mt-1 text-base font-semibold text-neutral-900">
                   {formatWon(result.deductionTotal)}
                 </div>
-              </div>
-
-              <div className="text-xs text-neutral-400">
-                * 간이세액표, 예상 보수월액 및 기준소득월액을 참고하여 산정한 값으로 실제 공제액과 다를 수 있습니다.
               </div>
             </div>
           </section>
@@ -1222,9 +1457,39 @@ export default function SalaryCalculator() {
             </div>
           </section>
 
-          <div className="text-xs text-neutral-500">
-            * 실수령액은 입력값 기반 “예상”입니다. (보수월액/기준소득월액만 필요 시 “직접”으로 수정 가능)
-          </div>
+          <div className="text-xs text-neutral-500 ml-3">
+  * 실수령액은 '예상액'입니다.<br />
+  (자동 계산된 수당과 공제는 참고용이며 실제 지급액과 다를 수 있습니다.)
+</div>
+          {/* 데이터 저장 */}
+<section className="mt-3 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
+  <div className="flex items-center justify-between">
+    <div className="text-sm font-semibold text-neutral-900">
+      계산 데이터 저장
+    </div>
+
+    <button
+  type="button"
+  onClick={() => {
+    const ok = confirm("현재 계산 데이터를 저장하시겠습니까?");
+    if (!ok) return;
+
+    const next = addHistorySnapshot(inputs);
+    setHistory(next);
+    setSelectedId(next[0]?.id ?? null);
+
+    alert("저장되었습니다."); // ✅ 저장 완료 알림
+  }}
+  className="rounded-xl bg-neutral-900 px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800"
+>
+  저장하기
+</button>
+  </div>
+
+  <div className="mt-2 text-[11px] text-neutral-500">
+    현재 계산된 입력값을 저장하고 이전 기록에서 다시 불러올 수 있습니다.
+  </div>
+</section>
         </>
       )}
 
@@ -1402,18 +1667,6 @@ function calcSalary(inputs: SalaryInputs): SalaryResult {
     allow_holiday_bonus,
     allow_leave_comp,
 
-    // ✅ 소방/경찰/교정 관련 수당(수동)
-    inputs.fire_field_manual,
-    inputs.fire_rescue_manual,
-    inputs.fire_other_manual,
-
-    inputs.police_security_manual,
-    inputs.police_invest_manual,
-    inputs.police_other_manual,
-
-    inputs.corrections_duty_manual,
-    inputs.corrections_other_manual,
-
     inputs.allow_other_manual
   );
 
@@ -1467,45 +1720,62 @@ function calcSalary(inputs: SalaryInputs): SalaryResult {
   const health = auto_health;
   const care = auto_care;
 
-  const gross = basePay + allowanceTotal;
+    const gross = basePay + allowanceTotal;
 
-  // ✅ (세금 자동) 간이세액표 기준 소득세/지방세 계산
-  const monthlyGrossPay = gross;
+// ✅ 비과세(월): 정액급식비 + 추가 비과세 입력
+const monthlyTaxFree = Math.max(
+  0,
+  Math.trunc(allow_meal + (inputs.taxFreeMonthly_manual || 0))
+);
 
-  // ✅ 정액급식비 비과세는 20만원 한도
-  const mealTaxFree = Math.min(allow_meal, 200_000);
+/** =========================
+ * ✅ 핵심 로직
+ * 1) 1/6 기준값은 항상 AUTO로 만든다 (지급여부/수동입력 무관)
+ * 2) 지급(체크)된 전액은 gross에 들어가되,
+ *    세금 계산에서는 전액을 빼고 1/6만 넣는다
+ * ========================= */
 
-  const monthlyTaxFree = Math.max(
-    0,
-    Math.trunc(mealTaxFree + (inputs.taxFreeMonthly_manual || 0))
-  );
+// ✅ (A) 세금용 "1회분 기준값" (항상 자동)
+const jeonggeunOnceForTax = Math.max(0, Math.trunc(auto_long_bonus));       // 정근 1회(자동)
+const holidayOnceForTax   = Math.max(0, Math.trunc(auto_holiday_bonus));    // 명절 1회(자동)
 
-  const monthlyTaxablePayWon = Math.max(
-    0,
-    Math.trunc(monthlyGrossPay - monthlyTaxFree)
-  );
+// ✅ (B) 매달 들어갈 1/6
+const bonusProration = Math.floor((jeonggeunOnceForTax + holidayOnceForTax) / 6);
 
-  const familyCount =
-    1 +
-    (inputs.family_spouse ?? 0) +
-    (inputs.family_children ?? 0) +
-    (inputs.family_dependents ?? 0);
+// ✅ (C) 이번달 실제 지급 전액(=수당합계에 들어간 값)
+// - 체크했으면 전액, 체크 안 했으면 0이어야 함
+// - 지금 구조에선 allow_* 값이 “이번달 지급액” 역할임
+const jeonggeunPaidThisMonth = Math.max(0, Math.trunc(allow_long_service_bonus));
+const holidayPaidThisMonth   = Math.max(0, Math.trunc(allow_holiday_bonus));
 
-  const auto_incomeTax = getEarnedIncomeWithholdingTaxWon(
-    monthlyTaxablePayWon,
-    familyCount
-  );
+// ✅ (D) 간이세액표에 넣을 월급여액(과세대상 급여의 입력값)
+// - gross에서 “지급된 전액”은 빼고,
+// - 대신 자동 1/6을 더한다
+const monthlyGrossPay = Math.max(
+  0,
+  Math.trunc(gross - jeonggeunPaidThisMonth - holidayPaidThisMonth + bonusProration)
+);
 
-  // ✅ 지방소득세: 10원 단위 절사(급여명세서 방식)
-  const auto_localTax_raw = Math.floor(auto_incomeTax * 0.1);
-  const auto_localTax = Math.floor(auto_localTax_raw / 10) * 10;
+// ✅ 세금 계산
+const tax = calcTaxesMonthly({
+  monthlyGrossPay,
+  monthlyTaxFree,
+  monthlyScholarship: 0,
+  family: {
+    spouse: inputs.family_spouse,
+    children: inputs.family_children,
+    dependents: inputs.family_dependents,
+  },
+});
+
+const auto_incomeTax = tax.incomeTax;
+const auto_localTax = tax.localIncomeTax;
 
   const incomeTax = pick(
     inputs.incomeTax_mode,
     auto_incomeTax,
     inputs.incomeTax_manual
   );
-
   const localTax = pick(
     inputs.localTax_mode,
     auto_localTax,
@@ -1688,7 +1958,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function EditableMoneyLine({
+function MoneyInput({
   label,
   value,
   onChange,
@@ -1698,20 +1968,15 @@ function EditableMoneyLine({
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-neutral-200 p-3">
-      <div className="text-sm text-neutral-900">{label}</div>
-
-      <div className="mt-2">
-        <input
-          inputMode="numeric"
-          value={formatNumberInput(value ?? 0)}
-          onChange={(e) =>
-            onChange(clampInt(e.target.value, 0, 1_000_000_000))
-          }
-          className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-        />
-      </div>
-    </div>
+    <label className="block">
+      <div className="mb-1 text-xs text-neutral-500">{label}</div>
+      <input
+        inputMode="numeric"
+        value={formatNumberInput(value ?? 0)}
+        onChange={(e) => onChange(clampInt(e.target.value, 0, 1_000_000_000))}
+        className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+      />
+    </label>
   );
 }
 
@@ -1878,14 +2143,14 @@ function AutoTimeMoneyLine({
       <div className="mt-2 grid grid-cols-2 gap-2">
         <label className="block">
           <div className="text-xs text-neutral-500">시간</div>
-          <input
-            type="number"
-            min={0}
-            max={300}
-            value={hours}
-            onChange={(e) => onHoursChange(clampInt(e.target.value, 0, 300))}
-            className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-          />
+          <DraftNumberInput
+  key={`hours:${label}:${hours}`}
+  value={hours}
+  min={0}
+  max={300}
+  onCommit={onHoursChange}
+  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+/>
         </label>
 
         {mode === "auto" ? (
@@ -2004,14 +2269,14 @@ function AutoDayMoneyLine({
       <div className="mt-2 grid grid-cols-2 gap-2">
         <label className="block">
           <div className="text-xs text-neutral-500">일수</div>
-          <input
-            type="number"
-            min={0}
-            max={31}
-            value={days}
-            onChange={(e) => onDaysChange(clampInt(e.target.value, 0, 31))}
-            className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-          />
+          <DraftNumberInput
+  key={`days:${label}:${days}`}
+  value={days}
+  min={0}
+  max={31}
+  onCommit={onDaysChange}
+  className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+/>
         </label>
 
         {mode === "auto" ? (

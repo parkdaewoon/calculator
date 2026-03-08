@@ -33,7 +33,7 @@ function overlapMinutes(a: Array<[number, number]>, b: Array<[number, number]>):
       if (s < e) sum += e - s;
     }
   }
-  return sum;
+ return sum;
 }
 
 // ✅ 야간창: 22:00~06:00
@@ -109,8 +109,22 @@ export type WorkStats = {
   nightHours: number;
   holidayDays: number;
   normalHours: number;
+  holidayDeductHours?: number;
 };
 
+/**
+ * ✅ stats.ts와 동일 규칙(확정)
+ * - totalHours: 월 순근무시간 합계(NIGHT 포함) - 휴일공제시간
+ * - 휴일공제시간:
+ *   - 휴일 DAY/EVE(>=8h): net 공제
+ *   - 휴일 DANG: 8h 고정 공제
+ *   - NIGHT는 공제하지 않음
+ * - nightHours(야간수당시간):
+ *   - 휴일근무 인정일(DAY/EVE>=8h 또는 DANG)은 제외
+ *   - NIGHT는 휴일이어도 제외 대상 아님(=그대로 누적)
+ * - holidayDays:
+ *   - 휴일 DAY/EVE(>=8h) 또는 DANG
+ */
 export function calcWorkStats(params: { workMode: WorkMode; days: CalendarWorkDay[] }): WorkStats {
   const { workMode, days } = params;
 
@@ -120,34 +134,58 @@ export function calcWorkStats(params: { workMode: WorkMode; days: CalendarWorkDa
 
   let normalWorkDays = 0;
 
+  // ✅ 총근무시간에서 뺄 휴일공제시간(분)
+  let holidayWorkCountedMin = 0;
+
   for (const d of days) {
     if (isWeekdayFromYmd(d.date) && !d.isHoliday) {
       normalWorkDays += 1;
     }
 
-    const workMin = getWorkMinutesForCode(workMode, d.code);
-    totalMin += workMin;
+    const workMin = getWorkMinutesForCode(workMode, d.code); // 이미 net
+    totalMin += workMin; // ✅ NIGHT 포함
 
-    nightMin += getNightMinutesForCode(workMode, d.code);
+    // ✅ 휴일근무(수당) 인정 여부(= 야간수당 제외 대상)
+    const isHolidayWorkForAllowance =
+      d.isHoliday &&
+      (
+        ((d.code === "DAY" || d.code === "EVE") && workMin >= 8 * 60) ||
+        d.code === "DANG"
+      );
 
-    // ✅ stats.ts 규칙과 맞춤:
-    //  1) 휴일 + DAY + net>=8h
-    //  2) 휴일 + EVE + net>=8h
-    //  3) 휴일 + DANG (시간조건 없음)
+    // ✅ 야간수당시간: 휴일근무 인정일(DAY/EVE>=8h 또는 DANG)은 제외
+    if (!isHolidayWorkForAllowance) {
+      nightMin += getNightMinutesForCode(workMode, d.code);
+    }
+
     if (d.isHoliday) {
+      // ✅ holidayDays 카운트(기존 유지: NIGHT 제외)
       const isCounted =
         (d.code === "DAY" && workMin >= 8 * 60) ||
         (d.code === "EVE" && workMin >= 8 * 60) ||
         d.code === "DANG";
 
       if (isCounted) holidayDays += 1;
+
+      // ✅ 휴일공제시간(총근무시간에서 뺄 시간)
+      const isDeductTarget =
+        (d.code === "DAY" && workMin >= 8 * 60) ||
+        (d.code === "EVE" && workMin >= 8 * 60) ||
+        d.code === "DANG";
+
+      if (isDeductTarget) {
+        if (d.code === "DANG") holidayWorkCountedMin += 8 * 60;
+        else holidayWorkCountedMin += workMin; // DAY/EVE
+      }
     }
   }
-
+  const finalTotalMin = Math.max(0, totalMin - holidayWorkCountedMin);
+  const holidayDeductHours = minutesToHours(holidayWorkCountedMin);
   return {
-    totalHours: minutesToHours(totalMin),
+    totalHours: minutesToHours(finalTotalMin),
     nightHours: minutesToHours(nightMin),
     holidayDays,
     normalHours: normalWorkDays * 8,
+    holidayDeductHours,
   };
 }

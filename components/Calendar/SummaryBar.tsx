@@ -7,10 +7,34 @@ import {
   loadLeaveDaysUsedInput,
   loadLeaveDaysTotalInput,
 } from "@/lib/calendar/leaveInput";
-import LeaveDaysSheet from "./LeaveDaysSheet"; // ✅ 경로 맞춰줘
+import LeaveDaysSheet from "./LeaveDaysSheet";
 
-function formatLeavePair(used: number, total: number) {
-  return `${used}일/${total}일`;
+// ✅ 저장된 소수(일) -> "일 시간 분" (1일=8시간=480분)
+function leaveDaysToDHM(days: number) {
+  const totalMinutes = Math.max(0, Math.round((Number(days) || 0) * 480));
+  const d = Math.floor(totalMinutes / 480);
+  const rem = totalMinutes % 480;
+  const h = Math.floor(rem / 60);
+  const m = rem % 60;
+  return { d, h, m };
+}
+
+// ✅ 표시용: "2일 3시간 30분 / 15일"
+function formatLeaveDisplay(usedDaysDecimal: number, totalDays: number) {
+  const { d, h, m } = leaveDaysToDHM(usedDaysDecimal);
+
+  // "0시간 0분"처럼 지저분하면 깔끔하게 제거(원하면 항상 표시로 바꿔도 됨)
+  const parts: string[] = [];
+  parts.push(`${d}일`);
+  if (h > 0 || m > 0) {
+    parts.push(`${h}시간`);
+    parts.push(`${m}분`);
+  }
+
+  const usedText = parts.join(" ");
+  const totalText = `${Number(totalDays || 0)}일`;
+
+  return `${usedText} / ${totalText}`;
 }
 
 function formatHoursRatio(actual: number, normal?: number) {
@@ -21,15 +45,14 @@ function formatHoursRatio(actual: number, normal?: number) {
 export default function SummaryBar({ stats, onOpenWorkSummary }: SummaryBarProps) {
   const [openLeaveSheet, setOpenLeaveSheet] = useState(false);
 
-  const [leaveUsed, setLeaveUsed] = useState(0);
-  const [leaveTotal, setLeaveTotal] = useState(0);
+  const [leaveUsed, setLeaveUsed] = useState(0);   // 저장값(소수 일)
+  const [leaveTotal, setLeaveTotal] = useState(0); // 총 연가(일)
 
   useEffect(() => {
     setLeaveUsed(loadLeaveDaysUsedInput());
     setLeaveTotal(loadLeaveDaysTotalInput());
   }, []);
 
-  // Sheet 닫힐 때 저장된 값 다시 읽어서 반영(저장 버튼 누른 결과 반영)
   const onCloseLeaveSheet = () => {
     setOpenLeaveSheet(false);
     setLeaveUsed(loadLeaveDaysUsedInput());
@@ -41,53 +64,47 @@ export default function SummaryBar({ stats, onOpenWorkSummary }: SummaryBarProps
       <section className="mx-auto w-full max-w-md px-4">
         <div className="mt-4 rounded-3xl border border-neutral-100 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
           <div className="grid grid-cols-2 gap-3">
-            {/* ✅ 연가일수: 직접 입력 Sheet */}
+            {/* ✅ 연가일수 */}
             <button
-  onClick={() => setOpenLeaveSheet(true)}
-  className="relative rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-left"
-  type="button"
->
-  {/* 🔹 오른쪽 맨 위 아이콘 */}
-  <div className="absolute top-[0.2rem] right-[0.5rem] text-xm text-neutral-400 mt-1">
-    +
-  </div>
+              onClick={() => setOpenLeaveSheet(true)}
+              className="relative rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-left"
+              type="button"
+            >
+              <div className="absolute right-[0.5rem] top-[0.2rem] mt-1 text-xs text-neutral-400">
+                +
+              </div>
 
-  {/* 라벨 */}
-  <div className="text-[11px] font-semibold text-neutral-500 pl-[0.2rem]">
-    연가일수
-  </div>
+              <div className="pl-[0.2rem] text-[11px] font-semibold text-neutral-500">
+                연가일수
+              </div>
 
-  {/* 값: 오른쪽 정렬 */}
-  <div className="mt-1 text-lg font-semibold text-neutral-900 text-right pr-[0.2rem]">
-    {formatLeavePair(leaveUsed, leaveTotal)}
-  </div>
-</button>
+              <div className="mt-1 pr-[0.2rem] text-right text-[15px] font-semibold leading-snug text-neutral-900">
+                {formatLeaveDisplay(leaveUsed, leaveTotal)}
+              </div>
+            </button>
+
             {/* 총근무시간 */}
             <button
-  onClick={onOpenWorkSummary}
-  className="relative rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-left"
-  type="button"
->
-  {/* 🔹 오른쪽 맨 위 아이콘 */}
-  <div className="absolute top-[0.2rem] right-[0.5rem] text-xm text-neutral-400 mt-1">
-    +
-  </div>
+              onClick={onOpenWorkSummary}
+              className="relative rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-left"
+              type="button"
+            >
+              <div className="absolute right-[0.5rem] top-[0.2rem] mt-1 text-xs text-neutral-400">
+                +
+              </div>
 
-  {/* 라벨 */}
-  <div className="text-[11px] font-semibold text-neutral-500 pl-[0.2rem]">
-    총 근무시간
-  </div>
+              <div className="pl-[0.2rem] text-[11px] font-semibold text-neutral-500">
+                총 근무시간
+              </div>
 
-  {/* 값: 오른쪽 정렬 */}
-  <div className="mt-1 text-lg font-semibold text-neutral-900 text-right pr-[0.2rem]">
-    {formatHoursRatio(stats.totalHours, (stats as any).normalHours)}
-  </div>
-</button>
+              <div className="mt-1 pr-[0.2rem] text-right text-lg font-semibold text-neutral-900">
+                {formatHoursRatio(stats.totalHours, (stats as any).normalHours)}
+              </div>
+            </button>
           </div>
         </div>
       </section>
 
-      {/* ✅ WorkSummarySheet처럼 따로 분리한 연가 Sheet */}
       <LeaveDaysSheet open={openLeaveSheet} onClose={onCloseLeaveSheet} />
     </>
   );

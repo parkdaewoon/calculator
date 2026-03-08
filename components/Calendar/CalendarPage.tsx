@@ -6,6 +6,7 @@ import MonthGrid from "./MonthGrid";
 import SummaryBar from "./SummaryBar";
 import WorkSummarySheet from "./WorkSummarySheet";
 import WorkModeSheet from "./WorkModeSheet";
+import AdsenseSlot from "@/components/AdsenseSlot";
 
 import DayDetailSheet from "./DayDetailSheet";
 import EventEditorSheet from "./EventEditorSheet";
@@ -68,29 +69,41 @@ function toEventStartMs(ev: CalendarEvent): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-function buildReminderTitle(ev: CalendarEvent, minutes: number) {
-  const base = ev?.title?.trim() || "일정";
-  return minutes > 0 ? `${base} · ${minutes}분 전` : `${base} · 시작 알림`;
+function formatReminderWhen(ev: CalendarEvent) {
+  const ymd = normalizeYmd(ev?.dateStart);
+  if (!ymd) return "";
+
+  const mm = ymd.slice(5, 7);
+  const dd = ymd.slice(8, 10);
+  const time = ev?.allDay ? "08:00" : String(ev?.startTime || "09:00");
+  return `${mm}.${dd}. ${time}`;
 }
 
-function buildReminderBody(ev: CalendarEvent, minutes: number) {
-  const when = ev?.allDay
-    ? `${ev?.dateStart} 종일`
-    : `${ev?.dateStart} ${ev?.startTime || "09:00"}`;
+function isSalaryEvent(ev: CalendarEvent) {
+  return String(ev?.typeMain ?? "") === "SALARY";
+}
 
-  if (minutes <= 0) {
-    return `지금 시작할 일정입니다. (${when})`;
+function buildReminderTitle() {
+  return "공무원 노트";
+}
+
+function buildReminderBody(ev: CalendarEvent) {
+  if (isSalaryEvent(ev)) {
+    return "월급 확인하기!!";
   }
 
-  return `${minutes}분 뒤 일정이 있습니다. (${when})`;
+  const base = ev?.title?.trim() || "일정";
+  const when = formatReminderWhen(ev);
+  return `(일정) ${base}
+일정 놓치지 않기!!${when ? ` (${when})` : ""}`;
 }
 
 async function showReminderNotification(ev: CalendarEvent, minutes: number) {
   if (typeof window === "undefined" || typeof Notification === "undefined") return;
   if (Notification.permission !== "granted") return;
 
-  const title = buildReminderTitle(ev, minutes);
-  const body = buildReminderBody(ev, minutes);
+  const title = buildReminderTitle();
+  const body = buildReminderBody(ev);
 
   try {
     const reg = await navigator.serviceWorker.getRegistration("/").catch(() => null);
@@ -100,7 +113,7 @@ async function showReminderNotification(ev: CalendarEvent, minutes: number) {
         icon: "/icon-192.png",
         badge: "/icon-192.png",
         tag: `cal-reminder-${ev.id}-${minutes}`,
-        data: { url: "/" },
+        data: { url: "/calendar" },
       });
       return;
     }
@@ -350,16 +363,25 @@ export default function CalendarPage() {
     const now = Date.now();
     const firedMap = readReminderFiredMap();
 
-    const remindEvents = (events ?? []).filter(
-      (ev) => typeof ev?.reminderMinutes === "number" && (ev?.reminderMinutes ?? -1) >= 0
-    );
+    const remindEvents = (events ?? []).filter((ev) => {
+      if (isSalaryEvent(ev)) return !!(ev as any)?.salaryReminderEnabled;
+      return typeof ev?.reminderMinutes === "number" && (ev?.reminderMinutes ?? -1) >= 0;
+    });
 
     for (const ev of remindEvents) {
       const startMs = toEventStartMs(ev);
       const reminderMinutes = Math.max(0, Number(ev.reminderMinutes || 0));
       if (!startMs) continue;
 
-      const remindAt = startMs - reminderMinutes * 60_000;
+      const remindAt = isSalaryEvent(ev)
+        ? (() => {
+            const ymd = normalizeYmd(ev?.dateStart);
+            if (!ymd) return NaN;
+            const [y, m, d] = ymd.split("-").map(Number);
+            return new Date(y, (m ?? 1) - 1, d ?? 1, 8, 0, 0, 0).getTime();
+          })()
+        : startMs - reminderMinutes * 60_000;
+      if (!Number.isFinite(remindAt)) continue;
       const key = `${ev.id}:${remindAt}`;
       if (firedMap[key]) continue;
 
@@ -492,16 +514,20 @@ export default function CalendarPage() {
   };
 
   return (
-    <main className="min-h-screen bg-neutral-50 pb-10">
+    <main className="min-h-screen bg-neutral-50 pb-24">
       <CalendarHeader
-        month={month}
-        onGoToday={() => {
-          setMonth(toMonthKey(today));
-          setSelectedDate(today);
-        }}
-        onOpenWorkMode={() => setWorkModeOpen(true)}
-        onClear={onClear}
-      />
+  month={month}
+  onGoToday={() => {
+    setMonth(toMonthKey(today));
+    setSelectedDate(today);
+  }}
+  onOpenWorkMode={() => setWorkModeOpen(true)}
+  onClear={onClear}
+  onChangeMonth={(next) => {
+  setMonth(next);
+  setSelectedDate((prev) => (toMonthKey(prev) === next ? prev : (next + "-01") as any));
+  }}
+/>
 
       <div className="mt-3 space-y-4">
         <MonthGrid
@@ -524,6 +550,13 @@ export default function CalendarPage() {
 
         <SummaryBar stats={stats} onOpenWorkSummary={() => setWorkSummaryOpen(true)} />
       </div>
+
+      <section className="mx-auto w-full max-w-md px-4 pt-2">
+        <div className="rounded-2xl border border-neutral-100 bg-white p-3 text-center shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
+          <AdsenseSlot height={90} />
+        </div>
+      </section>
+
 
       <WorkSummarySheet
         open={workSummaryOpen}

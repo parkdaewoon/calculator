@@ -22,7 +22,7 @@ export type WorkPattern = {
 export type CalendarEventType = "EVENT" | "LEAVE";
 export type LeaveUnit = "DAY" | "HALF" | "HOUR";
 
-export type EventTypeMain = "WORK" | "DUTY";
+export type EventTypeMain = "WORK" | "DUTY" | "SALARY" | "ETC";
 
 export type CalendarEvent = {
   id: string;
@@ -45,13 +45,14 @@ export type CalendarEvent = {
   typeSub?: string;
 
   reminderMinutes?: number;
+  salaryReminderEnabled?: boolean;
 
   memo?: string;
 
   leaveUnit?: LeaveUnit;
   leaveHours?: number;
-
-  // legacy fields
+remindAt?: string;
+reminderSent?: boolean;
   date?: any;
   startDate?: any;
   endDate_legacy?: any;
@@ -72,4 +73,13 @@ export type WorkStats = {
   holidayDays: number;
   leaveDays: number;
   normalHours: number;
+  holidayDeductHours?: number;
+};
+
+export type CalendarHeaderProps = {
+  month: YYYYMM;
+  onGoToday: () => void;
+  onOpenWorkMode: () => void;
+  onClear: () => void;
+  onChangeMonth: (next: YYYYMM) => void;
 };
