@@ -1,6 +1,7 @@
 "use client";
 
 import { getOrCreateDeviceUserId } from "@/lib/storage/deviceUserId";
+let CACHED_VAPID_KEY: string | null = null;
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -9,6 +10,26 @@ function urlBase64ToUint8Array(base64String: string) {
   const out = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out;
+}
+async function getPublicKey() {
+  if (CACHED_VAPID_KEY) {
+    return CACHED_VAPID_KEY;
+  }
+
+  const res = await fetch("/api/push/public-key", {
+    method: "GET",
+    cache: "force-cache",
+  });
+
+  const json = await res.json().catch(() => null);
+  const key = json?.key;
+
+  if (!res.ok || !key) {
+    throw new Error("VAPID 공개키 없음");
+  }
+
+  CACHED_VAPID_KEY = key;
+  return key;
 }
 
 export function isInstalledPwa() {
@@ -28,11 +49,13 @@ async function getRegistration() {
     throw new Error("이 기기에서는 service worker를 지원하지 않아요.");
   }
 
-  let reg = await navigator.serviceWorker.getRegistration("/");
-  if (!reg) {
-    reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (existing) {
+    await navigator.serviceWorker.ready;
+    return existing;
   }
 
+  const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
   await navigator.serviceWorker.ready;
   return reg;
 }
@@ -87,34 +110,28 @@ export async function subscribeCalendarPush(userId: string) {
     throw new Error("아이폰은 홈 화면에 추가한 앱에서만 푸시가 동작해요.");
   }
 
-  const perm = await Notification.requestPermission();
-  if (perm !== "granted") {
-    throw new Error(`알림 권한 필요: ${perm}`);
-  }
+const perm =
+  Notification.permission === "granted"
+    ? "granted"
+    : await Notification.requestPermission();
+
+if (perm !== "granted") {
+  throw new Error(`알림 권한 필요: ${perm}`);
+}
 
   const reg = await getRegistration();
   await syncUserIdToServiceWorker(userId);
 
-  const res = await fetch("/api/push/public-key", {
-    method: "GET",
-    cache: "no-store",
-  });
-
-  const json = await res.json().catch(() => null);
-  const key = json?.key;
-
-  if (!res.ok || !key) {
-    throw new Error("VAPID 공개키 없음");
-  }
-
   let sub = await reg.pushManager.getSubscription();
 
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(key),
-    });
-  }
+if (!sub) {
+  const key = await getPublicKey();
+
+  sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(key),
+  });
+}
 
   const subscriptionJson = sub.toJSON();
 

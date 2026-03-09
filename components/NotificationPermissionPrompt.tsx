@@ -16,46 +16,34 @@ export default function NotificationPermissionPrompt() {
   const [userId, setUserId] = useState("");
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!isInstalledPwa()) return;
+  const id = ensureDeviceUserId();
+  setUserId(id);
 
-    const id = ensureDeviceUserId();
-    setUserId(id);
+  if (!("serviceWorker" in navigator)) return;
 
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.ready
-        .then((reg) => {
-          reg.active?.postMessage({ type: "SET_USER_ID", userId: id });
-        })
-        .catch((e) => {
-          console.error("service worker ready failed", e);
-        });
-
-      navigator.serviceWorker.addEventListener("message", (event) => {
-        if (event.data?.type === "REQUEST_USER_ID") {
-          navigator.serviceWorker.controller?.postMessage({
-            type: "SET_USER_ID",
-            userId: id,
-          });
-        }
+  const onMessage = (event: MessageEvent) => {
+    if (event.data?.type === "REQUEST_USER_ID") {
+      navigator.serviceWorker.controller?.postMessage({
+        type: "SET_USER_ID",
+        userId: id,
       });
     }
+  };
 
-    const prompted = window.localStorage.getItem(PROMPTED_KEY) === "1";
-    if (prompted) return;
+  navigator.serviceWorker.ready
+    .then((reg) => {
+      reg.active?.postMessage({ type: "SET_USER_ID", userId: id });
+    })
+    .catch((e) => {
+      console.error("service worker ready failed", e);
+    });
 
-    if (typeof Notification !== "undefined" && Notification.permission !== "default") return;
+  navigator.serviceWorker.addEventListener("message", onMessage);
 
-    void (async () => {
-      try {
-        const enabled = await fetchPushEnabled(id);
-        if (!enabled) setOpen(true);
-      } catch (e) {
-        console.error("fetchPushEnabled failed", e);
-        setOpen(true);
-      }
-    })();
-  }, []);
+  return () => {
+    navigator.serviceWorker.removeEventListener("message", onMessage);
+  };
+}, []);
 
   function closeAndRemember() {
     setOpen(false);

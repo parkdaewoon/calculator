@@ -54,23 +54,27 @@ export async function POST(req: Request) {
     let sent = 0;
 
     for (const ev of dueEvents) {
-      try {
-        await sendPushToUser(ev.user_id, {
-          title: "일정 알림",
-          body: ev.title ?? "예정된 일정이 있어요.",
-          url: "/calendar",
-        });
+  try {
+    const result = await sendPushToUser(ev.user_id, {
+      title: "일정 알림",
+      body: ev.title ?? "예정된 일정이 있어요.",
+      url: "/calendar",
+    });
 
-        await supabaseAdmin
-          .from("calendar_events")
-          .update({ reminder_sent: true })
-          .eq("id", ev.id);
+    if (result.sent > 0) {
+      await supabaseAdmin
+        .from("calendar_events")
+        .update({ reminder_sent: true })
+        .eq("id", ev.id);
 
-        sent += 1;
-      } catch (e) {
-        console.error("sendPushToUser failed", ev.id, e);
-      }
+      sent += 1;
+    } else {
+      console.warn("No push sent for event", ev.id, result);
     }
+  } catch (e) {
+    console.error("sendPushToUser failed", ev.id, e);
+  }
+}
 
     return Response.json({ ok: true, sent });
   } catch (e) {

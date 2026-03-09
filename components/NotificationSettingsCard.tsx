@@ -15,28 +15,34 @@ export default function NotificationSettingsCard({ compact = false }: { compact?
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const id = ensureDeviceUserId();
-    setUserId(id);
+  const id = ensureDeviceUserId();
+  setUserId(id);
 
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.ready
-        .then((reg) => {
-          reg.active?.postMessage({ type: "SET_USER_ID", userId: id });
-        })
-        .catch((e) => {
-          console.error("service worker ready failed", e);
-        });
+  if (!("serviceWorker" in navigator)) return;
 
-      navigator.serviceWorker.addEventListener("message", (event) => {
-        if (event.data?.type === "REQUEST_USER_ID") {
-          navigator.serviceWorker.controller?.postMessage({
-            type: "SET_USER_ID",
-            userId: id,
-          });
-        }
+  const onMessage = (event: MessageEvent) => {
+    if (event.data?.type === "REQUEST_USER_ID") {
+      navigator.serviceWorker.controller?.postMessage({
+        type: "SET_USER_ID",
+        userId: id,
       });
     }
-  }, []);
+  };
+
+  navigator.serviceWorker.ready
+    .then((reg) => {
+      reg.active?.postMessage({ type: "SET_USER_ID", userId: id });
+    })
+    .catch((e) => {
+      console.error("service worker ready failed", e);
+    });
+
+  navigator.serviceWorker.addEventListener("message", onMessage);
+
+  return () => {
+    navigator.serviceWorker.removeEventListener("message", onMessage);
+  };
+}, []);
 
   useEffect(() => {
     if (!userId) return;
