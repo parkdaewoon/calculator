@@ -13,11 +13,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const mainPx = pathname === "/calendar" ? "px-0" : "px-5";
 
   return (
-    <div className="min-h-dvh bg-[#f6f7fb] text-neutral-900">
-      <div className="relative mx-auto min-h-dvh max-w-[430px] overflow-hidden bg-white shadow-[0_10px_30px_rgba(0,0,0,0.06)]">
+    <div className="min-h-dvh overflow-x-hidden bg-[#f6f7fb] text-neutral-900">
+      <div className="relative mx-auto min-h-dvh w-full max-w-[430px] overflow-x-hidden bg-white shadow-[0_10px_30px_rgba(0,0,0,0.06)]">
         <TopBar onMenu={() => setMenuOpen(true)} />
 
-        <main className={`${mainPx} pb-24 pt-0`}>
+        <main className={`${mainPx} overflow-x-hidden pb-24 pt-0`}>
           {children}
         </main>
 

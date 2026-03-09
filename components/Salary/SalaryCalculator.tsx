@@ -621,12 +621,9 @@ useEffect(() => {
       : "봉급표, 수당제도, 여비제도, 봉급계산 메뉴를 선택하세요.";
 
   return (
-    <div
-    className="space-y-5 overflow-x-hidden"
-    style={{ overscrollBehaviorX: "none", touchAction: "pan-y" }}
-  >
+     <div className="space-y-5">
       <section className="pt-1">
-        <div className="text-[11px] tracking-[0.25em] text-neutral-400">
+        <div className="mt-3 text-[11px] tracking-[0.25em] text-neutral-400">
           NOTE KOREAN OFFICER
         </div>
 

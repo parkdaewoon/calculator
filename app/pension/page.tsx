@@ -63,11 +63,8 @@ export default function PensionPage() {
   return (
     <div className="space-y-5">
       {/* 헤더(봉급 페이지 느낌) */}
-       <div
-    className="space-y-5 overflow-x-hidden"
-    style={{ overscrollBehaviorX: "none", touchAction: "pan-y" }}
-  >
-        <div className="text-[11px] tracking-[0.25em] text-neutral-400">
+        <div className="space-y-5">
+        <div className="mt-3 text-[11px] tracking-[0.25em] text-neutral-400">
           NOTE KOREAN OFFICER
         </div>
 
