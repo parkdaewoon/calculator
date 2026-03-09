@@ -10,7 +10,7 @@ import AdsenseSlot from "@/components/AdsenseSlot";
 
 import DayDetailSheet from "./DayDetailSheet";
 import EventEditorSheet from "./EventEditorSheet";
-
+import { ensureDeviceUserId } from "@/lib/push/client";
 import {
   addMonths,
   calcWorkStatsForMonth,
@@ -67,6 +67,26 @@ function toEventStartMs(ev: CalendarEvent): number | null {
   const dt = new Date(y, (m ?? 1) - 1, d ?? 1, hh, mm, 0, 0);
   const ms = dt.getTime();
   return Number.isFinite(ms) ? ms : null;
+}
+function computeRemindAt(ev: CalendarEvent): string | null {
+  const startMs = toEventStartMs(ev);
+  if (!startMs) return null;
+
+  if (isSalaryEvent(ev)) {
+    const ymd = normalizeYmd(ev?.dateStart);
+    if (!ymd) return null;
+    const [y, m, d] = ymd.split("-").map(Number);
+    return new Date(y, (m ?? 1) - 1, d ?? 1, 8, 0, 0, 0).toISOString();
+  }
+
+  const minutes =
+    typeof ev?.reminderMinutes === "number" && ev.reminderMinutes >= 0
+      ? ev.reminderMinutes
+      : null;
+
+  if (minutes == null) return null;
+
+  return new Date(startMs - minutes * 60 * 1000).toISOString();
 }
 
 function formatReminderWhen(ev: CalendarEvent) {
@@ -217,7 +237,7 @@ export default function CalendarPage() {
 
   const [month, setMonth] = useState<YYYYMM>(() => toMonthKey(today));
   const [selectedDate, setSelectedDate] = useState<YYYYMMDD>(() => today);
-
+  const userId = useMemo(() => ensureDeviceUserId(), []);
   const [pattern, setPattern] = useState<WorkPattern>(() => defaultPattern(today));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
 
@@ -412,23 +432,61 @@ export default function CalendarPage() {
     clearCalendarState();
   };
 
-  const upsertEvent = (ev: CalendarEvent) => {
-    const fixed = migrateEvent(ev as any, selectedDate || today);
+  const upsertEvent = async (ev: CalendarEvent) => {
+  const fixed = migrateEvent(ev as any, selectedDate || today);
 
-    setEvents((prev) => {
-      const i = (prev as any[]).findIndex((x) => x?.id === (fixed as any).id);
-      if (i >= 0) {
-        const copy = [...prev] as any[];
-        copy[i] = fixed as any;
-        return copy as any;
-      }
-      return [...prev, fixed] as any;
+  setEvents((prev) => {
+    const i = (prev as any[]).findIndex((x) => x?.id === (fixed as any).id);
+    if (i >= 0) {
+      const copy = [...prev] as any[];
+      copy[i] = fixed as any;
+      return copy as any;
+    }
+    return [...prev, fixed] as any;
+  });
+
+  try {
+    const res = await fetch("/api/calendar-events/upsert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: fixed.id,
+        user_id: userId,
+        title: fixed.title ?? null,
+        starts_at: new Date(toEventStartMs(fixed) ?? Date.now()).toISOString(),
+        remind_at: computeRemindAt(fixed),
+        reminder_sent: false,
+        type_main: fixed.typeMain ?? null,
+      }),
     });
-  };
 
-  const deleteEvent = (id: string) => {
-    setEvents((prev) => (prev as any[]).filter((x) => x?.id !== id) as any);
-  };
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.ok) {
+      console.error("calendar event upsert failed", json);
+    }
+  } catch (e) {
+    console.error("calendar event upsert failed", e);
+  }
+};
+
+  const deleteEvent = async (id: string) => {
+  setEvents((prev) => (prev as any[]).filter((x) => x?.id !== id) as any);
+
+  try {
+    const res = await fetch("/api/calendar-events/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, user_id: userId }),
+    });
+
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.ok) {
+      console.error("calendar event delete failed", json);
+    }
+  } catch (e) {
+    console.error("calendar event delete failed", e);
+  }
+};
 
   return (
     <main className="min-h-screen bg-neutral-50 pb-24">
@@ -521,8 +579,12 @@ export default function CalendarPage() {
         date={selectedDate}
         event={editingEvent as any}
         onClose={() => setEditorOpen(false)}
-        onSave={(ev) => upsertEvent(ev)}
-        onDelete={(id) => deleteEvent(id)}
+        onSave={async (ev) => {
+    await upsertEvent(ev);
+  }}
+  onDelete={async (id) => {
+    await deleteEvent(id);
+    }}
       />
     </main>
   );
