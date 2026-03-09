@@ -57,7 +57,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
         url: payload.url ?? "/calendar",
         icon: payload.icon ?? "/icon-192.png",
         badge: payload.badge ?? "/icon-192.png",
-        ...(payload.tag ? { tag: payload.tag } : {}),
+        sentAt: Date.now(),
       };
 
       await webpush.sendNotification(
