@@ -110,34 +110,31 @@ export async function POST(req: Request) {
     let sent = 0;
 
     for (const ev of dueEvents) {
-      try {
-        const result = await sendPushToUser(ev.user_id, {
-          title: "일정 놓치지 않기!!",
-          body: buildPushBody(ev),
-          url: "/calendar",
-          tag: `calendar-reminder-${ev.id}`,
-        });
+  try {
+    const shortId = String(ev.id).slice(0, 6);
 
-        console.log("push result", ev.id, result);
+    const result = await sendPushToUser(ev.user_id, {
+      title: `일정 알림 #${shortId}`,
+      body: `${buildPushBody(ev)} [${shortId}]`,
+      url: "/calendar",
+    });
 
-        if (result.sent > 0) {
-          const { error: updateError } = await supabaseAdmin
-            .from("calendar_events")
-            .update({ reminder_sent: true })
-            .eq("id", ev.id);
+    console.log("push result", ev.id, result);
 
-          if (updateError) {
-            console.error("failed to mark reminder_sent", ev.id, updateError);
-          } else {
-            sent += 1;
-          }
-        } else {
-          console.warn("push not sent", ev.id);
-        }
-      } catch (e) {
-        console.error("push failed", ev.id, e);
-      }
+    if (result.sent > 0) {
+      await supabaseAdmin
+        .from("calendar_events")
+        .update({ reminder_sent: true })
+        .eq("id", ev.id);
+
+      sent += 1;
+    } else {
+      console.warn("push not sent", ev.id);
     }
+  } catch (e) {
+    console.error("push failed", ev.id, e);
+  }
+}
 
     return Response.json({ ok: true, sent });
   } catch (e) {
