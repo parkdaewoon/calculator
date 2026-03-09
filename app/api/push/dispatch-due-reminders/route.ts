@@ -69,12 +69,18 @@ export async function POST(req: Request) {
     for (const ev of dueEvents) {
   try {
     const result = await sendPushToUser(ev.user_id, {
-      title: "일정 알림",
-      body: ev.title ?? "예정된 일정이 있어요.",
-      url: "/calendar",
-    });
+  title: "일정 알림",
+  body: ev.title ?? "예정된 일정이 있어요.",
+  url: "/calendar",
+});
 
-    if (result.sent > 0) {
+console.log("[dispatch] send result", {
+  eventId: ev.id,
+  userId: ev.user_id,
+  result,
+});
+
+if (result.sent > 0) {
       await supabaseAdmin
         .from("calendar_events")
         .update({ reminder_sent: true })

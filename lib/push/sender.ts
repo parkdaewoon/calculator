@@ -25,17 +25,26 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
   ensureWebPushConfigured();
 
   const { data, error } = await supabaseAdmin
-    .from("push_subscriptions")
-    .select("id, endpoint, p256dh, auth, enabled")
-    .eq("user_id", userId)
-    .eq("enabled", true);
+  .from("push_subscriptions")
+  .select("endpoint, p256dh, auth, enabled")
+  .eq("user_id", userId)
+  .eq("enabled", true);
 
-  if (error) throw error;
+  if (error) {
+  console.error("[push] subscription query failed", error);
+  throw error;
+}
 
-  if (!data?.length) {
-    console.warn("[push] no active subscriptions for user:", userId);
-    return { ok: true, sent: 0, total: 0 };
-  }
+console.log("[push] subscriptions found", {
+  userId,
+  count: data?.length ?? 0,
+  endpoints: (data ?? []).map((row) => row.endpoint),
+});
+
+if (!data?.length) {
+  console.warn("[push] no active subscriptions for user:", userId);
+  return { ok: true, sent: 0, total: 0 };
+}
 
   let sent = 0;
   let failed = 0;
@@ -75,14 +84,14 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
       });
 
       if (statusCode === 404 || statusCode === 410) {
-        await supabaseAdmin
-          .from("push_subscriptions")
-          .update({
-            enabled: false,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", row.id);
-      }
+  await supabaseAdmin
+    .from("push_subscriptions")
+    .update({
+      enabled: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("endpoint", row.endpoint);
+}
     }
   }
 
