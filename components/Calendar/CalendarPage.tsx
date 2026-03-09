@@ -68,15 +68,46 @@ function toEventStartMs(ev: CalendarEvent): number | null {
   const ms = dt.getTime();
   return Number.isFinite(ms) ? ms : null;
 }
-function computeRemindAt(ev: CalendarEvent): string | null {
-  const startMs = toEventStartMs(ev);
-  if (!startMs) return null;
+function getEventScheduleTimes(ev: CalendarEvent): {
+  startMs: number | null;
+  startsAtIso: string | null;
+  remindAtIso: string | null;
+} {
+  const ymd = normalizeYmd(ev?.dateStart);
+  if (!ymd) {
+    return { startMs: null, startsAtIso: null, remindAtIso: null };
+  }
+
+  const [y, m, d] = ymd.split("-").map(Number);
+
+  const time = ev?.allDay ? "09:00" : String(ev?.startTime || "09:00");
+  const tm = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!tm) {
+    return { startMs: null, startsAtIso: null, remindAtIso: null };
+  }
+
+  const hh = Math.min(23, Math.max(0, Number(tm[1])));
+  const mm = Math.min(59, Math.max(0, Number(tm[2])));
+
+  const startDate = new Date(y, (m ?? 1) - 1, d ?? 1, hh, mm, 0, 0);
+  const startMs = startDate.getTime();
+
+  if (!Number.isFinite(startMs)) {
+    return { startMs: null, startsAtIso: null, remindAtIso: null };
+  }
+
+  const startsAtIso = new Date(startMs).toISOString();
 
   if (String(ev?.typeMain ?? "") === "SALARY") {
-    const ymd = normalizeYmd(ev?.dateStart);
-    if (!ymd) return null;
-    const [y, m, d] = ymd.split("-").map(Number);
-    return new Date(y, (m ?? 1) - 1, d ?? 1, 8, 0, 0, 0).toISOString();
+    const salaryRemindMs = new Date(y, (m ?? 1) - 1, d ?? 1, 8, 0, 0, 0).getTime();
+
+    return {
+      startMs,
+      startsAtIso,
+      remindAtIso: Number.isFinite(salaryRemindMs)
+        ? new Date(salaryRemindMs).toISOString()
+        : null,
+    };
   }
 
   const minutes =
@@ -84,9 +115,20 @@ function computeRemindAt(ev: CalendarEvent): string | null {
       ? ev.reminderMinutes
       : null;
 
-  if (minutes == null) return null;
+  if (minutes == null) {
+    return { startMs, startsAtIso, remindAtIso: null };
+  }
 
-  return new Date(startMs - minutes * 60 * 1000).toISOString();
+  const remindMs = startMs - minutes * 60 * 1000;
+
+  return {
+    startMs,
+    startsAtIso,
+    remindAtIso:
+      Number.isFinite(remindMs) && remindMs <= startMs
+        ? new Date(remindMs).toISOString()
+        : null,
+  };
 }
 
 function isWorkModeObject(v: any): v is WorkMode {
@@ -413,19 +455,38 @@ export default function CalendarPage() {
   });
 
   try {
-    const res = await fetch("/api/calendar-events/upsert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: fixed.id,
-        user_id: userId,
-        title: fixed.title ?? null,
-        starts_at: new Date(toEventStartMs(fixed) ?? Date.now()).toISOString(),
-        remind_at: computeRemindAt(fixed),
-        reminder_sent: false,
-        type_main: fixed.typeMain ?? null,
-      }),
-    });
+    const { startMs, startsAtIso, remindAtIso } = getEventScheduleTimes(fixed);
+
+console.log("[saveEvent] payload times", {
+  title: fixed.title,
+  fixed,
+  startMs,
+  startsAtIso,
+  remindAtIso,
+  reminderMinutes: fixed.reminderMinutes,
+  dateStart: fixed.dateStart,
+  startTime: fixed.startTime,
+  allDay: fixed.allDay,
+});
+
+if (!startMs || !startsAtIso) {
+  console.error("[saveEvent] invalid start time", fixed);
+  return;
+}
+
+const res = await fetch("/api/calendar-events/upsert", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    id: fixed.id,
+    user_id: userId,
+    title: fixed.title ?? null,
+    starts_at: startsAtIso,
+    remind_at: remindAtIso,
+    reminder_sent: false,
+    type_main: fixed.typeMain ?? null,
+  }),
+});
 
     const json = await res.json().catch(() => null);
     if (!res.ok || !json?.ok) {
