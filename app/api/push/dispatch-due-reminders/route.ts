@@ -27,11 +27,6 @@ function getSupabaseAdmin() {
 export async function POST(req: Request) {
   try {
     const auth = req.headers.get("authorization");
-
-    console.log("[dispatch] auth header =", auth);
-    console.log("[dispatch] expected =", `Bearer ${process.env.CRON_SECRET}`);
-    console.log("[dispatch] has cron secret =", !!process.env.CRON_SECRET);
-
     if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
       return Response.json(
         {
@@ -69,18 +64,14 @@ export async function POST(req: Request) {
     for (const ev of dueEvents) {
   try {
     const result = await sendPushToUser(ev.user_id, {
-  title: "일정 알림",
-  body: ev.title ?? "예정된 일정이 있어요.",
-  url: "/calendar",
-});
+      title: "일정 알림",
+      body: ev.title ?? "예정된 일정이 있어요.",
+      url: "/calendar",
+    });
 
-console.log("[dispatch] send result", {
-  eventId: ev.id,
-  userId: ev.user_id,
-  result,
-});
+    console.log("push result", result);
 
-if (result.sent > 0) {
+    if (result.sent > 0) {
       await supabaseAdmin
         .from("calendar_events")
         .update({ reminder_sent: true })
@@ -88,10 +79,11 @@ if (result.sent > 0) {
 
       sent += 1;
     } else {
-      console.warn("No push sent for event", ev.id, result);
+      console.warn("push not sent", ev.id);
     }
+
   } catch (e) {
-    console.error("sendPushToUser failed", ev.id, e);
+    console.error("push failed", e);
   }
 }
 
