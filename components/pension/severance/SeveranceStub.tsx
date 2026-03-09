@@ -162,11 +162,6 @@ const result = useMemo(
             );
           })}
         </div>
-
-        <div className="mt-3 text-[11px] leading-5 text-neutral-500">
-          동일한 근속연수와 지급률을 기준으로, 직급별 기준소득월액 차이에 따라 예상 퇴직수당을 비교한 값입니다.
-          현재는 선택한 직렬과 현재 호봉을 기준으로 9급~5급(또는 해당 직렬의 앞쪽 직급) 비교를 보여줍니다.
-        </div>
       </SectionCard>
     </div>
   );

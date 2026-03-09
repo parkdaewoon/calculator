@@ -17,7 +17,14 @@ export type PensionableAllowanceBreakdown = {
   autoIncludedTotal: number;
   estimatedCurrentPensionableMonthly: number;
 };
-
+export type PensionableSnapshotParams = {
+  profile: BaseProfile;
+  series: PayTableId;
+  columnKey: string;
+  step: number;
+  serviceYears: number;
+  includeAverageReplacementMonthly?: boolean;
+};
 function n(v: unknown, fallback = 0): number {
   const x = Number(v);
   return Number.isFinite(x) ? x : fallback;
@@ -179,7 +186,27 @@ export function calcPwuAllowanceMonthly(
   const maxGap = Math.max(0, upperPay - basePay);
   return Math.min(raw, maxGap);
 }
+export function calcPwuAllowanceMonthlyAtSnapshot(
+  profile: BaseProfile,
+  series: PayTableId,
+  columnKey: string,
+  step: number,
+  basePay: number
+): number {
+  const eligible = !!profile.pensionableAutoFlags?.isPwuEligible;
+  if (!eligible) return 0;
 
+  const raw = Math.round(basePay * 0.041);
+
+  const upperColumnKey = getNextUpperColumnKey(series, columnKey);
+  if (!upperColumnKey) return raw;
+
+  const upperPay = getPay(series, upperColumnKey, step) ?? 0;
+  if (upperPay <= 0) return raw;
+
+  const maxGap = Math.max(0, upperPay - basePay);
+  return Math.min(raw, maxGap);
+}
 /**
  * 직급보조비(국가공무원 일반직 중심 기본값)
  * 필요하면 overridePositionAllowance로 덮어쓰기
@@ -234,7 +261,59 @@ export function calcPositionAllowanceMonthly(profile: BaseProfile): number {
 
   return Math.round(base + extra);
 }
+export function calcPositionAllowanceMonthlyAtColumn(
+  profile: BaseProfile,
+  columnKey: string
+): number {
+  const override = n(
+    profile.pensionableAutoFlags?.overridePositionAllowance,
+    -1
+  );
 
+  if (override >= 0) {
+    return Math.round(
+      override + n(profile.pensionableAutoFlags?.extraPositionAllowance)
+    );
+  }
+
+  const grade = parseGradeNumber(columnKey);
+  const extra = n(profile.pensionableAutoFlags?.extraPositionAllowance);
+
+  let base = 0;
+
+  switch (grade) {
+    case 1:
+      base = 750_000;
+      break;
+    case 2:
+      base = 650_000;
+      break;
+    case 3:
+      base = 500_000;
+      break;
+    case 4:
+      base = 400_000;
+      break;
+    case 5:
+      base = 250_000;
+      break;
+    case 6:
+      base = 185_000;
+      break;
+    case 7:
+      base = 180_000;
+      break;
+    case 8:
+    case 9:
+      base = 175_000;
+      break;
+    default:
+      base = 0;
+      break;
+  }
+
+  return Math.round(base + extra);
+}
 /**
  * 관리업무수당
  * - 일반/별정/대부분: 9%
@@ -312,17 +391,36 @@ export function calcAverageReplacementMonthly(profile: BaseProfile): number {
 
   return Math.round(annual / 12);
 }
-
-export function calcEstimatedCurrentPensionableMonthly(
-  profile: BaseProfile
+export function calcEstimatedPensionableMonthlyAtSnapshot(
+  params: PensionableSnapshotParams
 ): PensionableAllowanceBreakdown {
-  const basePay = getBasePay(profile);
-  const serviceYears = diffYears(profile.startDate, getTodayYmd());
+  const {
+    profile,
+    series,
+    columnKey,
+    step,
+    serviceYears,
+    includeAverageReplacementMonthly = false,
+  } = params;
 
-  const positionAllowance = calcPositionAllowanceMonthly(profile);
-  const regularBonusMonthly = calcRegularBonusMonthly(basePay, serviceYears);
-  const regularAdd = calcRegularAddMonthly(serviceYears);
-  const pwuAllowance = calcPwuAllowanceMonthly(profile, basePay);
+  const safeStep = clampInt(step, 1, 32);
+  const safeYears = Math.max(0, serviceYears);
+
+  const basePay = getPay(series, columnKey, safeStep) ?? 0;
+
+  const positionAllowance = calcPositionAllowanceMonthlyAtColumn(
+    profile,
+    columnKey
+  );
+  const regularBonusMonthly = calcRegularBonusMonthly(basePay, safeYears);
+  const regularAdd = calcRegularAddMonthly(safeYears);
+  const pwuAllowance = calcPwuAllowanceMonthlyAtSnapshot(
+    profile,
+    series,
+    columnKey,
+    safeStep,
+    basePay
+  );
   const managementAllowance = calcManagementAllowanceMonthly(profile, basePay);
 
   const specialAreaAllowance = calcSpecialAreaAllowanceMonthly(profile);
@@ -330,7 +428,10 @@ export function calcEstimatedCurrentPensionableMonthly(
   const dangerousDutyAllowance = calcDangerousDutyAllowanceMonthly(profile);
   const taxableEtcIncluded = calcTaxableEtcIncludedMonthly(profile);
   const holidayBonusMonthly = calcHolidayBonusMonthly(basePay);
-  const averageReplacementMonthly = calcAverageReplacementMonthly(profile);
+
+  const averageReplacementMonthly = includeAverageReplacementMonthly
+    ? calcAverageReplacementMonthly(profile)
+    : 0;
 
   const autoIncludedTotal =
     positionAllowance +
@@ -348,19 +449,33 @@ export function calcEstimatedCurrentPensionableMonthly(
     basePay + autoIncludedTotal + averageReplacementMonthly;
 
   return {
-  basePay,
-  positionAllowance,
-  regularBonusMonthly,
-  regularAdd,
-  pwuAllowance,
-  managementAllowance,
-  specialAreaAllowance,
-  specialDutyAllowance,
-  dangerousDutyAllowance,
-  taxableEtcIncluded,
-  holidayBonusMonthly,
-  averageReplacementMonthly,
-  autoIncludedTotal,
-  estimatedCurrentPensionableMonthly,
-};
+    basePay,
+    positionAllowance,
+    regularBonusMonthly,
+    regularAdd,
+    pwuAllowance,
+    managementAllowance,
+    specialAreaAllowance,
+    specialDutyAllowance,
+    dangerousDutyAllowance,
+    taxableEtcIncluded,
+    holidayBonusMonthly,
+    averageReplacementMonthly,
+    autoIncludedTotal,
+    estimatedCurrentPensionableMonthly,
+  };
+}
+export function calcEstimatedCurrentPensionableMonthly(
+  profile: BaseProfile
+): PensionableAllowanceBreakdown {
+  const serviceYears = diffYears(profile.startDate, getTodayYmd());
+
+  return calcEstimatedPensionableMonthlyAtSnapshot({
+    profile,
+    series: getCurrentSeries(profile),
+    columnKey: getCurrentColumnKey(profile),
+    step: getCurrentStep(profile),
+    serviceYears,
+    includeAverageReplacementMonthly: true,
+  });
 }

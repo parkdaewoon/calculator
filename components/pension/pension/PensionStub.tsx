@@ -154,10 +154,6 @@ export default function PensionStub({ profile }: { profile: BaseProfile }) {
             );
           })}
         </div>
-
-        <div className="mt-3 text-[11px] leading-5 text-neutral-500">
-          동일한 근속연수와 연금 인정연수를 기준으로, 직급별 평균기준소득월액 차이에 따라 예상 연금액을 비교한 값입니다.
-        </div>
       </SectionCard>
     </div>
   );
