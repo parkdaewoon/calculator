@@ -27,8 +27,21 @@ function getSupabaseAdmin() {
 export async function POST(req: Request) {
   try {
     const auth = req.headers.get("authorization");
+
+    console.log("[dispatch] auth header =", auth);
+    console.log("[dispatch] expected =", `Bearer ${process.env.CRON_SECRET}`);
+    console.log("[dispatch] has cron secret =", !!process.env.CRON_SECRET);
+
     if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-      return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+      return Response.json(
+        {
+          ok: false,
+          error: "Unauthorized",
+          got: auth,
+          expectedExists: !!process.env.CRON_SECRET,
+        },
+        { status: 401 }
+      );
     }
 
     const supabaseAdmin = getSupabaseAdmin();

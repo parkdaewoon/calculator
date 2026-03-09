@@ -895,7 +895,7 @@ useEffect(() => {
           <div className="mt-4 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
             <Row
               icon={<Calendar size={18} strokeWidth={1.8} className="text-neutral-500" />}
-              label="캘린더"
+              label="유형"
               value={currentTypeLabel}
               onClick={() => { setSelectedMain(unpackType(typeValue).main); setTypeSheetOpen(true); }}
               valueTone="text-neutral-700"
