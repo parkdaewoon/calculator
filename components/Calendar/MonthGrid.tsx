@@ -52,7 +52,23 @@ export default function MonthGrid({
       return !(b < s || a > e);
     });
   }, [events, grid]);
+  const displayEventsInView = useMemo(() => {
+    return (eventsInView ?? []).filter((ev: any) => {
+      const title = String(ev?.title ?? "").trim();
+      const sub = String(ev?.typeSub ?? ev?.categorySub ?? "").trim();
+      const main = String(ev?.typeMain ?? ev?.categoryMain ?? "").trim();
 
+      // 공휴일/대체공휴일은 달력 셀에서만 숨김
+      const isHolidayEvent =
+        title.includes("대체공휴일") ||
+        title.includes("공휴일") ||
+        sub === "HOLIDAY" ||
+        sub === "PUBLIC_HOLIDAY" ||
+        main === "HOLIDAY";
+
+      return !isHolidayEvent;
+    });
+  }, [eventsInView]);
   const [typeColors, setTypeColors] = useState(() => loadTypeColors());
 
 useEffect(() => {
@@ -113,7 +129,7 @@ useEffect(() => {
       return `${normalizedMain}|${sub}`;
     };
 
-    const sorted = [...(eventsInView ?? [])].sort((a: any, b: any) => {
+        const sorted = [...(displayEventsInView ?? [])].sort((a: any, b: any) => {
       const aS = normYMD(a.dateStart);
       const aE = normYMD(a.dateEnd ?? a.dateStart);
       const bS = normYMD(b.dateStart);
@@ -173,7 +189,7 @@ useEffect(() => {
     }
 
     return segs;
-  }, [eventsInView, grid, typeColors]);
+    }, [displayEventsInView, grid, typeColors]);
 
   // ✅ 날짜별 more 계산
   const moreCountByDate = useMemo(() => {

@@ -136,55 +136,43 @@ export default function DayCell({
   };
 
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        if (e.shiftKey) {
-          toggleQuickEvent();
-          return;
-        }
-        // ✅ DayCell은 클릭 시 선택만. (2번째 탭 오픈 로직은 MonthGrid에서 처리)
-        onSelect();
-      }}
-      // ✅ 더블클릭 동작 제거
-      className={[
-        "relative h-full w-full text-left cursor-pointer",
-        day.inMonth ? "bg-white" : "bg-neutral-50",
-        selected
-          ? "z-10 outline outline-2 outline-neutral-900 -outline-offset-2"
-          : "outline-none",
-      ].join(" ")}
-    >
-      {/* ✅ 상단: 날짜 + 근무배지 */}
-<div className="absolute left-2 right-2 top-1 z-40 flex items-start justify-between">
-  <div
-    className={["text-[12px] font-semibold leading-4", dateColor].join(" ")}
+  <button
+    type="button"
+    onClick={(e) => {
+      if (e.shiftKey) {
+        toggleQuickEvent();
+        return;
+      }
+      onSelect();
+    }}
+    className={[
+      "relative h-full w-full text-left cursor-pointer",
+      day.inMonth ? "bg-white" : "bg-neutral-50",
+      selected
+        ? "z-10 outline outline-2 outline-neutral-900 -outline-offset-2"
+        : "outline-none",
+    ].join(" ")}
   >
-    {day.day}
-  </div>
+    <div className="absolute left-2 right-2 top-1 z-40 flex items-start justify-between">
+      <div
+        className={["text-[12px] font-semibold leading-4", dateColor].join(" ")}
+      >
+        {day.day}
+      </div>
 
-  {badge ? (
-    <div
-      className={[
-        "px-1.5 py-[1px] rounded text-[10px] font-semibold leading-4",
-        badgeStyle,
-      ].join(" ")}
-    >
-      {badge}
+      {badge ? (
+        <div
+          className={[
+            "px-1.5 py-[1px] rounded text-[10px] font-semibold leading-4",
+            badgeStyle,
+          ].join(" ")}
+        >
+          {badge}
+        </div>
+      ) : (
+        <div />
+      )}
     </div>
-  ) : (
-    <div />
-  )}
-</div>
-
-{/* ✅ 👇 여기에 추가 */}
-{day.inMonth && isHoliday && holidayName ? (
-  <div className="absolute left-2 right-2 top-6 z-40">
-    <div className="truncate text-[10px] font-medium text-red-500">
-      {holidayName}
-    </div>
-  </div>
-) : null}
-    </button>
-  );
+  </button>
+);
 }

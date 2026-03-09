@@ -40,30 +40,34 @@ export default function Sheet({
 
   // ✅ 배경(body) 스크롤 잠금 (iOS 포함)
   useEffect(() => {
-    if (!open) return;
+  if (!open) return;
 
-    const body = document.body;
-    const prevOverflow = body.style.overflow;
-    const prevPosition = body.style.position;
-    const prevTop = body.style.top;
-    const prevWidth = body.style.width;
+  const body = document.body;
+  body.classList.add("sheet-open");
 
-    const scrollY = window.scrollY;
+  const prevOverflow = body.style.overflow;
+  const prevPosition = body.style.position;
+  const prevTop = body.style.top;
+  const prevWidth = body.style.width;
 
-    body.style.overflow = "hidden";
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.width = "100%";
+  const scrollY = window.scrollY;
 
-    return () => {
-      const y = Math.abs(parseInt(body.style.top || "0", 10)) || 0;
-      body.style.overflow = prevOverflow;
-      body.style.position = prevPosition;
-      body.style.top = prevTop;
-      body.style.width = prevWidth;
-      window.scrollTo(0, y);
-    };
-  }, [open]);
+  body.style.overflow = "hidden";
+  body.style.position = "fixed";
+  body.style.top = `-${scrollY}px`;
+  body.style.width = "100%";
+
+  return () => {
+    body.classList.remove("sheet-open");
+
+    const y = Math.abs(parseInt(body.style.top || "0", 10)) || 0;
+    body.style.overflow = prevOverflow;
+    body.style.position = prevPosition;
+    body.style.top = prevTop;
+    body.style.width = prevWidth;
+    window.scrollTo(0, y);
+  };
+}, [open]);
 
   if (!open) return null;
 
@@ -90,7 +94,7 @@ export default function Sheet({
         aria-modal="true"
       >
         {/* header (고정) */}
-        <div className="sticky top-0 z-10 bg-white px-4 pt-3">
+        <div className="sticky top-0 z-50 bg-white px-4 pt-3">
           {/* ✅ 윗줄처럼 보이는 핸들 */}
           {showHandle ? (
             <div className="mx-auto h-1.5 w-10 rounded-full bg-neutral-200" />
