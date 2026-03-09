@@ -86,7 +86,16 @@ export async function POST(req: Request) {
       .not("remind_at", "is", null)
       .eq("reminder_sent", false)
       .lte("remind_at", nowIso);
-
+console.log(
+  "[cron] dueEvents",
+  (dueEvents ?? []).map((ev) => ({
+    id: ev.id,
+    title: ev.title,
+    starts_at: ev.starts_at,
+    remind_at: ev.remind_at,
+    reminder_sent: ev.reminder_sent,
+  }))
+);
     if (error) {
       console.error("dueEvents query failed", error);
       return Response.json({ ok: false, error: error.message }, { status: 500 });
@@ -112,14 +121,22 @@ export async function POST(req: Request) {
     for (const ev of dueEvents) {
   try {
     const shortId = String(ev.id).slice(0, 6);
-
+console.log("[cron] sending push", {
+  id: ev.id,
+  title: ev.title,
+  starts_at: ev.starts_at,
+  remind_at: ev.remind_at,
+});
     const result = await sendPushToUser(ev.user_id, {
       title: `일정 알림 #${shortId}`,
       body: `${buildPushBody(ev)} [${shortId}]`,
       url: "/calendar",
     });
 
-    console.log("push result", ev.id, result);
+    console.log("[cron] push result", {
+  id: ev.id,
+  result,
+});
 
     if (result.sent > 0) {
       await supabaseAdmin

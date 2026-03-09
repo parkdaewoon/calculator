@@ -744,12 +744,12 @@ useEffect(() => {
   };
 
   try {
-    setSaving(true);
-    await onSave(next as CalendarEvent);
-    onClose();
-  } finally {
-    setSaving(false);
-  }
+  setSaving(true);
+  onClose();
+  void onSave(next as CalendarEvent);
+} finally {
+  setSaving(false);
+}
 };
 
   const currentTypeLabel = useMemo(() => {
