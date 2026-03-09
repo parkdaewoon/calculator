@@ -35,8 +35,8 @@ type Props = {
   date: YYYYMMDD;
   event?: CalendarEvent | null;
   onClose: () => void;
-  onSave: (event: CalendarEvent) => void;
-  onDelete?: (eventId: string) => void;
+  onSave: (event: CalendarEvent) => void | Promise<void>;
+  onDelete?: (eventId: string) => void | Promise<void>;
 };
 
 /** ✅ YYYY-MM-DD / YYYY-M-D / YYYY.MM.DD / YYYYMMDD -> YYYY-MM-DD */
@@ -536,6 +536,7 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
 
   const [typeSheetOpen, setTypeSheetOpen] = useState(false);
   const [reminderSheetOpen, setReminderSheetOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!menuOpen) return;
     const onDown = (e: MouseEvent) => {
@@ -715,7 +716,7 @@ useEffect(() => {
     ? (salaryReminderEnabled ? new Date(`${safeStart}T08:00:00`).toISOString() : null)
     : calcRemindAt(startIso, reminderMinutes);
 
-  const next: any = {
+    const next: any = {
     ...base,
     id: base.id ?? newId(),
 
@@ -734,7 +735,6 @@ useEffect(() => {
     typeMain,
     typeSub: typeSub || undefined,
 
-    // ✅ 알림 관련 저장
     reminderMinutes: salaryMode ? undefined : (reminderMinutes ?? undefined),
     salaryReminderEnabled: salaryMode ? salaryReminderEnabled : undefined,
     remindAt: remindAt ?? undefined,
@@ -743,10 +743,14 @@ useEffect(() => {
     memo: salaryMode ? undefined : (memo?.trim() ? memo.trim() : undefined),
   };
 
-  onSave(next as CalendarEvent);
-  onClose();
+  try {
+    setSaving(true);
+    await onSave(next as CalendarEvent);
+    onClose();
+  } finally {
+    setSaving(false);
+  }
 };
-
 
   const currentTypeLabel = useMemo(() => {
     const { main, sub } = unpackType(typeValue);
@@ -1000,12 +1004,18 @@ useEffect(() => {
           {isEdit && onDelete ? (
             <div className="mt-4">
               <button
-                onClick={() => {
-                  const ok = window.confirm("이 일정을 삭제할까요?");
-                  if (!ok) return;
-                  onDelete((event as any).id);
-                  onClose();
-                }}
+                onClick={async () => {
+  const ok = window.confirm("이 일정을 삭제할까요?");
+  if (!ok || !onDelete) return;
+
+  try {
+    setSaving(true);
+    await onDelete((event as any).id);
+    onClose();
+  } finally {
+    setSaving(false);
+  }
+}}
                 className="w-full rounded-2xl border border-neutral-200 bg-white py-3 text-sm font-semibold text-red-600 hover:bg-neutral-50"
               >
                 이벤트 삭제
@@ -1021,12 +1031,12 @@ useEffect(() => {
 
         {/* ✅ iOS 스타일 완료 버튼(우하단) */}
         <button
-          onClick={handleSave}
-          disabled={!canSave}
+  onClick={handleSave}
+  disabled={!canSave || saving}
           className={[
-            "absolute right-5 bottom-5 grid h-14 w-14 place-items-center rounded-full shadow-xl",
-            canSave ? "bg-neutral-900 text-white" : "bg-neutral-200 text-neutral-400",
-          ].join(" ")}
+  "absolute right-5 bottom-5 grid h-14 w-14 place-items-center rounded-full shadow-xl",
+  canSave && !saving ? "bg-neutral-900 text-white" : "bg-neutral-200 text-neutral-400",
+].join(" ")}
           aria-label="완료"
         >
           <span className="text-2xl leading-none">✓</span>
