@@ -25,32 +25,41 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
   ensureWebPushConfigured();
 
   const { data, error } = await supabaseAdmin
-  .from("push_subscriptions")
-  .select("endpoint, p256dh, auth, enabled")
-  .eq("user_id", userId)
-  .eq("enabled", true);
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth, enabled")
+    .eq("user_id", userId)
+    .eq("enabled", true);
 
   if (error) {
-  console.error("[push] subscription query failed", error);
-  throw error;
-}
+    console.error("[push] subscription query failed", error);
+    throw error;
+  }
 
-console.log("[push] subscriptions found", {
-  userId,
-  count: data?.length ?? 0,
-  endpoints: (data ?? []).map((row) => row.endpoint),
-});
+  console.log("[push] subscriptions found", {
+    userId,
+    count: data?.length ?? 0,
+    endpoints: (data ?? []).map((row) => row.endpoint),
+  });
 
-if (!data?.length) {
-  console.warn("[push] no active subscriptions for user:", userId);
-  return { ok: true, sent: 0, total: 0 };
-}
+  if (!data?.length) {
+    console.warn("[push] no active subscriptions for user:", userId);
+    return { ok: true, sent: 0, failed: 0, total: 0 };
+  }
 
   let sent = 0;
   let failed = 0;
 
   for (const row of data) {
     try {
+      const message = {
+        title: payload.title,
+        body: payload.body,
+        url: payload.url ?? "/calendar",
+        icon: payload.icon ?? "/icon-192.png",
+        badge: payload.badge ?? "/icon-192.png",
+        ...(payload.tag ? { tag: payload.tag } : {}),
+      };
+
       await webpush.sendNotification(
         {
           endpoint: row.endpoint,
@@ -59,14 +68,7 @@ if (!data?.length) {
             auth: row.auth,
           },
         },
-        JSON.stringify({
-          title: payload.title,
-          body: payload.body,
-          url: payload.url ?? "/calendar",
-          icon: payload.icon ?? "/icon-192.png",
-          badge: payload.badge ?? "/icon-192.png",
-          tag: payload.tag ?? "gongmuwon-note-push",
-        })
+        JSON.stringify(message)
       );
 
       sent += 1;
@@ -84,14 +86,14 @@ if (!data?.length) {
       });
 
       if (statusCode === 404 || statusCode === 410) {
-  await supabaseAdmin
-    .from("push_subscriptions")
-    .update({
-      enabled: false,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("endpoint", row.endpoint);
-}
+        await supabaseAdmin
+          .from("push_subscriptions")
+          .update({
+            enabled: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("endpoint", row.endpoint);
+      }
     }
   }
 

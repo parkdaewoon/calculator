@@ -89,16 +89,6 @@ function computeRemindAt(ev: CalendarEvent): string | null {
   return new Date(startMs - minutes * 60 * 1000).toISOString();
 }
 
-function formatReminderWhen(ev: CalendarEvent) {
-  const ymd = normalizeYmd(ev?.dateStart);
-  if (!ymd) return "";
-
-  const mm = ymd.slice(5, 7);
-  const dd = ymd.slice(8, 10);
-  const time = ev?.allDay ? "08:00" : String(ev?.startTime || "09:00");
-  return `${mm}.${dd}. ${time}`;
-}
-
 function isWorkModeObject(v: any): v is WorkMode {
   return v && typeof v === "object" && typeof v.type === "string";
 }

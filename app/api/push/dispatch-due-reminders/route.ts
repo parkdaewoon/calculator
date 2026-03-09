@@ -23,18 +23,30 @@ function getSupabaseAdmin() {
     },
   });
 }
+
 function formatReminderWhen(startsAt: string | null | undefined) {
   if (!startsAt) return "";
 
   const dt = new Date(startsAt);
   if (Number.isNaN(dt.getTime())) return "";
 
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  const hh = String(dt.getHours()).padStart(2, "0");
-  const mi = String(dt.getMinutes()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(dt);
 
-  return `${mm}.${dd}. ${hh}:${mi}`;
+  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  const day = parts.find((p) => p.type === "day")?.value ?? "";
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "";
+
+  if (!month || !day || !hour || !minute) return "";
+
+  return `${month}.${day}. ${hour}:${minute}`;
 }
 
 function buildPushBody(ev: {
@@ -80,6 +92,17 @@ export async function POST(req: Request) {
       return Response.json({ ok: false, error: error.message }, { status: 500 });
     }
 
+    console.log(
+      "dueEvents",
+      (dueEvents ?? []).map((ev) => ({
+        id: ev.id,
+        title: ev.title,
+        starts_at: ev.starts_at,
+        remind_at: ev.remind_at,
+        reminder_sent: ev.reminder_sent,
+      }))
+    );
+
     if (!dueEvents || dueEvents.length === 0) {
       return Response.json({ ok: true, sent: 0 });
     }
@@ -87,30 +110,34 @@ export async function POST(req: Request) {
     let sent = 0;
 
     for (const ev of dueEvents) {
-  try {
-    const result = await sendPushToUser(ev.user_id, {
-  title: "일정 놓치지 않기!!",
-  body: buildPushBody(ev),
-  url: "/calendar",
-});
+      try {
+        const result = await sendPushToUser(ev.user_id, {
+          title: "일정 놓치지 않기!!",
+          body: buildPushBody(ev),
+          url: "/calendar",
+          tag: `calendar-reminder-${ev.id}`,
+        });
 
-    console.log("push result", result);
+        console.log("push result", ev.id, result);
 
-    if (result.sent > 0) {
-      await supabaseAdmin
-        .from("calendar_events")
-        .update({ reminder_sent: true })
-        .eq("id", ev.id);
+        if (result.sent > 0) {
+          const { error: updateError } = await supabaseAdmin
+            .from("calendar_events")
+            .update({ reminder_sent: true })
+            .eq("id", ev.id);
 
-      sent += 1;
-    } else {
-      console.warn("push not sent", ev.id);
+          if (updateError) {
+            console.error("failed to mark reminder_sent", ev.id, updateError);
+          } else {
+            sent += 1;
+          }
+        } else {
+          console.warn("push not sent", ev.id);
+        }
+      } catch (e) {
+        console.error("push failed", ev.id, e);
+      }
     }
-
-  } catch (e) {
-    console.error("push failed", e);
-  }
-}
 
     return Response.json({ ok: true, sent });
   } catch (e) {
