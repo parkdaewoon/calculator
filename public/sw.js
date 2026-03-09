@@ -31,11 +31,14 @@ self.addEventListener("push", (event) => {
     body: data.body || "알림이 도착했어요.",
     icon: data.icon || "/icon-192.png",
     badge: data.badge || "/icon-192.png",
-    tag: data.tag || "gongmuwon-note-push",
     data: {
       url: data.url || "/",
     },
   };
+
+  if (data.tag) {
+    options.tag = data.tag;
+  }
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

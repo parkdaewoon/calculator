@@ -605,7 +605,18 @@ useEffect(() => {
       ? "여비제도"
       : active === "calculator"
       ? "봉급 계산"
-      : "봉급·수당·여비";
+      : "공무원 봉급 알아보기";
+
+      const description =
+    active === "payTable"
+      ? ""
+      : active === "allowances"
+      ? ""
+      : active === "travel"
+      ? ""
+      : active === "calculator"
+      ? "직렬·직급·호봉으로 기본급을 자동 계산하고,\n수당·공제를 입력해 실수령액(예상)을 확인하세요."
+      : "봉급표, 수당제도, 여비제도, 봉급계산 메뉴를 선택하세요.";
 
   return (
     <div className="space-y-5">
@@ -752,11 +763,9 @@ useEffect(() => {
 ) : null}
         </div>
 
-        <p className="mt-3 text-sm text-neutral-500">
-          직렬·직급·호봉으로 기본급을 자동 계산하고,
-          <br />
-          수당·공제를 입력해 실수령액(예상)을 확인하세요.
-        </p>
+        <p className="mt-3 text-sm text-neutral-500 whitespace-pre-line">
+  {description}
+</p>
       </section>
 
       {!active && (
