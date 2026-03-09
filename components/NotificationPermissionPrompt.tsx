@@ -2,58 +2,51 @@
 
 import { useEffect, useState } from "react";
 import {
-  ensureDeviceUserId,
   fetchPushEnabled,
   isInstalledPwa,
   subscribeCalendarPush,
 } from "@/lib/push/client";
+import usePushUserId from "@/lib/hooks/usePushUserId";
 
 const PROMPTED_KEY = "calendar_notification_prompted_v1";
 
 export default function NotificationPermissionPrompt() {
+  const userId = usePushUserId();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [userId, setUserId] = useState("");
 
   useEffect(() => {
-  const id = ensureDeviceUserId();
-  setUserId(id);
+    if (!userId) return;
 
-  if (!("serviceWorker" in navigator)) return;
+    void (async () => {
+      try {
+        const prompted =
+          typeof window !== "undefined" &&
+          window.localStorage.getItem(PROMPTED_KEY) === "1";
 
-  const onMessage = (event: MessageEvent) => {
-    if (event.data?.type === "REQUEST_USER_ID") {
-      navigator.serviceWorker.controller?.postMessage({
-        type: "SET_USER_ID",
-        userId: id,
-      });
-    }
-  };
+        if (prompted) return;
+        if (!isInstalledPwa()) return;
 
-  navigator.serviceWorker.ready
-    .then((reg) => {
-      reg.active?.postMessage({ type: "SET_USER_ID", userId: id });
-    })
-    .catch((e) => {
-      console.error("service worker ready failed", e);
-    });
+        const enabled = await fetchPushEnabled(userId);
+        if (enabled) return;
 
-  navigator.serviceWorker.addEventListener("message", onMessage);
-
-  return () => {
-    navigator.serviceWorker.removeEventListener("message", onMessage);
-  };
-}, []);
+        setOpen(true);
+      } catch (e) {
+        console.error("notification prompt init failed", e);
+      }
+    })();
+  }, [userId]);
 
   function closeAndRemember() {
     setOpen(false);
+
     if (typeof window !== "undefined") {
       window.localStorage.setItem(PROMPTED_KEY, "1");
     }
   }
 
   async function onAllow() {
-    if (!userId) return;
+    if (!userId || loading) return;
 
     try {
       setLoading(true);
@@ -72,7 +65,10 @@ export default function NotificationPermissionPrompt() {
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 px-6">
       <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
-        <div className="text-base font-semibold text-neutral-900">캘린더 알림 설정</div>
+        <div className="text-base font-semibold text-neutral-900">
+          캘린더 알림 설정
+        </div>
+
         <p className="mt-2 text-sm text-neutral-600">
           앱을 실행할 때 일정 알림을 받을 수 있도록 지금 설정할까요?
         </p>
@@ -85,6 +81,7 @@ export default function NotificationPermissionPrompt() {
           >
             나중에
           </button>
+
           <button
             type="button"
             onClick={() => void onAllow()}

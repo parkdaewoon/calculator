@@ -2,47 +2,21 @@
 
 import { useEffect, useState } from "react";
 import {
-  ensureDeviceUserId,
   fetchPushEnabled,
   isInstalledPwa,
   subscribeCalendarPush,
   unsubscribeCalendarPush,
 } from "@/lib/push/client";
+import usePushUserId from "@/lib/hooks/usePushUserId";
 
-export default function NotificationSettingsCard({ compact = false }: { compact?: boolean }) {
-  const [userId, setUserId] = useState("");
+export default function NotificationSettingsCard({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
+  const userId = usePushUserId();
   const [pushEnabled, setPushEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-  const id = ensureDeviceUserId();
-  setUserId(id);
-
-  if (!("serviceWorker" in navigator)) return;
-
-  const onMessage = (event: MessageEvent) => {
-    if (event.data?.type === "REQUEST_USER_ID") {
-      navigator.serviceWorker.controller?.postMessage({
-        type: "SET_USER_ID",
-        userId: id,
-      });
-    }
-  };
-
-  navigator.serviceWorker.ready
-    .then((reg) => {
-      reg.active?.postMessage({ type: "SET_USER_ID", userId: id });
-    })
-    .catch((e) => {
-      console.error("service worker ready failed", e);
-    });
-
-  navigator.serviceWorker.addEventListener("message", onMessage);
-
-  return () => {
-    navigator.serviceWorker.removeEventListener("message", onMessage);
-  };
-}, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -89,7 +63,9 @@ export default function NotificationSettingsCard({ compact = false }: { compact?
     return (
       <div className="flex items-center justify-between rounded-xl border border-neutral-200 px-4 py-3">
         <div>
-          <div className="text-sm font-medium text-neutral-900">캘린더 알림 설정</div>
+          <div className="text-sm font-medium text-neutral-900">
+            캘린더 알림 설정
+          </div>
           <div className="text-xs text-neutral-500">일정 시작 전 푸시 알림</div>
         </div>
 
