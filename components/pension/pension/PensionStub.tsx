@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useMemo } from "react";
-import type { BaseProfile, PromotionEntry } from "@/lib/domain/profile/types";
+import type { BaseProfile } from "@/lib/domain/profile/types";
 import SectionCard from "@/components/common/SectionCard";
 import { calcEstimatedCurrentPensionableMonthly } from "@/lib/domain/pensionableIncome/calc";
 import { calcPension } from "@/lib/domain/pension/calc";
-import { getPay, type PayTableId } from "@/lib/payTables";
 
 function formatMoney(value: number) {
   return `${Math.round(value).toLocaleString("ko-KR")}원`;
@@ -16,179 +15,6 @@ function formatYearsText(years: number) {
   const y = Math.floor(safe);
   const months = Math.floor((safe - y) * 12);
   return `${y}년 ${months}개월`;
-}
-
-function diffYears(start?: string, end?: string) {
-  if (!start || !end) return 0;
-  const s = new Date(start);
-  const e = new Date(end);
-  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return 0;
-  if (e < s) return 0;
-  return (e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24 * 365.2425);
-}
-
-function clampInt(n: number, min: number, max: number) {
-  const x = Math.trunc(Number.isFinite(n) ? n : min);
-  return Math.min(max, Math.max(min, x));
-}
-
-function getStepPay(series: string, columnKey: string, step: number) {
-  return getPay(series as PayTableId, columnKey, clampInt(step, 1, 32)) ?? 0;
-}
-
-type CareerSegment = {
-  series: string;
-  columnKey: string;
-  years: number;
-};
-
-function buildCareerSegments(params: {
-  startSeries: string;
-  startColumnKey: string;
-  currentSeries: string;
-  currentColumnKey: string;
-  totalYears: number;
-  promotions: PromotionEntry[];
-}): CareerSegment[] {
-  const {
-    startSeries,
-    startColumnKey,
-    currentSeries,
-    currentColumnKey,
-    totalYears,
-    promotions,
-  } = params;
-
-  const cleaned = (promotions ?? [])
-    .filter((x) => x.series && x.columnKey && Number(x.years) > 0)
-    .map((x) => ({
-      series: x.series,
-      columnKey: x.columnKey,
-      years: Number(x.years),
-    }));
-
-  const segments: CareerSegment[] = [];
-  let prevSeries = startSeries;
-  let prevColumnKey = startColumnKey;
-  let usedYears = 0;
-
-  for (const row of cleaned) {
-    const years = Math.max(0, Number(row.years) || 0);
-
-    if (years > 0) {
-      segments.push({
-        series: prevSeries,
-        columnKey: prevColumnKey,
-        years,
-      });
-      usedYears += years;
-    }
-
-    prevSeries = row.series;
-    prevColumnKey = row.columnKey;
-  }
-
-  const remain = Math.max(0, totalYears - usedYears);
-  if (remain > 0) {
-    segments.push({
-      series: currentSeries,
-      columnKey: currentColumnKey,
-      years: remain,
-    });
-  }
-
-  return segments.filter((x) => x.years > 0);
-}
-
-function calcSegmentRepresentativePay(params: {
-  series: string;
-  columnKey: string;
-  startStep: number;
-  years: number;
-}) {
-  const { series, columnKey, startStep, years } = params;
-
-  const safeYears = Math.max(1, Math.floor(years));
-  const representativeStep = clampInt(
-    startStep + Math.floor((safeYears - 1) / 2),
-    1,
-    32
-  );
-
-  return getStepPay(series, columnKey, representativeStep);
-}
-
-function calcAverageIncomeForDisplay(
-  profile: BaseProfile,
-  currentPensionableMonthly: number
-) {
-  if ((profile.incomeMode ?? "auto") === "manual") {
-    return Math.max(0, Number(profile.avgIncomeMonthly ?? 0));
-  }
-
-  const leaveOfAbsenceYears = Math.max(
-  0,
-  Number(profile.leaveOfAbsenceYears ?? 0)
-);
-const totalYearsRaw = diffYears(profile.startDate, profile.retireDate);
-const totalYears = Math.min(
-  36,
-  Math.max(0, totalYearsRaw - leaveOfAbsenceYears)
-);
-
-  const promotionItems = (profile.promotions ?? []) as PromotionEntry[];
-
-  const validPromotions = promotionItems.filter(
-    (x) => x.series && x.columnKey && Number(x.years) > 0
-  );
-
-  if (!validPromotions.length) {
-    return Math.round(currentPensionableMonthly * 0.9);
-  }
-
-  const segments = buildCareerSegments({
-    startSeries: profile.startSeries ?? profile.series,
-    startColumnKey: profile.startColumnKey ?? profile.columnKey,
-    currentSeries: profile.currentSeries ?? profile.series,
-    currentColumnKey: profile.currentColumnKey ?? profile.columnKey,
-    totalYears,
-    promotions: promotionItems,
-  });
-
-  if (!segments.length) {
-    return Math.round(currentPensionableMonthly * 0.9);
-  }
-
-  let weightedSum = 0;
-  let totalWeight = 0;
-  let cursorStep = clampInt(profile.startStep ?? profile.step, 1, 32);
-
-  segments.forEach((seg, idx) => {
-    const isLast = idx === segments.length - 1;
-
-    const pay = isLast
-      ? getStepPay(
-          seg.series,
-          seg.columnKey,
-          clampInt(profile.currentStep ?? profile.step, 1, 32)
-        )
-      : calcSegmentRepresentativePay({
-          series: seg.series,
-          columnKey: seg.columnKey,
-          startStep: cursorStep,
-          years: seg.years,
-        });
-
-    weightedSum += pay * seg.years;
-    totalWeight += seg.years;
-    cursorStep = clampInt(cursorStep + Math.floor(seg.years), 1, 32);
-  });
-
-  if (totalWeight <= 0) {
-    return Math.round(currentPensionableMonthly * 0.9);
-  }
-
-  return Math.round(weightedSum / totalWeight);
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -207,12 +33,12 @@ export default function PensionStub({ profile }: { profile: BaseProfile }) {
   );
 
   const result = useMemo(
-  () =>
-    calcPension(profile, {
-      currentMonthlyBase: pensionable.estimatedCurrentPensionableMonthly,
-    }),
-  [profile, pensionable]
-);
+    () =>
+      calcPension(profile, {
+        currentMonthlyBase: pensionable.estimatedCurrentPensionableMonthly,
+      }),
+    [profile, pensionable]
+  );
 
   const maxNet = Math.max(
     ...result.gradeSimulation.map((x) => x.estimatedNetPension),
@@ -233,10 +59,10 @@ export default function PensionStub({ profile }: { profile: BaseProfile }) {
           <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
             <div className="text-xs text-neutral-500">연금 인정연수</div>
             <div className="mt-1 text-base font-semibold text-neutral-900">
-  {result.recognizedYears >= 36
-    ? "36년(최대)"
-    : formatYearsText(result.recognizedYears)}
-</div>
+              {result.recognizedYears >= 36
+                ? "36년(최대)"
+                : formatYearsText(result.recognizedYears)}
+            </div>
           </div>
 
           <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
@@ -300,8 +126,8 @@ export default function PensionStub({ profile }: { profile: BaseProfile }) {
                       {item.label}
                     </div>
                     <div className="mt-0.5 text-[11px] text-neutral-500">
-                      인정연수 {formatYearsText(item.recognizedYears)} ·
-                      지급률 {item.pensionRate.toFixed(2)}%
+                      인정연수 {formatYearsText(item.recognizedYears)} · 지급률{" "}
+                      {item.pensionRate.toFixed(2)}%
                     </div>
                     <div className="mt-0.5 text-[11px] text-neutral-500">
                       평균기준소득월액 {formatMoney(item.averageMonthlyBase)}

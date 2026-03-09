@@ -219,7 +219,7 @@ function pickBasicInfoAverageMonthlyBase(
     return Math.max(0, overrideAverageMonthlyBase);
   }
 
-  // ✅ 기본정보 화면에서 저장된 평균기준소득월액을 최우선 사용
+  // 기본정보 화면에서 저장된 평균기준소득월액을 최우선 사용
   if (
     typeof profile.calculatedAverageMonthlyBase === "number" &&
     Number.isFinite(profile.calculatedAverageMonthlyBase)
@@ -258,11 +258,21 @@ function pickBasicInfoPensionRate(
 
 function makeGradeSimulation(
   profile: ProfileWithDerived,
-  recognizedYears: number
+  recognizedYears: number,
+  baseAverageMonthlyBase: number,
+  baseCurrentMonthlyBase: number,
+  basePensionRate?: number
 ): PensionGradeSimulationItem[] {
   const series = String(profile.currentSeries ?? profile.series);
   const preferredStep = clampInt(profile.currentStep ?? profile.step, 1, 32);
   const candidates = getGradeComparisonColumns(series);
+
+  // 현재 저장된 평균기준소득월액 / 현재 기준소득월액 비율
+  // 예: 현재 4급 기준소득월액 450, 평균기준소득월액 420 이면 ratio = 420 / 450
+  const averageRatio =
+    baseCurrentMonthlyBase > 0
+      ? baseAverageMonthlyBase / baseCurrentMonthlyBase
+      : 0.9;
 
   return candidates
     .map((item) => {
@@ -289,17 +299,23 @@ function makeGradeSimulation(
       const pensionable =
         calcEstimatedCurrentPensionableMonthly(simulatedProfile);
 
-      const currentMonthlyBase =
-        pensionable.estimatedCurrentPensionableMonthly || fallbackPay;
+      const currentMonthlyBase = Math.max(
+        0,
+        pensionable.estimatedCurrentPensionableMonthly || fallbackPay
+      );
 
-      const averageMonthlyBase = calcAverageMonthlyBaseFallback(
-        simulatedProfile,
-        currentMonthlyBase
+      // ✅ 핵심:
+      // 기본정보에 저장된 "현재 직급 기준 평균기준소득월액"을 기준으로
+      // 비교 대상 직급은 기준소득월액 비례로 환산
+      const averageMonthlyBase = Math.max(
+        0,
+        Math.round(currentMonthlyBase * averageRatio)
       );
 
       const { pensionRate, monthlyPensionGross } = calcMonthlyPension(
         averageMonthlyBase,
-        recognizedYears
+        recognizedYears,
+        basePensionRate
       );
 
       const { deductionsTotal, estimatedNetPension } =
@@ -348,7 +364,6 @@ export function calcPension(
       ? Math.max(0, overrides.recognizedYears)
       : pickBasicInfoRecognizedYears(stored, totalYears);
 
-  // ✅ 기본정보 화면과 동일하게 현재 기준소득월액도 calcEstimatedCurrentPensionableMonthly 기준 사용
   const pensionable = calcEstimatedCurrentPensionableMonthly(stored);
 
   const fallbackStepPay =
@@ -367,7 +382,6 @@ export function calcPension(
           pensionable.estimatedCurrentPensionableMonthly || fallbackStepPay
         );
 
-  // ✅ 첫 번째 사진(기본정보 저장값) 기준으로 평균기준소득월액 사용
   const averageMonthlyBase = pickBasicInfoAverageMonthlyBase(
     stored,
     currentMonthlyBase,
@@ -389,7 +403,13 @@ export function calcPension(
   const { deductionsTotal, estimatedNetPension } =
     estimatePensionDeductions(monthlyPensionGross);
 
-  const gradeSimulation = makeGradeSimulation(stored, recognizedYears);
+  const gradeSimulation = makeGradeSimulation(
+  stored,
+  recognizedYears,
+  averageMonthlyBase,
+  currentMonthlyBase,
+  pensionRate
+);
 
   return {
     totalYears,

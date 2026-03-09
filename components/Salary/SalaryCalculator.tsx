@@ -506,13 +506,13 @@ function makeInitialInputs(series: SeriesKey = "general" as SeriesKey): SalaryIn
     night_hours: 0,
     holiday_days: 0,
 
-    allow_overtime_mode: "manual",
+    allow_overtime_mode: "auto",
     allow_overtime_manual: 0,
 
-    allow_night_mode: "manual",
+    allow_night_mode: "auto",
     allow_night_manual: 0,
 
-    allow_holiday_mode: "manual",
+    allow_holiday_mode: "auto",
     allow_holiday_manual: 0,
 
     allow_management_mode: "auto",
@@ -1233,8 +1233,16 @@ useEffect(() => {
                   mode={safeInputs.allow_overtime_mode}
                   hours={safeInputs.overtime_hours}
                   onHoursChange={(h) =>
-                    setInputs((p) => ({ ...p, overtime_hours: h }))
-                  }
+  setInputs((p) => ({
+    ...p,
+    overtime_hours: h,
+    allow_overtime_mode: h > 0 ? "auto" : p.allow_overtime_mode,
+    management_excluded:
+      h > 0 || p.night_hours > 0 || p.holiday_days > 0
+        ? true
+        : false,
+  }))
+}
                   autoValue={result.breakdown.allow_overtime}
                   manualValue={safeInputs.allow_overtime_manual}
                   onModeChange={(m) =>
@@ -1250,8 +1258,16 @@ useEffect(() => {
                   mode={safeInputs.allow_night_mode}
                   hours={safeInputs.night_hours}
                   onHoursChange={(h) =>
-                    setInputs((p) => ({ ...p, night_hours: h }))
-                  }
+  setInputs((p) => ({
+    ...p,
+    night_hours: h,
+    allow_night_mode: h > 0 ? "auto" : p.allow_night_mode,
+    management_excluded:
+      p.overtime_hours > 0 || h > 0 || p.holiday_days > 0
+        ? true
+        : false,
+  }))
+}
                   autoValue={result.breakdown.allow_night}
                   manualValue={safeInputs.allow_night_manual}
                   onModeChange={(m) =>
@@ -1267,8 +1283,16 @@ useEffect(() => {
                   mode={safeInputs.allow_holiday_mode}
                   days={safeInputs.holiday_days}
                   onDaysChange={(d) =>
-                    setInputs((p) => ({ ...p, holiday_days: d }))
-                  }
+  setInputs((p) => ({
+    ...p,
+    holiday_days: d,
+    allow_holiday_mode: d > 0 ? "auto" : p.allow_holiday_mode,
+    management_excluded:
+      p.overtime_hours > 0 || p.night_hours > 0 || d > 0
+        ? true
+        : false,
+  }))
+}
                   autoValue={result.breakdown.allow_holiday}
                   manualValue={safeInputs.allow_holiday_manual}
                   onModeChange={(m) =>
@@ -1281,16 +1305,21 @@ useEffect(() => {
 
                 <label className="flex items-center gap-2 text-xs text-neutral-600">
                   <input
-                    type="checkbox"
-                    checked={safeInputs.management_excluded}
-                    onChange={(e) =>
-                      setInputs((p) => ({
-                        ...p,
-                        management_excluded: e.target.checked,
-                      }))
-                    }
-                  />
-                  관리업무수당 제외(미체크시 위 수당 자동계산 X)
+  type="checkbox"
+  checked={
+    safeInputs.management_excluded ||
+    safeInputs.overtime_hours > 0 ||
+    safeInputs.night_hours > 0 ||
+    safeInputs.holiday_days > 0
+  }
+  onChange={(e) =>
+    setInputs((p) => ({
+      ...p,
+      management_excluded: e.target.checked,
+    }))
+  }
+/>
+                  관리업무수당 제외(강등·정직·휴직·보직없음 등)
                 </label>
 
                 <AutoMoneyLine
@@ -1544,8 +1573,23 @@ function calcSalary(inputs: SalaryInputs): SalaryResult {
   const auto_substitute = getAutoSubstitute(inputs);
   const auto_military_law = getAutoMilitaryLaw(inputs);
 
+    // ✅ 시간외/야간/휴일 입력이 있으면 관리업무수당 자동 제외 처리
+    const hasExtraWorkInput =
+    (inputs.overtime_hours ?? 0) > 0 ||
+    (inputs.night_hours ?? 0) > 0 ||
+    (inputs.holiday_days ?? 0) > 0;
+
+  const effectiveManagementExcluded =
+    !!inputs.management_excluded || hasExtraWorkInput;
+
   // 1) 관리업무수당
-  const auto_management = getAutoManagement(inputs, basePay);
+  const auto_management = getAutoManagement(
+    {
+      ...inputs,
+      management_excluded: effectiveManagementExcluded,
+    },
+    basePay
+  );
 
   // 2) 차단 조건
   const isGrade4OrAbove = gradeGuess <= 4;
@@ -2339,6 +2383,10 @@ function DraftNumberInput({
   const [draft, setDraft] = useState(() =>
     Number.isFinite(value) ? String(Math.trunc(value)) : ""
   );
+
+  useEffect(() => {
+    setDraft(Number.isFinite(value) ? String(Math.trunc(value)) : "");
+  }, [value]);
 
   return (
     <input
