@@ -6,46 +6,66 @@ export default function SwipeBackBlocker() {
   useEffect(() => {
     let startX = 0;
     let startY = 0;
-    let block = false;
+    let tracking = false;
+    let fromLeftEdge = false;
+    let fromRightEdge = false;
+
+    const EDGE_SIZE = 32;
+    const HORIZONTAL_LOCK_DISTANCE = 10;
+    const VERTICAL_TOLERANCE = 28;
 
     const onTouchStart = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (!t) return;
+      if (!e.touches || e.touches.length !== 1) return;
 
+      const t = e.touches[0];
       startX = t.clientX;
       startY = t.clientY;
 
-      // 왼쪽 가장자리에서 시작한 터치만 대상으로 함
-      block = startX <= 24;
+      fromLeftEdge = startX <= EDGE_SIZE;
+      fromRightEdge = startX >= window.innerWidth - EDGE_SIZE;
+      tracking = fromLeftEdge || fromRightEdge;
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (!block) return;
+      if (!tracking || !e.touches || e.touches.length !== 1) return;
 
       const t = e.touches[0];
-      if (!t) return;
-
       const dx = t.clientX - startX;
-      const dy = Math.abs(t.clientY - startY);
+      const dy = t.clientY - startY;
 
-      // 오른쪽으로 미는 가로 스와이프만 차단
-      if (dx > 10 && dx > dy) {
+      // 세로 스크롤 의도면 차단 해제
+      if (Math.abs(dy) > VERTICAL_TOLERANCE && Math.abs(dy) > Math.abs(dx)) {
+        tracking = false;
+        return;
+      }
+
+      // 왼쪽 가장자리 -> 오른쪽 스와이프(뒤로가기)
+      if (fromLeftEdge && dx > HORIZONTAL_LOCK_DISTANCE) {
+        e.preventDefault();
+      }
+
+      // 오른쪽 가장자리 -> 왼쪽 스와이프(앞으로가기)
+      if (fromRightEdge && dx < -HORIZONTAL_LOCK_DISTANCE) {
         e.preventDefault();
       }
     };
 
-    const onTouchEnd = () => {
-      block = false;
+    const reset = () => {
+      tracking = false;
+      fromLeftEdge = false;
+      fromRightEdge = false;
     };
 
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
-    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", reset, { passive: true });
+    window.addEventListener("touchcancel", reset, { passive: true });
 
     return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchmove", onTouchMove);
-      document.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", reset);
+      window.removeEventListener("touchcancel", reset);
     };
   }, []);
 

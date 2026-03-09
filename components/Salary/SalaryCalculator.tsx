@@ -126,18 +126,20 @@ function NiceSelect({
       {open && pos
         ? createPortal(
             <div
-              ref={popRef}
-              style={{
-                position: "fixed",
-                left: pos.left,
-                top: pos.top,
-                width: pos.width,
-                zIndex: 2000,
-              }}
+  ref={popRef}
+  style={{
+    position: "fixed",
+    left: pos.left,
+    top: pos.top,
+    width: pos.width,
+    zIndex: 2000,
+    touchAction: "pan-y",
+    overscrollBehavior: "contain",
+  }}
               className={[
-                "overflow-hidden rounded-2xl border border-neutral-200 bg-white",
-                "shadow-[0_20px_60px_rgba(0,0,0,0.18)]",
-              ].join(" ")}
+  "overflow-x-hidden overflow-y-auto rounded-2xl border border-neutral-200 bg-white",
+  "shadow-[0_20px_60px_rgba(0,0,0,0.18)]",
+].join(" ")}
             >
               <div className="max-h-[260px] overflow-auto p-1">
                 {options.map((o) => {
@@ -619,7 +621,10 @@ useEffect(() => {
       : "봉급표, 수당제도, 여비제도, 봉급계산 메뉴를 선택하세요.";
 
   return (
-    <div className="space-y-5">
+    <div
+    className="space-y-5 overflow-x-hidden"
+    style={{ overscrollBehaviorX: "none", touchAction: "pan-y" }}
+  >
       <section className="pt-1">
         <div className="text-[11px] tracking-[0.25em] text-neutral-400">
           NOTE KOREAN OFFICER
@@ -647,12 +652,12 @@ useEffect(() => {
     ✅ History Modal
    ========================= */}
 {historyOpen ? (
-  <div className="fixed inset-0 z-[200]">
+  <div className="fixed inset-0 z-[200] overflow-x-hidden touch-pan-y">
     <div
       className="absolute inset-0 bg-black/40"
       onClick={() => setHistoryOpen(false)}
     />
-    <div className="absolute left-1/2 top-1/2 w-[92%] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-white p-4 shadow-2xl">
+    <div className="absolute left-1/2 top-1/2 w-[92%] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-x-hidden rounded-3xl bg-white p-4 shadow-2xl">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold text-neutral-900">이전 기록</div>
         <button
@@ -2029,7 +2034,7 @@ function AllowanceGroup({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3"
+        className="flex w-full select-none touch-manipulation items-center justify-between gap-3 px-4 py-3"
       >
         <div className="text-sm font-semibold text-neutral-900">{title}</div>
         <div className="flex items-center gap-2">

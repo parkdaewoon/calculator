@@ -535,8 +535,9 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const [typeSheetOpen, setTypeSheetOpen] = useState(false);
-  const [reminderSheetOpen, setReminderSheetOpen] = useState(false);
+  const [reminderListOpen, setReminderListOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const reminderWrapRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!menuOpen) return;
     const onDown = (e: MouseEvent) => {
@@ -548,7 +549,19 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
   }, [menuOpen]);
+useEffect(() => {
+  if (!reminderListOpen) return;
 
+  const onDown = (e: MouseEvent) => {
+    const el = reminderWrapRef.current;
+    if (!el) return;
+    if (el.contains(e.target as Node)) return;
+    setReminderListOpen(false);
+  };
+
+  window.addEventListener("mousedown", onDown);
+  return () => window.removeEventListener("mousedown", onDown);
+}, [reminderListOpen]);
   useEffect(() => {
     if (!open) return;
 
@@ -599,7 +612,7 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
     setNewTypeInput("");
     setMenuOpen(false);
     setTypeSheetOpen(false);
-    setReminderSheetOpen(false);
+    setReminderListOpen(false);
   }, [open, event, date]);
 
   const typeOptions = useMemo(() => {
@@ -896,62 +909,118 @@ useEffect(() => {
 ) : null}
 
           {/* 옵션 카드 */}
-          <div className="mt-4 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
-            <Row
-              icon={<Calendar size={18} strokeWidth={1.8} className="text-neutral-500" />}
-              label="유형"
-              value={currentTypeLabel}
-              onClick={() => { setSelectedMain(unpackType(typeValue).main); setTypeSheetOpen(true); }}
-              valueTone="text-neutral-700"
-              rightSlot={
-                <div className="flex items-center gap-2">
-                  <ColorDot color={currentTypeColor} />
-                  <div className="text-[13px] font-semibold text-neutral-700 truncate max-w-[160px]">
-                    {currentTypeLabel}
-                  </div>
-                  <div className="text-neutral-300 text-lg leading-none">›</div>
-                </div>
-              }
-            />
-            <Divider />
-            <Row
-              icon={<Bell size={18} strokeWidth={1.8} className="text-neutral-500" />}
-              label="알림"
-              value={reminderLabel(reminderMinutes, isSalarySelected, salaryReminderEnabled)}
-              onClick={isSalarySelected ? () => {} : () => setReminderSheetOpen(true)}
-              valueTone="text-neutral-700"
-              rightSlot={isSalarySelected ? (
-  <div
-    role="switch"
-    aria-checked={salaryReminderEnabled}
-    tabIndex={0}
-    onClick={(e) => {
-      e.stopPropagation();
-      setSalaryReminderEnabled((p) => !p);
+<div className="mt-4 overflow-visible rounded-3xl border border-neutral-100 bg-white shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
+  <Row
+    icon={<Calendar size={18} strokeWidth={1.8} className="text-neutral-500" />}
+    label="유형"
+    value={currentTypeLabel}
+    onClick={() => {
+      setSelectedMain(unpackType(typeValue).main);
+      setTypeSheetOpen(true);
     }}
-    onKeyDown={(e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        e.stopPropagation();
-        setSalaryReminderEnabled((p) => !p);
-      }
-    }}
-    className={[
-      "h-6 w-10 rounded-full relative transition cursor-pointer",
-      salaryReminderEnabled ? "bg-neutral-900" : "bg-neutral-200",
-    ].join(" ")}
-    aria-label="월급 알림 토글"
-  >
-    <span
-      className={[
-        "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition",
-        salaryReminderEnabled ? "translate-x-4" : "translate-x-0",
-      ].join(" ")}
-    />
-  </div>
-) : undefined}
-            />
+    valueTone="text-neutral-700"
+    rightSlot={
+      <div className="flex items-center gap-2">
+        <ColorDot color={currentTypeColor} />
+        <div className="text-[13px] font-semibold text-neutral-700 truncate max-w-[160px]">
+          {currentTypeLabel}
+        </div>
+        <div className="text-neutral-300 text-lg leading-none">›</div>
+      </div>
+    }
+  />
+
+  <Divider />
+<div ref={reminderWrapRef} className="relative">
+  <Row
+    icon={<Bell size={18} strokeWidth={1.8} className="text-neutral-500" />}
+    label="알림"
+    value={reminderLabel(reminderMinutes, isSalarySelected, salaryReminderEnabled)}
+    onClick={
+      isSalarySelected
+        ? undefined
+        : () => setReminderListOpen((p) => !p)
+    }
+    valueTone="text-neutral-700"
+    rightSlot={
+      isSalarySelected ? (
+        <div
+          role="switch"
+          aria-checked={salaryReminderEnabled}
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            setSalaryReminderEnabled((p) => !p);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              setSalaryReminderEnabled((p) => !p);
+            }
+          }}
+          className={[
+            "h-6 w-10 rounded-full relative transition cursor-pointer",
+            salaryReminderEnabled ? "bg-neutral-900" : "bg-neutral-200",
+          ].join(" ")}
+          aria-label="월급 알림 토글"
+        >
+          <span
+            className={[
+              "absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition",
+              salaryReminderEnabled ? "translate-x-4" : "translate-x-0",
+            ].join(" ")}
+          />
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="text-[13px] font-semibold text-neutral-700 truncate">
+            {reminderLabel(reminderMinutes, false, false)}
           </div>
+          <div
+            className={[
+              "text-neutral-300 text-lg leading-none transition-transform",
+              reminderListOpen ? "rotate-90" : "",
+            ].join(" ")}
+          >
+            ›
+          </div>
+        </div>
+      )
+    }
+  />
+
+  {!isSalarySelected && reminderListOpen ? (
+  <div className="absolute right-3 top-full mt-1 w-40 z-50 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_18px_40px_rgba(0,0,0,0.14)]">
+    <div className="max-h-48 overflow-y-auto p-2">
+      {REMINDER_PRESETS.map((r) => {
+        const active = reminderMinutes === r.minutes;
+
+        return (
+          <button
+            key={r.label}
+            type="button"
+            onClick={() => {
+              setReminderMinutes(r.minutes);
+              setReminderListOpen(false);
+            }}
+            className={[
+              "flex w-full items-center justify-between px-3 py-2 text-left text-sm rounded-xl transition",
+              active
+                ? "bg-neutral-900 text-white"
+                : "text-neutral-800 hover:bg-neutral-50",
+            ].join(" ")}
+          >
+            <span className="font-semibold">{r.label}</span>
+            {active ? <span className="text-sm">✓</span> : null}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+) : null}
+</div>
+</div>
 
           {/* 위치/URL/메모 카드 */}
           {!isSalarySelected ? (
@@ -965,7 +1034,7 @@ useEffect(() => {
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="위치"
-                  className="w-full bg-transparent text-[14px] font-semibold text-neutral-900 outline-none placeholder:text-neutral-300"
+                  className="w-full bg-transparent text-[16px] font-semibold text-neutral-900 outline-none placeholder:text-neutral-300"
                 />
               </div>
             </div>
@@ -979,7 +1048,7 @@ useEffect(() => {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="URL"
-                  className="w-full bg-transparent text-[14px] font-semibold text-neutral-900 outline-none placeholder:text-neutral-300"
+                  className="w-full bg-transparent text-[16px] font-semibold text-neutral-900 outline-none placeholder:text-neutral-300"
                 />
               </div>
             </div>
@@ -993,7 +1062,7 @@ useEffect(() => {
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
                   placeholder="메모"
-                  className="min-h-[90px] w-full resize-none bg-transparent text-[14px] font-semibold text-neutral-900 outline-none placeholder:text-neutral-300"
+                  className="min-h-[90px] w-full resize-none bg-transparent text-[16px] font-semibold text-neutral-900 outline-none placeholder:text-neutral-300"
                 />
               </div>
             </div>
@@ -1132,11 +1201,11 @@ useEffect(() => {
             {addingType && (
               <div className="flex gap-2">
                 <input
-                  value={newTypeInput}
-                  onChange={(e) => setNewTypeInput(e.target.value)}
-                  placeholder="새 항목명 (현재 그룹에 추가)"
-                  className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none focus:border-neutral-400"
-                />
+  value={newTypeInput}
+  onChange={(e) => setNewTypeInput(e.target.value)}
+  placeholder="새 항목명 (현재 그룹에 추가)"
+  className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-base outline-none focus:border-neutral-400"
+/>
                 <button
                   type="button"
                   onClick={addTypeItem}
@@ -1308,39 +1377,6 @@ useEffect(() => {
   </div>
 </BottomSheet>
 
-      {/* 알림 선택 */}
-      <BottomSheet
-        open={reminderSheetOpen}
-        title="알림 선택"
-        onClose={() => setReminderSheetOpen(false)}
-      >
-        <div className="space-y-2">
-          {REMINDER_PRESETS.map((r) => {
-            const active = reminderMinutes === r.minutes;
-            return (
-              <button
-                key={r.label}
-                type="button"
-                onClick={() => {
-                  setReminderMinutes(r.minutes);
-                  setReminderSheetOpen(false);
-                }}
-                className={[
-                  "w-full rounded-2xl border px-4 py-3 text-left",
-                  active
-                    ? "border-neutral-900 bg-neutral-900 text-white"
-                    : "border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">{r.label}</div>
-                  {active && <div className="text-sm">✓</div>}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </BottomSheet>
     </div>,
     document.body
   );

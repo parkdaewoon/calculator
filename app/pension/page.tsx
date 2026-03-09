@@ -63,7 +63,10 @@ export default function PensionPage() {
   return (
     <div className="space-y-5">
       {/* 헤더(봉급 페이지 느낌) */}
-      <section className="pt-1">
+       <div
+    className="space-y-5 overflow-x-hidden"
+    style={{ overscrollBehaviorX: "none", touchAction: "pan-y" }}
+  >
         <div className="text-[11px] tracking-[0.25em] text-neutral-400">
           NOTE KOREAN OFFICER
         </div>
@@ -90,7 +93,7 @@ export default function PensionPage() {
             ? "기본 정보를 저장하고, 퇴직수당·연금·비교를 한 곳에서 확인하세요."
             : "기본 정보를 저장하면, 퇴직수당/연금/비교 탭에서 자동 반영됩니다."}
         </p>
-      </section>
+      </div>
 
       {/* ✅ 메뉴 화면 */}
       {tab === "menu" ? (

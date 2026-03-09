@@ -30,7 +30,7 @@ export default function SalaryMenuGrid({
             key={key}
             type="button"
             onClick={() => onSelect(key)}
-            className="group rounded-3xl border border-neutral-200 bg-white p-4 text-left transition hover:bg-neutral-50"
+            className="group w-full select-none touch-manipulation rounded-3xl border border-neutral-200 bg-white p-4 text-left transition hover:bg-neutral-50"
           >
             <div className="flex items-start justify-between">
               <div className="rounded-2xl border border-neutral-200 bg-white p-2">
