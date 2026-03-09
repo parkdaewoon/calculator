@@ -36,14 +36,7 @@ self.addEventListener("push", (event) => {
       sentAt: data.sentAt || Date.now(),
     },
     timestamp: data.sentAt || Date.now(),
-    requireInteraction: true,
   };
-
-  console.log("[SW push]", {
-    title,
-    body: options.body,
-    sentAt: options.data.sentAt,
-  });
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

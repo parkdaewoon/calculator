@@ -35,12 +35,6 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
     throw error;
   }
 
-  console.log("[push] subscriptions found", {
-    userId,
-    count: data?.length ?? 0,
-    endpoints: (data ?? []).map((row) => row.endpoint),
-  });
-
   if (!data?.length) {
     console.warn("[push] no active subscriptions for user:", userId);
     return { ok: true, sent: 0, failed: 0, total: 0 };

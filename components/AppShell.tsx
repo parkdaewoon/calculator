@@ -17,13 +17,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="relative mx-auto min-h-dvh max-w-[430px] overflow-hidden bg-white shadow-[0_10px_30px_rgba(0,0,0,0.06)]">
         <TopBar onMenu={() => setMenuOpen(true)} />
 
-        <main className={`${mainPx} pb-24 pt-0 pointer-events-auto`}>
+        <main className={`${mainPx} pb-24 pt-0`}>
           {children}
         </main>
 
-        {menuOpen && (
-          <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
-        )}
+        <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
 
         <NotificationPermissionPrompt />
       </div>

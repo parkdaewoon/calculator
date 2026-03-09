@@ -77,7 +77,6 @@ export async function POST(req: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-
     const nowIso = new Date().toISOString();
 
     const { data: dueEvents, error } = await supabaseAdmin
@@ -86,31 +85,11 @@ export async function POST(req: Request) {
       .not("remind_at", "is", null)
       .eq("reminder_sent", false)
       .lte("remind_at", nowIso);
-console.log(
-  "[cron] dueEvents",
-  (dueEvents ?? []).map((ev) => ({
-    id: ev.id,
-    title: ev.title,
-    starts_at: ev.starts_at,
-    remind_at: ev.remind_at,
-    reminder_sent: ev.reminder_sent,
-  }))
-);
+
     if (error) {
       console.error("dueEvents query failed", error);
       return Response.json({ ok: false, error: error.message }, { status: 500 });
     }
-
-    console.log(
-      "dueEvents",
-      (dueEvents ?? []).map((ev) => ({
-        id: ev.id,
-        title: ev.title,
-        starts_at: ev.starts_at,
-        remind_at: ev.remind_at,
-        reminder_sent: ev.reminder_sent,
-      }))
-    );
 
     if (!dueEvents || dueEvents.length === 0) {
       return Response.json({ ok: true, sent: 0 });
@@ -119,39 +98,27 @@ console.log(
     let sent = 0;
 
     for (const ev of dueEvents) {
-  try {
-    const shortId = String(ev.id).slice(0, 6);
-console.log("[cron] sending push", {
-  id: ev.id,
-  title: ev.title,
-  starts_at: ev.starts_at,
-  remind_at: ev.remind_at,
-});
-    const result = await sendPushToUser(ev.user_id, {
-      title: `일정 알림 #${shortId}`,
-      body: `${buildPushBody(ev)} [${shortId}]`,
-      url: "/calendar",
-    });
+      try {
+        const result = await sendPushToUser(ev.user_id, {
+          title: "일정 놓치지 않기!!",
+          body: buildPushBody(ev),
+          url: "/calendar",
+        });
 
-    console.log("[cron] push result", {
-  id: ev.id,
-  result,
-});
+        if (result.sent > 0) {
+          await supabaseAdmin
+            .from("calendar_events")
+            .update({ reminder_sent: true })
+            .eq("id", ev.id);
 
-    if (result.sent > 0) {
-      await supabaseAdmin
-        .from("calendar_events")
-        .update({ reminder_sent: true })
-        .eq("id", ev.id);
-
-      sent += 1;
-    } else {
-      console.warn("push not sent", ev.id);
+          sent += 1;
+        } else {
+          console.warn("push not sent", ev.id);
+        }
+      } catch (e) {
+        console.error("push failed", ev.id, e);
+      }
     }
-  } catch (e) {
-    console.error("push failed", ev.id, e);
-  }
-}
 
     return Response.json({ ok: true, sent });
   } catch (e) {
