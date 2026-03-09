@@ -33,12 +33,17 @@ self.addEventListener("push", (event) => {
     badge: data.badge || "/icon-192.png",
     data: {
       url: data.url || "/",
+      sentAt: data.sentAt || Date.now(),
     },
+    timestamp: data.sentAt || Date.now(),
+    requireInteraction: true,
   };
 
-  if (data.tag) {
-    options.tag = data.tag;
-  }
+  console.log("[SW push]", {
+    title,
+    body: options.body,
+    sentAt: options.data.sentAt,
+  });
 
   event.waitUntil(self.registration.showNotification(title, options));
 });
