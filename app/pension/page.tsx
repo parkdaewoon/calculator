@@ -4,15 +4,11 @@ import React, { useEffect, useState } from "react";
 import AdsenseSlot from "@/components/AdsenseSlot";
 import PensionMenuGrid from "@/components/pension/PensionMenuGrid";
 import { type PensionTabKey } from "@/components/pension/tabs/PensionTabs";
-import type { BaseProfile } from "@/lib/domain/profile/types";
-import { makeDefaultProfile } from "@/lib/domain/profile/defaults";
-import { makeProfileLabel } from "@/lib/domain/profile/label";
+import { useProfileDraft } from "@/lib/hooks/useProfileDraft";
 import {
   addProfileSnapshot,
   deleteProfileSnapshot,
-  loadProfileDraft,
   loadProfileHistory,
-  saveProfileDraft,
   type ProfileHistoryItem,
 } from "@/lib/services/storage/profileStorage";
 
@@ -23,31 +19,21 @@ import SeveranceStub from "@/components/pension/severance/SeveranceStub";
 import PensionStub from "@/components/pension/pension/PensionStub";
 import CompareStub from "@/components/pension/compare/CompareStub";
 
-/** ✅ 메뉴 포함 */
 type Tab = "menu" | PensionTabKey;
 
 export default function PensionPage() {
   const [tab, setTab] = useState<Tab>("menu");
 
-  // ✅ BaseProfile: 단일 소스
-  const [profile, setProfile] = useState<BaseProfile>(() => makeDefaultProfile());
+  // ✅ 공통 draft 사용
+  const { profile, setProfile, hydrated } = useProfileDraft();
 
-  // ✅ history modal
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<ProfileHistoryItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // 최초 로드
   useEffect(() => {
-    const draft = loadProfileDraft();
-    if (draft) setProfile(draft);
     setHistory(loadProfileHistory());
   }, []);
-
-  // profile 바뀔 때마다 draft 저장
-  useEffect(() => {
-    saveProfileDraft(profile);
-  }, [profile]);
 
   const title =
     tab === "menu"
@@ -60,10 +46,13 @@ export default function PensionPage() {
       ? "연금 계산"
       : "납부액·수령액 비교";
 
+  if (!hydrated) {
+    return <div className="p-4 text-sm text-neutral-500">불러오는 중...</div>;
+  }
+
   return (
     <div className="space-y-5">
-      {/* 헤더(봉급 페이지 느낌) */}
-        <div className="space-y-5">
+      <div className="space-y-5">
         <div className="mt-3 text-[11px] tracking-[0.25em] text-neutral-400">
           NOTE KOREAN OFFICER
         </div>
@@ -92,7 +81,6 @@ export default function PensionPage() {
         </p>
       </div>
 
-      {/* ✅ 메뉴 화면 */}
       {tab === "menu" ? (
         <>
           <PensionMenuGrid
@@ -101,7 +89,6 @@ export default function PensionPage() {
             }}
           />
 
-          {/* 하단 광고(봉급 페이지와 동일 스타일) */}
           <section className="pt-2 pb-2">
             <div className="h-px bg-neutral-100" />
             <div className="mt-4 flex justify-center">
@@ -113,7 +100,6 @@ export default function PensionPage() {
         </>
       ) : null}
 
-      {/* 기본 정보 */}
       {tab === "basic" ? (
         <>
           <BasicInfoForm
@@ -125,7 +111,6 @@ export default function PensionPage() {
             }}
           />
 
-          {/* 저장 섹션 */}
           <section className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-neutral-900">
@@ -138,9 +123,7 @@ export default function PensionPage() {
                   const ok = confirm("현재 기본정보를 저장하시겠습니까?");
                   if (!ok) return;
 
-                  const label = makeProfileLabel(profile);
-                  const next = addProfileSnapshot(label, profile);
-
+                  const next = addProfileSnapshot("", profile);
                   setHistory(next);
                   setSelectedId(next[0]?.id ?? null);
 
@@ -153,18 +136,16 @@ export default function PensionPage() {
             </div>
 
             <div className="mt-2 text-[11px] text-neutral-500">
-              임시저장(draft)은 자동으로 유지되고, 저장하기는 기록(최대 5개)에 남깁니다.
+              현재 계산된 입력값을 저장하고 이전 기록에서 다시 불러올 수 있습니다.
             </div>
           </section>
         </>
       ) : null}
 
-      {/* 다른 탭들: 일단 stub */}
       {tab === "severance" ? <SeveranceStub profile={profile} /> : null}
       {tab === "pension" ? <PensionStub profile={profile} /> : null}
       {tab === "compare" ? <CompareStub profile={profile} /> : null}
 
-      {/* History Modal */}
       <BasicInfoHistoryModal
         open={historyOpen}
         items={history}

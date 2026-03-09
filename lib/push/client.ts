@@ -107,7 +107,7 @@ export async function subscribeCalendarPush(userId: string) {
   }
 
   if (!isInstalledPwa()) {
-    throw new Error("아이폰은 홈 화면에 추가한 앱에서만 푸시가 동작해요.");
+    throw new Error("홈 화면에 추가한 앱에서만 푸시가 동작해요.");
   }
 
 const perm =

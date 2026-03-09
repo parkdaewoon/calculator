@@ -1,21 +1,173 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import type { BaseProfile } from "@/lib/domain/profile/types";
 import SectionCard from "@/components/common/SectionCard";
+import { calcSeverance } from "@/lib/domain/severance/calc";
+import { calcEstimatedCurrentPensionableMonthly } from "@/lib/domain/pensionableIncome/calc";
+
+function formatMoney(value: number) {
+  return `${Math.round(value).toLocaleString("ko-KR")}원`;
+}
+
+function formatYearsText(years: number) {
+  const safe = Math.max(0, years);
+  const y = Math.floor(safe);
+  const months = Math.floor((safe - y) * 12);
+  return `${y}년 ${months}개월`;
+}
+
+function formatAppliedYearsText(totalYears: number, cappedYears: number) {
+  if (totalYears > 33) return "33년(최대)";
+  return formatYearsText(cappedYears);
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="text-white/75">{label}</div>
+      <div className="font-medium text-white">{value}</div>
+    </div>
+  );
+}
 
 export default function SeveranceStub({ profile }: { profile: BaseProfile }) {
+  const pensionable = useMemo(
+  () => calcEstimatedCurrentPensionableMonthly(profile),
+  [profile]
+);
+
+const result = useMemo(
+  () =>
+    calcSeverance(
+      profile,
+      pensionable.estimatedCurrentPensionableMonthly
+    ),
+  [profile, pensionable]
+);
+
+  const maxNet = Math.max(
+    ...result.gradeSimulation.map((x) => x.estimatedNet),
+    1
+  );
+
   return (
-    <SectionCard title="퇴직수당 계산(준비중)">
-      <div className="text-sm text-neutral-700">
-        저장된 기본정보를 받아왔어요:
+    <div className="space-y-4">
+      <SectionCard title="퇴직수당 예상">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <div className="text-xs text-neutral-500">총 재직연수</div>
+            <div className="mt-1 text-base font-semibold text-neutral-900">
+              {formatYearsText(result.totalYears)}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <div className="text-xs text-neutral-500">퇴직수당 반영연수</div>
+            <div className="mt-1 text-base font-semibold text-neutral-900">
+              {formatAppliedYearsText(result.totalYears, result.cappedYears)}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <div className="text-xs text-neutral-500">적용 지급률</div>
+            <div className="mt-1 text-base font-semibold text-neutral-900">
+              {result.appliedRate.toFixed(2)}%
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <div className="text-xs text-neutral-500">최종기준소득월액(예상)</div>
+            <div className="mt-1 text-base font-semibold text-neutral-900">
+              {formatMoney(pensionable.estimatedCurrentPensionableMonthly)}
+            </div>
+          </div>
+        </div>
+
+        {result.totalYears > 33 && (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] leading-5 text-amber-800">
+            퇴직수당은 <span className="font-semibold">최대 33년까지만 반영</span>
+            됩니다.
+            <br />
+            총 근무연수는 {formatYearsText(result.totalYears)}이며, 계산에는{" "}
+            {formatAppliedYearsText(result.totalYears, result.cappedYears)}이
+            적용되었습니다.
+          </div>
+        )}
+      </SectionCard>
+
+      <section className="rounded-3xl bg-neutral-900 p-5 text-white">
+        <div className="text-xs text-white/70">실수령액(예상)</div>
+        <div className="mt-2 text-2xl font-semibold tracking-tight">
+          {formatMoney(result.estimatedNet)}
+        </div>
+
+        <div className="mt-4 space-y-2 text-sm">
+          <Row label="퇴직수당 총액" value={formatMoney(result.gross)} />
+          <div className="my-2 h-px bg-white/10" />
+          <Row label="퇴직소득세" value={formatMoney(result.estimatedTax)} />
+          <Row label="지방소득세" value={formatMoney(result.estimatedLocalTax)} />
+        </div>
+      </section>
+
+      <div className="ml-3 text-xs text-neutral-500">
+        * 실수령액은 예상액입니다.
       </div>
-      <pre className="mt-3 overflow-auto rounded-2xl bg-neutral-50 p-3 text-[12px] text-neutral-700">
-        {JSON.stringify(profile, null, 2)}
-      </pre>
-      <div className="mt-3 text-[12px] text-neutral-500">
-        다음 단계: <b>lib/domain/severance/calc.ts</b>에 계산 로직을 넣고 결과 카드 컴포넌트로 교체하면 됩니다.
-      </div>
-    </SectionCard>
+
+      <SectionCard title="같은 근속연수 기준 직급별 비교">
+        <div className="space-y-3">
+          {result.gradeSimulation.map((item) => {
+            const width = Math.max(
+              8,
+              Math.round((item.estimatedNet / maxNet) * 100)
+            );
+
+            return (
+              <div
+                key={item.key}
+                className="rounded-2xl border border-neutral-200 bg-white p-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-neutral-900">
+                      {item.label}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-neutral-500">
+                      반영연수{" "}
+                      {formatAppliedYearsText(item.years, item.cappedYears)} ·
+                      지급률 {item.rate.toFixed(2)}%
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-neutral-500">
+                      기준소득월액 {formatMoney(item.monthlyBase)}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-neutral-900">
+                      {formatMoney(item.estimatedNet)}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-neutral-500">
+                      총액 {formatMoney(item.gross)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 h-3 overflow-hidden rounded-full bg-neutral-100">
+                  <div
+                    className="h-full rounded-full bg-neutral-900 transition-all"
+                    style={{ width: `${width}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 text-[11px] leading-5 text-neutral-500">
+          동일한 근속연수와 지급률을 기준으로, 직급별 기준소득월액 차이에 따라 예상 퇴직수당을 비교한 값입니다.
+          현재는 선택한 직렬과 현재 호봉을 기준으로 9급~5급(또는 해당 직렬의 앞쪽 직급) 비교를 보여줍니다.
+        </div>
+      </SectionCard>
+    </div>
   );
 }

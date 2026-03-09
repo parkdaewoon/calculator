@@ -50,8 +50,8 @@ export default function DateWheelModal({
 
   const curY = new Date().getFullYear();
   const years = useMemo(() => {
-    const start = curY - 20;
-    const end = curY + 10;
+    const start = 1940;
+  const end = 2099;
     return Array.from({ length: end - start + 1 }, (_, i) => String(start + i));
   }, [curY]);
 

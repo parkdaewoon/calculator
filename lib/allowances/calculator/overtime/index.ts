@@ -73,3 +73,4 @@ export function calcOvertimeAllowance(args: {
 }
 export * from "./night";
 export * from "./holiday";
+export * from "./management";

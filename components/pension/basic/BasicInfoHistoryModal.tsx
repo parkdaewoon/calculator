@@ -59,7 +59,7 @@ export default function BasicInfoHistoryModal({
                     }
                   }}
                   className={[
-                    "w-full rounded-2xl border px-3 py-3 text-left transition cursor-pointer select-none",
+                    "w-full cursor-pointer select-none rounded-2xl border px-3 py-3 text-left transition",
                     selected
                       ? "border-neutral-900 bg-neutral-50"
                       : "border-neutral-200 bg-white hover:bg-neutral-50",
@@ -68,7 +68,7 @@ export default function BasicInfoHistoryModal({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-neutral-900">
-                        {h.label}
+                        {h.label || "저장된 기본정보"}
                       </div>
                       <div className="mt-1 text-[11px] text-neutral-500">
                         {new Date(h.savedAt).toLocaleString("ko-KR")}
@@ -109,7 +109,7 @@ export default function BasicInfoHistoryModal({
         </div>
 
         <div className="mt-3 text-[11px] text-neutral-400">
-          * 기본정보는 자동으로 임시저장(draft)됩니다. 저장 버튼은 최대 5개 기록을 남깁니다.
+          * 최대 5개까지 기록할 수 있습니다.
         </div>
       </div>
     </div>

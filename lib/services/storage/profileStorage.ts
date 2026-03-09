@@ -1,5 +1,10 @@
 import type { BaseProfile } from "@/lib/domain/profile/types";
-import { PROFILE_DRAFT_KEY, PROFILE_HISTORY_KEY, PROFILE_HISTORY_MAX } from "./keys";
+import { PAY_TABLES, type PayTableId } from "@/lib/payTables";
+import {
+  PROFILE_DRAFT_KEY,
+  PROFILE_HISTORY_KEY,
+  PROFILE_HISTORY_MAX,
+} from "./keys";
 
 export type ProfileHistoryItem = {
   id: string;
@@ -17,6 +22,20 @@ function safeParseJSON<T>(raw: string | null): T | null {
   }
 }
 
+function makeProfileSnapshotLabel(profile: BaseProfile) {
+  const series = (profile.currentSeries ?? profile.series) as PayTableId;
+  const columnKey = profile.currentColumnKey ?? profile.columnKey;
+  const step = profile.currentStep ?? profile.step;
+
+  const seriesTitle = PAY_TABLES[series]?.title ?? series;
+  const columnLabel =
+    PAY_TABLES[series]?.columns?.find((c) => c.key === columnKey)?.label ??
+    columnKey ??
+    "";
+
+  return `${seriesTitle} ${columnLabel} ${step}호봉`.trim();
+}
+
 export function loadProfileDraft(): BaseProfile | null {
   if (typeof window === "undefined") return null;
   return safeParseJSON<BaseProfile>(localStorage.getItem(PROFILE_DRAFT_KEY));
@@ -30,8 +49,9 @@ export function saveProfileDraft(p: BaseProfile) {
 export function loadProfileHistory(): ProfileHistoryItem[] {
   if (typeof window === "undefined") return [];
   return (
-    safeParseJSON<ProfileHistoryItem[]>(localStorage.getItem(PROFILE_HISTORY_KEY)) ??
-    []
+    safeParseJSON<ProfileHistoryItem[]>(
+      localStorage.getItem(PROFILE_HISTORY_KEY)
+    ) ?? []
   );
 }
 
@@ -42,10 +62,14 @@ export function saveProfileHistory(list: ProfileHistoryItem[]) {
 
 export function addProfileSnapshot(label: string, profile: BaseProfile) {
   const now = Date.now();
+
+  const finalLabel =
+    label?.trim() || makeProfileSnapshotLabel(profile);
+
   const item: ProfileHistoryItem = {
     id: `${now}_${Math.random().toString(16).slice(2)}`,
     savedAt: now,
-    label,
+    label: finalLabel,
     profile,
   };
 
@@ -53,6 +77,10 @@ export function addProfileSnapshot(label: string, profile: BaseProfile) {
   const next = [item, ...prev].slice(0, PROFILE_HISTORY_MAX);
   saveProfileHistory(next);
   return next;
+}
+
+export function addProfileSnapshotFromProfile(profile: BaseProfile) {
+  return addProfileSnapshot("", profile);
 }
 
 export function deleteProfileSnapshot(id: string) {

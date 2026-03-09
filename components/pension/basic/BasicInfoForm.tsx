@@ -1,20 +1,23 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import type { BaseProfile } from "@/lib/domain/profile/types";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { BaseProfile, PromotionEntry } from "@/lib/domain/profile/types";
 import { getPay, PAY_TABLES, type PayTableId } from "@/lib/payTables";
 import SectionCard from "@/components/common/SectionCard";
 import Field from "@/components/common/Field";
 import DateWheelModal from "@/components/ui/wheel/presets/DateWheelModal";
+import {
+  calcEstimatedCurrentPensionableMonthly,
+} from "@/lib/domain/pensionableIncome/calc";
 
-type PickerKey = "birthDate" | "startDate" | "retireDate" | "promotionDate" | null;
+type PickerKey = "birthDate" | "startDate" | "retireDate" | null;
 
 type MoneyMode = "auto" | "manual";
 
-type PromotionEntry = {
+type CareerSegment = {
   series: string;
   columnKey: string;
-  promotedAt: string;
   years: number;
 };
 
@@ -28,6 +31,39 @@ const DEFAULT_PROMOTION_YEARS: Array<{ grade: string; years: number }> = [
   { grade: "2급", years: 6 },
   { grade: "1급", years: 5 },
 ];
+
+const STEP_OPTIONS: Opt[] = Array.from({ length: 32 }, (_, i) => {
+  const n = i + 1;
+  return { value: String(n), label: `${n}호봉` };
+});
+
+const MILITARY_YEAR_OPTIONS: Opt[] = Array.from({ length: 3 }, (_, i) => ({
+  value: String(i),
+  label: `${i}년`,
+}));
+
+const LEAVE_OF_ABSENCE_OPTIONS: Opt[] = [];
+
+for (let y = 0; y <= 30; y++) {
+  for (let m = 0; m < 12; m++) {
+    if (y === 0 && m === 0) continue;
+
+    LEAVE_OF_ABSENCE_OPTIONS.push({
+      value: String(y + m / 12),
+      label: `${y}년 ${m}개월`,
+    });
+  }
+}
+
+LEAVE_OF_ABSENCE_OPTIONS.unshift({
+  value: "0",
+  label: "0년",
+});
+
+const PROMOTION_YEAR_OPTIONS: Opt[] = Array.from({ length: 30 }, (_, i) => {
+  const n = i + 1;
+  return { value: String(n), label: `${n}년` };
+});
 
 function clampInt(n: number, min: number, max: number) {
   const x = Math.trunc(Number.isFinite(n) ? n : min);
@@ -50,6 +86,17 @@ function diffYears(start?: string, end?: string) {
   const ms = e.getTime() - s.getTime();
   return ms / (1000 * 60 * 60 * 24 * 365.2425);
 }
+function formatMoney(v: number | string | undefined) {
+  const num = Number(String(v ?? 0).replaceAll(",", ""));
+  if (!Number.isFinite(num)) return "0";
+  return num.toLocaleString();
+}
+
+function parseMoney(v: string) {
+  const num = Number(String(v).replaceAll(",", "").trim());
+  if (!Number.isFinite(num) || num < 0) return 0;
+  return Math.round(num);
+}
 
 function formatYearsText(years: number) {
   const safe = Math.max(0, years);
@@ -67,6 +114,25 @@ function pensionStartAgeByBirthYear(year: number) {
   return 65;
 }
 
+function calcAutoRetireDateFromBirth(birthDate?: string, retireAge = 65) {
+  if (!birthDate) return "";
+
+  const m = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+
+  const y = Number(m[1]);
+  const mm = Number(m[2]);
+
+  if (!Number.isFinite(y) || !Number.isFinite(mm)) return "";
+
+  const reachYear = y + retireAge;
+
+  if (mm >= 1 && mm <= 6) {
+    return `${reachYear}-06-30`;
+  }
+  return `${reachYear}-12-31`;
+}
+
 function severanceRateByYears(years: number) {
   if (years >= 20) return 39;
   if (years >= 15) return 32.5;
@@ -80,28 +146,301 @@ function pensionRateByYears(years: number) {
   const rate = years * 1.7;
   return Math.max(0, Math.min(rate, 100));
 }
+function getPensionRecognizedYears(
+  totalYears: number,
+  militaryServiceYears: number
+) {
+  const serviceYears = Math.max(totalYears, 0);
+  const militaryYears = Math.max(militaryServiceYears, 0);
 
-function ProfileSelect({
+  return Math.min(serviceYears + militaryYears, 36);
+}
+function getStepPay(series: string, columnKey: string, step: number) {
+  return getPay(series as PayTableId, columnKey, clampInt(step, 1, 32)) ?? 0;
+}
+
+function buildCareerSegments(params: {
+  startSeries: string;
+  startColumnKey: string;
+  currentSeries: string;
+  currentColumnKey: string;
+  totalYears: number;
+  promotions: PromotionEntry[];
+}): CareerSegment[] {
+  const {
+    startSeries,
+    startColumnKey,
+    currentSeries,
+    currentColumnKey,
+    totalYears,
+    promotions,
+  } = params;
+
+  const cleaned = promotions
+    .filter((x) => x.series && x.columnKey && Number(x.years) > 0)
+    .map((x) => ({
+      series: x.series,
+      columnKey: x.columnKey,
+      years: Number(x.years),
+    }));
+
+  const segments: CareerSegment[] = [];
+  let prevSeries = startSeries;
+  let prevColumnKey = startColumnKey;
+  let usedYears = 0;
+
+  for (const row of cleaned) {
+    const years = Math.max(0, Number(row.years) || 0);
+    if (years > 0) {
+      segments.push({
+        series: prevSeries,
+        columnKey: prevColumnKey,
+        years,
+      });
+      usedYears += years;
+    }
+
+    prevSeries = row.series;
+    prevColumnKey = row.columnKey;
+  }
+
+  const remain = Math.max(0, totalYears - usedYears);
+  if (remain > 0) {
+    segments.push({
+      series: currentSeries,
+      columnKey: currentColumnKey,
+      years: remain,
+    });
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function calcSegmentRepresentativePay(params: {
+  series: string;
+  columnKey: string;
+  startStep: number;
+  years: number;
+}) {
+  const { series, columnKey, startStep, years } = params;
+
+  const safeYears = Math.max(1, Math.floor(years));
+  const representativeStep = clampInt(
+    startStep + Math.floor((safeYears - 1) / 2),
+    1,
+    32
+  );
+
+  return getStepPay(series, columnKey, representativeStep);
+}
+
+function calcAverageIncomeWithPromotionsA(params: {
+  startSeries: string;
+  startColumnKey: string;
+  startStep: number;
+  currentSeries: string;
+  currentColumnKey: string;
+  currentStep: number;
+  totalYears: number;
+  promotions: PromotionEntry[];
+  fallbackCurrentPay: number;
+}) {
+  const {
+    startSeries,
+    startColumnKey,
+    startStep,
+    currentSeries,
+    currentColumnKey,
+    currentStep,
+    totalYears,
+    promotions,
+    fallbackCurrentPay,
+  } = params;
+
+  const validPromotions = promotions.filter(
+    (x) => x.series && x.columnKey && Number(x.years) > 0
+  );
+
+  if (!validPromotions.length) {
+    return Math.round(fallbackCurrentPay * 0.9);
+  }
+
+  const segments = buildCareerSegments({
+    startSeries,
+    startColumnKey,
+    currentSeries,
+    currentColumnKey,
+    totalYears,
+    promotions,
+  });
+
+  if (!segments.length) {
+    return Math.round(fallbackCurrentPay * 0.9);
+  }
+
+  let weightedSum = 0;
+  let totalWeight = 0;
+  let cursorStep = clampInt(startStep, 1, 32);
+
+  segments.forEach((seg, idx) => {
+    const isLast = idx === segments.length - 1;
+
+    const representativePay = isLast
+      ? getStepPay(seg.series, seg.columnKey, currentStep)
+      : calcSegmentRepresentativePay({
+          series: seg.series,
+          columnKey: seg.columnKey,
+          startStep: cursorStep,
+          years: seg.years,
+        });
+
+    weightedSum += representativePay * seg.years;
+    totalWeight += seg.years;
+
+    cursorStep = clampInt(cursorStep + Math.floor(seg.years), 1, 32);
+  });
+
+  if (totalWeight <= 0) {
+    return Math.round(fallbackCurrentPay * 0.9);
+  }
+
+  return Math.round(weightedSum / totalWeight);
+}
+
+type Opt = { value: string; label: string };
+
+function NiceSelect({
   value,
   options,
   onChange,
 }: {
   value: string;
-  options: Array<{ value: string; label: string }>;
+  options: Opt[];
   onChange: (v: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
+
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? "선택";
+
+  const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(
+    null
+  );
+
+  const updatePos = () => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ left: r.left, top: r.bottom + 8, width: r.width });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    updatePos();
+    const onResize = () => updatePos();
+    const onScroll = () => updatePos();
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-sm"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={[
+          "relative flex w-full items-center justify-between",
+          "h-10 rounded-2xl border border-neutral-200 bg-white px-3",
+          "text-left text-sm text-neutral-900 shadow-sm transition",
+          "hover:border-neutral-300",
+          "focus:outline-none focus:ring-4 focus:ring-neutral-200/60 focus:border-neutral-400",
+        ].join(" ")}
+      >
+        <span className="truncate">{selectedLabel}</span>
+
+        <span className="ml-2 flex h-6 w-6 items-center justify-center rounded-xl text-neutral-500">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M5 7.5L10 12.5L15 7.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </button>
+
+      {open && pos
+        ? createPortal(
+            <div
+              ref={popRef}
+              style={{
+                position: "fixed",
+                left: pos.left,
+                top: pos.top,
+                width: pos.width,
+                zIndex: 2000,
+                touchAction: "pan-y",
+                overscrollBehavior: "contain",
+              }}
+              className="overflow-x-hidden overflow-y-auto rounded-2xl border border-neutral-200 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
+            >
+              <div className="max-h-[260px] overflow-auto p-1">
+                {options.map((o) => {
+                  const active = o.value === value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => {
+                        onChange(o.value);
+                        setOpen(false);
+                      }}
+                      className={[
+                        "w-full rounded-xl px-3 py-2 text-left text-xs transition",
+                        active
+                          ? "bg-neutral-900 text-white"
+                          : "text-neutral-900 hover:bg-neutral-100",
+                      ].join(" ")}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
   );
 }
 
@@ -117,7 +456,6 @@ export default function BasicInfoForm({
   const [picker, setPicker] = useState<PickerKey>(null);
   const [promotionGuideOpen, setPromotionGuideOpen] = useState(false);
   const [promotionOpen, setPromotionOpen] = useState(false);
-  const [promotionPickerIndex, setPromotionPickerIndex] = useState<number | null>(null);
 
   const seriesOptions = useMemo(() => {
     return Object.keys(PAY_TABLES).map((id) => {
@@ -141,47 +479,220 @@ export default function BasicInfoForm({
   );
 
   const today = new Date().toISOString().slice(0, 10);
-  const currentYears = diffYears(profile.startDate, today);
-  const totalYears = diffYears(profile.startDate, profile.retireDate);
+
+const rawCurrentYears = diffYears(profile.startDate, today);
+const rawTotalYears = diffYears(profile.startDate, profile.retireDate);
+
+function clampFloat(n: number, min: number, max: number) {
+  const x = Number.isFinite(n) ? n : min;
+  return Math.min(max, Math.max(min, x));
+}
+
+const militaryServiceYears = clampFloat(
+  Number(profile.militaryServiceYears ?? 0),
+  0,
+  3
+);
+
+const leaveOfAbsenceYears = Math.max(
+  0,
+  Math.min(30 + 11 / 12, Number(profile.leaveOfAbsenceYears ?? 0))
+);
+
+const currentYears = Math.max(0, rawCurrentYears - leaveOfAbsenceYears);
+const totalYears = Math.max(0, rawTotalYears - leaveOfAbsenceYears);
+
+const pensionRecognizedYears = getPensionRecognizedYears(
+  totalYears,
+  militaryServiceYears
+);
 
   const birthYear = Number((profile.birthDate ?? "").slice(0, 4));
-  const pensionStartAge = Number.isFinite(birthYear) && birthYear > 0
-    ? pensionStartAgeByBirthYear(birthYear)
-    : null;
+  const pensionStartAge =
+    Number.isFinite(birthYear) && birthYear > 0
+      ? pensionStartAgeByBirthYear(birthYear)
+      : null;
 
-  const currentPay = getPay(
-    (profile.currentSeries ?? profile.series) as PayTableId,
-    profile.currentColumnKey ?? profile.columnKey,
-    profile.currentStep ?? profile.step
-  ) ?? 0;
+    const currentPay =
+    getPay(
+      (profile.currentSeries ?? profile.series) as PayTableId,
+      profile.currentColumnKey ?? profile.columnKey,
+      profile.currentStep ?? profile.step
+    ) ?? 0;
+
+  const pensionable = calcEstimatedCurrentPensionableMonthly(profile);
 
   const incomeMode: MoneyMode = profile.incomeMode ?? "auto";
-  const avgIncome = incomeMode === "manual"
-    ? Number(profile.avgIncomeMonthly ?? 0)
-    : Math.round(currentPay * 0.9);
 
-  const pensionRate = pensionRateByYears(totalYears);
-  const severanceRate = severanceRateByYears(totalYears);
+  const promotionItems = (profile.promotions ?? []) as PromotionEntry[];
 
-  const promotionItems = profile.promotions ?? [];
+    const avgIncome =
+    incomeMode === "manual"
+      ? Number(profile.avgIncomeMonthly ?? 0)
+      : calcAverageIncomeWithPromotionsA({
+          startSeries: profile.startSeries ?? profile.series,
+          startColumnKey: profile.startColumnKey ?? profile.columnKey,
+          startStep: profile.startStep ?? profile.step,
+          currentSeries: profile.currentSeries ?? profile.series,
+          currentColumnKey: profile.currentColumnKey ?? profile.columnKey,
+          currentStep: profile.currentStep ?? profile.step,
+          totalYears,
+          promotions: promotionItems,
+          fallbackCurrentPay: currentPay,
+        });
 
+  const pensionRate = pensionRateByYears(pensionRecognizedYears);
+  const severanceRecognizedYears = getSeveranceRecognizedYears(totalYears);
+  const severanceRate = severanceRateByYears(severanceRecognizedYears);
+useEffect(() => {
+  const nextTotalYears = totalYears;
+  const nextRecognizedYears = pensionRecognizedYears;
+  const nextPensionRate = pensionRate;
+  const nextAverageMonthlyBase = avgIncome;
+
+  const changed =
+    Number(profile.calculatedTotalYears ?? 0) !== Number(nextTotalYears) ||
+    Number(profile.calculatedPensionRecognizedYears ?? 0) !== Number(nextRecognizedYears) ||
+    Number(profile.calculatedPensionRate ?? 0) !== Number(nextPensionRate) ||
+    Number(profile.calculatedAverageMonthlyBase ?? 0) !== Number(nextAverageMonthlyBase);
+
+  if (!changed) return;
+
+  onChange({
+    ...profile,
+    calculatedTotalYears: nextTotalYears,
+    calculatedPensionRecognizedYears: nextRecognizedYears,
+    calculatedPensionRate: nextPensionRate,
+    calculatedAverageMonthlyBase: nextAverageMonthlyBase,
+  });
+}, [
+  avgIncome,
+  onChange,
+  pensionRate,
+  pensionRecognizedYears,
+  profile,
+  totalYears,
+]);
+  function getSeveranceRecognizedYears(totalYears: number) {
+    return Math.min(Math.max(totalYears, 0), 33);
+  }
+
+  useEffect(() => {
+    const nextTotalYears = totalYears;
+    const nextRecognizedYears = pensionRecognizedYears;
+    const nextPensionRate = pensionRate;
+    const nextAverageMonthlyBase = avgIncome;
+
+    const changed =
+      Number(profile.calculatedTotalYears ?? 0) !== Number(nextTotalYears) ||
+      Number(profile.calculatedPensionRecognizedYears ?? 0) !== Number(nextRecognizedYears) ||
+      Number(profile.calculatedPensionRate ?? 0) !== Number(nextPensionRate) ||
+      Number(profile.calculatedAverageMonthlyBase ?? 0) !== Number(nextAverageMonthlyBase);
+
+    if (!changed) return;
+
+    onChange({
+      ...profile,
+      calculatedTotalYears: nextTotalYears,
+      calculatedPensionRecognizedYears: nextRecognizedYears,
+      calculatedPensionRate: nextPensionRate,
+      calculatedAverageMonthlyBase: nextAverageMonthlyBase,
+    });
+  }, [
+    profile,
+    onChange,
+    totalYears,
+    pensionRecognizedYears,
+    pensionRate,
+    avgIncome,
+  ]);
+useEffect(() => {
+  const nextTotalYears = totalYears;
+  const nextRecognizedYears = pensionRecognizedYears;
+  const nextPensionRate = pensionRate;
+  const nextAverageMonthlyBase = avgIncome;
+
+  const changed =
+    Number(profile.calculatedTotalYears ?? 0) !== Number(nextTotalYears) ||
+    Number(profile.calculatedPensionRecognizedYears ?? 0) !== Number(nextRecognizedYears) ||
+    Number(profile.calculatedPensionRate ?? 0) !== Number(nextPensionRate) ||
+    Number(profile.calculatedAverageMonthlyBase ?? 0) !== Number(nextAverageMonthlyBase);
+
+  if (!changed) return;
+
+  onChange({
+    ...profile,
+    calculatedTotalYears: nextTotalYears,
+    calculatedPensionRecognizedYears: nextRecognizedYears,
+    calculatedPensionRate: nextPensionRate,
+    calculatedAverageMonthlyBase: nextAverageMonthlyBase,
+  });
+}, [
+  profile,
+  onChange,
+  totalYears,
+  pensionRecognizedYears,
+  pensionRate,
+  avgIncome,
+]);
   const update = (patch: Partial<BaseProfile>) => onChange({ ...profile, ...patch });
+const updateMonthlyInputs = (
+  patch: Partial<NonNullable<BaseProfile["pensionableMonthlyInputs"]>>
+) => {
+  update({
+    pensionableMonthlyInputs: {
+      ...(profile.pensionableMonthlyInputs ?? {}),
+      ...patch,
+    },
+  } as Partial<BaseProfile>);
+};
 
+const updateExcludedAnnualInputs = (
+  patch: Partial<NonNullable<BaseProfile["pensionableExcludedAnnualInputs"]>>
+) => {
+  update({
+    pensionableExcludedAnnualInputs: {
+      ...(profile.pensionableExcludedAnnualInputs ?? {}),
+      ...patch,
+    },
+  } as Partial<BaseProfile>);
+};
+
+const updateAutoFlags = (
+  patch: Partial<NonNullable<BaseProfile["pensionableAutoFlags"]>>
+) => {
+  update({
+    pensionableAutoFlags: {
+      ...(profile.pensionableAutoFlags ?? {}),
+      ...patch,
+    },
+  } as Partial<BaseProfile>);
+};
+
+function toNonNegativeNumber(v: string) {
+  const num = Number(String(v).replaceAll(",", "").trim());
+  if (!Number.isFinite(num) || num < 0) return 0;
+  return Math.round(num);
+}
   const openDate = (key: PickerKey) => setPicker(key);
+
   const applyDate = (ymd: string) => {
     if (!picker) return;
+
     if (picker === "birthDate") {
-      update({ birthDate: ymd, pensionStartAge: pensionStartAgeByBirthYear(Number(ymd.slice(0, 4))) });
+      const birthYear = Number(ymd.slice(0, 4));
+      const autoRetireDate = calcAutoRetireDateFromBirth(ymd, 65);
+
+      update({
+        birthDate: ymd,
+        pensionStartAge: pensionStartAgeByBirthYear(birthYear),
+        retireDate: autoRetireDate,
+      } as Partial<BaseProfile>);
     }
+
     if (picker === "startDate") update({ startDate: ymd });
     if (picker === "retireDate") update({ retireDate: ymd });
-    if (picker === "promotionDate") {
-      const next = [...promotionItems];
-      const i = promotionPickerIndex ?? -1;
-      if (i >= 0 && next[i]) next[i] = { ...next[i], promotedAt: ymd };
-      update({ promotions: next });
-      setPromotionPickerIndex(null);
-    }
+
     setPicker(null);
   };
 
@@ -193,23 +704,27 @@ export default function BasicInfoForm({
       {
         series: firstSeries,
         columnKey: firstCol,
-        promotedAt: today,
         years: 6,
       },
     ];
-    update({ promotions: next });
+    update({ promotions: next } as Partial<BaseProfile>);
   };
 
   const setPromotion = (idx: number, patch: Partial<PromotionEntry>) => {
     const next = [...promotionItems];
     next[idx] = { ...next[idx], ...patch };
-    update({ promotions: next });
+    update({ promotions: next } as Partial<BaseProfile>);
+  };
+
+  const removePromotion = (idx: number) => {
+    const next = promotionItems.filter((_, i) => i !== idx);
+    update({ promotions: next } as Partial<BaseProfile>);
   };
 
   return (
     <div className="space-y-4">
       <SectionCard
-        title="정보 카드"
+        title="정보"
         right={
           <button
             type="button"
@@ -223,46 +738,76 @@ export default function BasicInfoForm({
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <Field label="생년월일">
-              <button type="button" onClick={() => openDate("birthDate")} className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-left text-sm">
+              <button
+                type="button"
+                onClick={() => openDate("birthDate")}
+                className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-left text-sm"
+              >
                 {fmtYmd(profile.birthDate)}
               </button>
             </Field>
 
             <Field label="연금개시연령">
-              <div className="h-10 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm flex items-center">
+              <div className="flex h-10 items-center rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
                 {pensionStartAge ? `만 ${pensionStartAge}세` : "생년월일 선택"}
               </div>
             </Field>
 
             <Field label="임용일">
-              <button type="button" onClick={() => openDate("startDate")} className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-left text-sm">
+              <button
+                type="button"
+                onClick={() => openDate("startDate")}
+                className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-left text-sm"
+              >
                 {fmtYmd(profile.startDate)}
               </button>
             </Field>
 
             <Field label="퇴직일(예정)">
-              <button type="button" onClick={() => openDate("retireDate")} className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-left text-sm">
+              <button
+                type="button"
+                onClick={() => openDate("retireDate")}
+                className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-left text-sm"
+              >
                 {fmtYmd(profile.retireDate)}
               </button>
             </Field>
 
             <Field label="재직기간(현재)">
-              <div className="h-10 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm flex items-center">
+              <div className="flex h-10 items-center rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
                 {formatYearsText(currentYears)}
               </div>
             </Field>
 
             <Field label="재직기간(총)">
-              <div className="h-10 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm flex items-center">
+              <div className="flex h-10 items-center rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
                 {formatYearsText(totalYears)}
               </div>
             </Field>
+            <Field label="군복무 인정">
+  <NiceSelect
+    value={String(militaryServiceYears)}
+    options={MILITARY_YEAR_OPTIONS}
+    onChange={(v) => update({ militaryServiceYears: Number(v) })}
+  />
+</Field>
+<Field label="휴직기간(합계)">
+  <NiceSelect
+    value={String(Math.max(0, Number(profile.leaveOfAbsenceYears ?? 0)))}
+    options={LEAVE_OF_ABSENCE_OPTIONS}
+    onChange={(v) =>
+      update({ leaveOfAbsenceYears: Number(v) })
+    }
+  />
+</Field>
           </div>
 
           <div>
-            <div className="mb-2 text-xs font-semibold text-neutral-600">시작 (직렬/직급/호봉)</div>
+            <div className="mb-2 text-xs font-semibold text-neutral-600">
+              시작 (직렬/직급/호봉)
+            </div>
             <div className="grid grid-cols-3 gap-2">
-              <ProfileSelect
+              <NiceSelect
                 value={profile.startSeries ?? profile.series}
                 options={seriesOptions}
                 onChange={(series) => {
@@ -270,24 +815,29 @@ export default function BasicInfoForm({
                   update({ startSeries: series, startColumnKey: first });
                 }}
               />
-              <ProfileSelect
+              <NiceSelect
                 value={profile.startColumnKey ?? profile.columnKey}
                 options={startColumnOptions}
                 onChange={(v) => update({ startColumnKey: v })}
               />
-              <input
-                inputMode="numeric"
-                value={profile.startStep ?? profile.step}
-                onChange={(e) => update({ startStep: clampInt(Number(e.target.value), 1, 32) })}
-                className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-sm"
-              />
+              <NiceSelect
+  value={String(profile.startStep ?? profile.step)}
+  options={STEP_OPTIONS}
+  onChange={(v) =>
+    update({
+      startStep: clampInt(Number(v), 1, 32),
+    })
+  }
+/>
             </div>
           </div>
 
           <div>
-            <div className="mb-2 text-xs font-semibold text-neutral-600">현재 (직렬/직급/호봉)</div>
+            <div className="mb-2 text-xs font-semibold text-neutral-600">
+              최종 (직렬/직급/호봉)
+            </div>
             <div className="grid grid-cols-3 gap-2">
-              <ProfileSelect
+              <NiceSelect
                 value={profile.currentSeries ?? profile.series}
                 options={seriesOptions}
                 onChange={(series) => {
@@ -295,138 +845,299 @@ export default function BasicInfoForm({
                   update({ currentSeries: series, currentColumnKey: first });
                 }}
               />
-              <ProfileSelect
+              <NiceSelect
                 value={profile.currentColumnKey ?? profile.columnKey}
                 options={currentColumnOptions}
                 onChange={(v) => update({ currentColumnKey: v })}
               />
-              <input
-                inputMode="numeric"
-                value={profile.currentStep ?? profile.step}
-                onChange={(e) => update({ currentStep: clampInt(Number(e.target.value), 1, 32) })}
-                className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-sm"
-              />
+              <NiceSelect
+  value={String(profile.currentStep ?? profile.step)}
+  options={STEP_OPTIONS}
+  onChange={(v) =>
+    update({
+      currentStep: clampInt(Number(v), 1, 32),
+    })
+  }
+/>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-200 p-3">
+      <div className="rounded-2xl border border-neutral-200 p-3">
   <div className="flex items-center justify-between gap-2">
-    <button
-      type="button"
-      onClick={() => setPromotionOpen((p) => !p)}
-      className="flex flex-1 items-center justify-between text-left"
-    >
-      <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
-        승진
-      </div>
-      <span className="text-neutral-400">{promotionOpen ? "▴" : "▾"}</span>
-    </button>
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-semibold text-neutral-900">승진</span>
+      <button
+        type="button"
+        onClick={() => setPromotionGuideOpen(true)}
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-neutral-300 text-[11px] text-neutral-600"
+        aria-label="승진 평균연수 안내"
+      >
+        ?
+      </button>
+    </div>
 
     <button
-      type="button"
-      onClick={() => setPromotionGuideOpen(true)}
-      className="h-5 w-5 shrink-0 rounded-full border border-neutral-300 text-xs text-neutral-600"
-      aria-label="승진 평균연수 안내"
-    >
-      ?
-    </button>
+  type="button"
+  onClick={() => setPromotionOpen((p) => !p)}
+  className="flex items-center justify-center rounded-lg px-1 text-neutral-400"
+>
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 20 20"
+    fill="none"
+    className={`transition-transform ${promotionOpen ? "rotate-180" : ""}`}
+  >
+    <path
+      d="M5 7.5L10 12.5L15 7.5"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+</button>
   </div>
 
   {promotionOpen ? (
-    <div className="mt-3 space-y-2">
-      {promotionItems.map((row, idx) => {
-        const colOpts = makeColumnOptions(row.series);
-        return (
-          <div key={`${idx}-${row.promotedAt}`} className="grid grid-cols-4 gap-2">
-            <ProfileSelect
-              value={row.series}
-              options={seriesOptions}
-              onChange={(series) => {
-                const first = makeColumnOptions(series)[0]?.value ?? "g9";
-                setPromotion(idx, { series, columnKey: first });
-              }}
-            />
-            <ProfileSelect
-              value={row.columnKey}
-              options={colOpts}
-              onChange={(v) => setPromotion(idx, { columnKey: v })}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setPromotionPickerIndex(idx);
-                openDate("promotionDate");
-              }}
-              className="h-10 rounded-2xl border border-neutral-200 bg-white px-3 text-left text-sm"
-            >
-              {fmtYmd(row.promotedAt)}
-            </button>
-            <input
-              inputMode="numeric"
-              value={row.years}
-              onChange={(e) =>
-                setPromotion(idx, {
-                  years: clampInt(Number(e.target.value), 1, 30),
-                })
-              }
-              className="h-10 rounded-2xl border border-neutral-200 bg-white px-3 text-sm"
-              placeholder="승진연수"
-            />
-          </div>
-        );
-      })}
+  <div className="mt-3 space-y-3">
+    {promotionItems.map((row, idx) => {
+      const colOpts = makeColumnOptions(row.series);
+
+      return (
+        <div
+  key={`${idx}-${row.series}-${row.columnKey}-${row.years}`}
+  className="relative rounded-2xl border border-neutral-200 bg-neutral-50 p-3"
+>
+  <button
+    type="button"
+    onClick={() => removePromotion(idx)}
+    className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 transition hover:bg-neutral-200 hover:text-neutral-700"
+    aria-label="승진 이력 삭제"
+  >
+    <span className="text-base leading-none">✕</span>
+  </button>
+
+  <div className="grid grid-cols-1 gap-2 pr-8">
+    <Field label="직렬">
+      <NiceSelect
+        value={row.series}
+        options={seriesOptions}
+        onChange={(series) => {
+          const first = makeColumnOptions(series)[0]?.value ?? "g9";
+          setPromotion(idx, { series, columnKey: first });
+        }}
+      />
+    </Field>
+
+    <div className="grid min-w-0 grid-cols-[1fr_88px] gap-2">
+      <Field label="직급">
+        <NiceSelect
+          value={row.columnKey}
+          options={colOpts}
+          onChange={(v) => setPromotion(idx, { columnKey: v })}
+        />
+      </Field>
+
+      <Field label="연수">
+        <NiceSelect
+          value={String(row.years)}
+          options={PROMOTION_YEAR_OPTIONS}
+          onChange={(v) => setPromotion(idx, { years: Number(v) })}
+        />
+      </Field>
+    </div>
+  </div>
+</div>
+      );
+    })}
+
+    <button
+      type="button"
+      onClick={addPromotionRow}
+      className="rounded-xl border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700"
+    >
+      + 승진 이력 추가
+    </button>
+
+    <p className="ml-1 text-[11px] leading-5 text-neutral-500">
+      예) 9급으로 5년 근무 후 8급 승진 → 8급 / 5년 입력
+    </p>
+  </div>
+) : null}
+</div>
+<div className="rounded-2xl border border-neutral-200 p-3">
+  <div className="mb-3 text-sm font-semibold text-neutral-900">
+    기준소득월액 반영 항목
+  </div>
+
+  <div className="grid grid-cols-2 gap-3">
+    <Field label="관리업무수당 대상">
       <button
         type="button"
-        onClick={addPromotionRow}
-        className="rounded-xl border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700"
+        onClick={() =>
+          updateAutoFlags({
+            isManagementEligible:
+              !profile.pensionableAutoFlags?.isManagementEligible,
+          })
+        }
+        className={[
+          "h-10 w-full rounded-2xl border px-3 text-sm",
+          profile.pensionableAutoFlags?.isManagementEligible
+            ? "border-neutral-900 bg-neutral-900 text-white"
+            : "border-neutral-200 bg-white text-neutral-700",
+        ].join(" ")}
       >
-        + 승진 이력 추가
+        {profile.pensionableAutoFlags?.isManagementEligible ? "적용" : "미적용"}
       </button>
-    </div>
-  ) : null}
-</div>
-        </div>
-      </SectionCard>
+    </Field>
 
-      <SectionCard title="산출결과 카드">
+    <Field label="관리업무수당 비율">
+      <NiceSelect
+        value={String(profile.pensionableAutoFlags?.managementRate ?? 0.09)}
+        options={[
+          { value: "0.09", label: "9.0%" },
+          { value: "0.078", label: "7.8%" },
+        ]}
+        onChange={(v) =>
+          updateAutoFlags({
+            managementRate: Number(v) as 0.078 | 0.09,
+          })
+        }
+      />
+    </Field>
+<Field label="대우공무원수당 대상">
+      <button
+        type="button"
+        onClick={() =>
+          updateAutoFlags({
+            isPwuEligible: !profile.pensionableAutoFlags?.isPwuEligible,
+          })
+        }
+        className={[
+          "h-10 w-full rounded-2xl border px-3 text-sm",
+          profile.pensionableAutoFlags?.isPwuEligible
+            ? "border-neutral-900 bg-neutral-900 text-white"
+            : "border-neutral-200 bg-white text-neutral-700",
+        ].join(" ")}
+      >
+        {profile.pensionableAutoFlags?.isPwuEligible ? "적용" : "미적용"}
+      </button>
+    </Field>
+
+    <Field label="특수지근무수당">
+  <input
+    type="text"
+    inputMode="numeric"
+    value={formatMoney(profile.pensionableMonthlyInputs?.specialArea)}
+    onChange={(e) =>
+      updateMonthlyInputs({
+        specialArea: parseMoney(e.target.value),
+      })
+    }
+    className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-right text-sm"
+  />
+</Field>
+
+    <Field label="특수근무수당">
+  <input
+    type="text"
+    inputMode="numeric"
+    value={formatMoney(profile.pensionableMonthlyInputs?.specialDuty)}
+    onChange={(e) =>
+      updateMonthlyInputs({
+        specialDuty: parseMoney(e.target.value),
+      })
+    }
+    className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-right text-sm"
+  />
+</Field>
+
+    <Field label="위험근무수당">
+  <input
+    type="text"
+    inputMode="numeric"
+    value={formatMoney(profile.pensionableMonthlyInputs?.dangerousDuty)}
+    onChange={(e) =>
+      updateMonthlyInputs({
+        dangerousDuty: parseMoney(e.target.value),
+      })
+    }
+    className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-right text-sm"
+  />
+</Field>
+
+    <Field label="기타 포함 월수당">
+  <input
+    type="text"
+    inputMode="numeric"
+    value={formatMoney(profile.pensionableMonthlyInputs?.taxableEtcIncluded)}
+    onChange={(e) =>
+      updateMonthlyInputs({
+        taxableEtcIncluded: parseMoney(e.target.value),
+      })
+    }
+    className="h-10 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-right text-sm"
+  />
+</Field>
+
+  </div>
+</div>
+</div>
+  </SectionCard>
+
+      <SectionCard title="산출결과">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="최종기준소득월액(예상, 금년도 기준)">
-            <div className="h-10 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm flex items-center justify-end">
-              {currentPay.toLocaleString()}원
-            </div>
-          </Field>
+<Field label="최종기준소득월액(예상)">
+  <div className="flex h-10 items-center justify-end rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
+    {pensionable.estimatedCurrentPensionableMonthly.toLocaleString()}원
+  </div>
+</Field>
 
           <Field label="평균기준소득월액(예상)">
-            <div className="h-10 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm flex items-center justify-end">
+            <div className="flex h-10 items-center justify-end rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
               {avgIncome.toLocaleString()}원
             </div>
           </Field>
 
-          <Field label="재직연수">
-            <div className="h-10 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm flex items-center">
+          <Field label="총 재직연수">
+            <div className="flex h-10 items-center justify-end rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
               {formatYearsText(totalYears)}
             </div>
           </Field>
 
+<Field label="연금 인정연수">
+  <div className="flex h-10 items-center justify-end rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
+    {formatYearsText(pensionRecognizedYears)}
+  </div>
+</Field>
+
           <Field label="지급률(연금)">
-            <div className="h-10 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm flex items-center justify-end">
+            <div className="flex h-10 items-center justify-end rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
               {pensionRate.toFixed(2)}%
             </div>
           </Field>
 
           <Field label="지급률(퇴직수당)">
-            <div className="h-10 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm flex items-center justify-end">
+            <div className="flex h-10 items-center justify-end rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
               {severanceRate.toFixed(2)}%
             </div>
           </Field>
+          
         </div>
       </SectionCard>
 
       {promotionGuideOpen ? (
         <div className="fixed inset-0 z-[210]">
-          <button className="absolute inset-0 bg-black/40" onClick={() => setPromotionGuideOpen(false)} aria-label="닫기" />
+          <button
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setPromotionGuideOpen(false)}
+            aria-label="닫기"
+          />
           <div className="absolute left-1/2 top-1/2 w-[90%] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-white p-4 shadow-2xl">
-            <div className="text-sm font-semibold text-neutral-900">1~8급 평균 승진연수</div>
+            <div className="text-sm font-semibold text-neutral-900">
+              1~8급 평균 승진연수
+            </div>
             <div className="mt-3 space-y-1 text-sm text-neutral-700">
               {DEFAULT_PROMOTION_YEARS.map((x) => (
                 <div key={x.grade} className="flex items-center justify-between">
@@ -435,7 +1146,11 @@ export default function BasicInfoForm({
                 </div>
               ))}
             </div>
-            <button onClick={() => setPromotionGuideOpen(false)} className="mt-4 w-full rounded-xl bg-neutral-900 py-2 text-sm font-semibold text-white" type="button">
+            <button
+              onClick={() => setPromotionGuideOpen(false)}
+              className="mt-4 w-full rounded-xl bg-neutral-900 py-2 text-sm font-semibold text-white"
+              type="button"
+            >
               확인
             </button>
           </div>
@@ -447,14 +1162,14 @@ export default function BasicInfoForm({
         title="날짜 선택"
         value={
           picker === "birthDate"
-            ? (profile.birthDate ?? today)
+            ? profile.birthDate ?? today
             : picker === "startDate"
-            ? profile.startDate
-            : picker === "retireDate"
-            ? profile.retireDate
-            : ((promotionPickerIndex != null ? promotionItems[promotionPickerIndex]?.promotedAt : undefined) ?? today)
+            ? profile.startDate ?? today
+            : profile.retireDate ?? today
         }
-        onClose={() => { setPicker(null); setPromotionPickerIndex(null); }}
+        onClose={() => {
+          setPicker(null);
+        }}
         onConfirm={(next) => applyDate(next)}
       />
     </div>

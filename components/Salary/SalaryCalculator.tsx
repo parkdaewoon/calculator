@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import AdsenseSlot from "@/components/AdsenseSlot";
-
 import SalaryMenuGrid, { SalaryTabKey } from "@/components/Salary/SalaryTabs";
 import PayTableSection from "@/components/Salary/PayTableSection";
 import AllowanceSection from "@/components/Salary/AllowanceSection";
@@ -24,6 +23,7 @@ import {
 import { calcPositionAllowanceMonthly } from "@/lib/allowances/calculator/expense/position";
 import { calcHolidayBonusOnce } from "@/lib/allowances/calculator/expense/holiday";
 import { calcLeaveCompensation } from "@/lib/allowances/calculator/expense/leave";
+import { calcManagementAllowanceMonthly } from "@/lib/allowances/calculator/overtime/management";
 import {
   calcMonthlySalaryForDeductions,
   calcHealthInsurance,
@@ -342,9 +342,13 @@ function ymdLabel(ts: number) {
 // ✅ 날짜 + 직급 + 호봉(입력 기반)
 function makeHistoryLabel(inputs: SalaryInputs) {
   const gradeGuess = columnKeyToGradeGuess(inputs.series, inputs.columnKey);
-  return `${ymdLabel(Date.now())}  ${gradeGuess}급 ${inputs.step}호봉`;
-}
 
+  const seriesLabel =
+    PAY_TABLES[inputs.series]?.title ??
+    String(inputs.series);
+
+  return `${seriesLabel} ${gradeGuess}급 ${inputs.step}호봉`;
+}
 function addHistorySnapshot(inputs: SalaryInputs) {
   const now = Date.now();
   const item: SalaryHistoryItem = {
@@ -511,7 +515,7 @@ function makeInitialInputs(series: SeriesKey = "general" as SeriesKey): SalaryIn
     allow_holiday_mode: "manual",
     allow_holiday_manual: 0,
 
-    allow_management_mode: "manual",
+    allow_management_mode: "auto",
     allow_management_manual: 0,
 
     allow_meal_mode: "auto",
@@ -758,7 +762,7 @@ useEffect(() => {
       </div>
 
       <div className="mt-3 text-[11px] text-neutral-400">
-        * 입력값은 자동으로 '임시 저장'되며, 저장 버튼으로 히스토리(최대 5개)에 남깁니다.
+        * 최대 5개까지 기록할 수 있습니다.
       </div>
     </div>
   </div>
@@ -1932,10 +1936,14 @@ function getAutoHoliday(inputs: SalaryInputs) {
   });
 }
 function getAutoManagement(inputs: SalaryInputs, basePay: number) {
-  if (inputs.management_excluded) return 0;
+  const gradeGuess = columnKeyToGradeGuess(inputs.series, inputs.columnKey);
 
-  // TODO: 직렬(series)별 비율 결정
-  return 0;
+  return calcManagementAllowanceMonthly({
+    series: inputs.series,
+    monthlyBasePay: basePay,
+    gradeGuess,
+    excluded: inputs.management_excluded,
+  }).amount;
 }
 
 function getAutoMeal() {

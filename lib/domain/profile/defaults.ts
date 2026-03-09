@@ -26,5 +26,35 @@ export function makeDefaultProfile(): BaseProfile {
     promotions: [],
     incomeMode: "auto",
     avgIncomeMonthly: 0,
+
+    militaryServiceYears: 0,
+    leaveOfAbsenceYears: 0,
+
+    pensionableAutoFlags: {
+      isPwuEligible: false,
+      isManagementEligible: false,
+      managementRate: 0.09,
+      overridePositionAllowance: 0,
+      extraPositionAllowance: 0,
+    },
+
+    pensionableMonthlyInputs: {
+      specialArea: 0,
+      specialDuty: 0,
+      dangerousDuty: 0,
+      taxableEtcIncluded: 0,
+      averageReplacementMonthly: 0,
+    },
+
+    pensionableExcludedAnnualInputs: {
+      performanceBonus: 0,
+      jobPerformancePay: 0,
+      performanceAnnualSalary: 0,
+      bonus: 0,
+      overtime: 0,
+      night: 0,
+      holiday: 0,
+      leaveCompensation: 0,
+    },
   };
 }
