@@ -72,7 +72,7 @@ function computeRemindAt(ev: CalendarEvent): string | null {
   const startMs = toEventStartMs(ev);
   if (!startMs) return null;
 
-  if (isSalaryEvent(ev)) {
+  if (String(ev?.typeMain ?? "") === "SALARY") {
     const ymd = normalizeYmd(ev?.dateStart);
     if (!ymd) return null;
     const [y, m, d] = ymd.split("-").map(Number);
@@ -97,29 +97,6 @@ function formatReminderWhen(ev: CalendarEvent) {
   const dd = ymd.slice(8, 10);
   const time = ev?.allDay ? "08:00" : String(ev?.startTime || "09:00");
   return `${mm}.${dd}. ${time}`;
-}
-
-function isSalaryEvent(ev: CalendarEvent) {
-  return String(ev?.typeMain ?? "") === "SALARY";
-}
-
-function buildReminderTitle() {
-  return "공무원 노트";
-}
-
-function buildReminderBody(ev: CalendarEvent) {
-  if (isSalaryEvent(ev)) {
-    return "월급 확인하기!!";
-  }
-
-  const base = ev?.title?.trim() || "일정";
-  const when = formatReminderWhen(ev);
-  return `(일정) ${base}
-일정 놓치지 않기!!${when ? ` (${when})` : ""}`;
-}
-
-async function showReminderNotification(_ev: CalendarEvent, _minutes: number) {
-  return;
 }
 
 function isWorkModeObject(v: any): v is WorkMode {

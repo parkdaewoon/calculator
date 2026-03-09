@@ -23,6 +23,31 @@ function getSupabaseAdmin() {
     },
   });
 }
+function formatReminderWhen(startsAt: string | null | undefined) {
+  if (!startsAt) return "";
+
+  const dt = new Date(startsAt);
+  if (Number.isNaN(dt.getTime())) return "";
+
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  const hh = String(dt.getHours()).padStart(2, "0");
+  const mi = String(dt.getMinutes()).padStart(2, "0");
+
+  return `${mm}.${dd}. ${hh}:${mi}`;
+}
+
+function buildPushBody(ev: {
+  title?: string | null;
+  starts_at?: string | null;
+}) {
+  const when = formatReminderWhen(ev?.starts_at);
+  const title = String(ev?.title ?? "").trim() || "일정";
+
+  if (!when) return title;
+
+  return `(${when}) ${title}`;
+}
 
 export async function POST(req: Request) {
   try {
@@ -64,10 +89,10 @@ export async function POST(req: Request) {
     for (const ev of dueEvents) {
   try {
     const result = await sendPushToUser(ev.user_id, {
-      title: "일정 알림",
-      body: ev.title ?? "예정된 일정이 있어요.",
-      url: "/calendar",
-    });
+  title: "일정 놓치지 않기!!",
+  body: buildPushBody(ev),
+  url: "/calendar",
+});
 
     console.log("push result", result);
 
