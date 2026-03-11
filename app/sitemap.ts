@@ -1,13 +1,12 @@
 import type { MetadataRoute } from "next";
 
-const siteUrl = "https://www.nokobridge.com";
+const siteUrl = "https://nokobridge.com";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const routes = [
     "",
     "/salary",
     "/pension",
-    "/retirement",
     "/calendar",
     "/privacy",
     "/terms",

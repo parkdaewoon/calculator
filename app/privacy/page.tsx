@@ -132,7 +132,7 @@ export default function PrivacyPage() {
         <p>서비스의 개인정보 보호 관련 문의는 아래로 연락하시기 바랍니다.</p>
 
         <p className="mt-2">
-          이메일: pwbw066@gmail.com
+          이메일: nokobridge.contact@gmail.com
         </p>
       </section>
 

@@ -22,7 +22,7 @@ export default function ContactPage() {
             href="mailto:contact@example.com"
             className="font-medium text-blue-600 underline underline-offset-2"
           >
-            pwbw066@gmail.com
+            nokobridge.contact@gmail.com
           </a>
         </p>
       </section>
