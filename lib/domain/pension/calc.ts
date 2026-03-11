@@ -64,22 +64,16 @@ function pickMilitaryServiceYears(profile: ProfileWithDerived) {
 }
 
 /**
- * 총 재직연수:
+ * 총 재직기간:
  * - 근무기간 - 휴직기간 + 군복무
- * - 최대 36년
  */
-function getTotalServiceYearsIncludingMilitary(
-  serviceYears: number,
-  militaryServiceYears: number
-) {
-  const safeServiceYears = Math.max(0, serviceYears);
-  const safeMilitaryYears = Math.max(0, Math.min(3, militaryServiceYears));
-  return Math.min(safeServiceYears + safeMilitaryYears, 36);
+function getTotalServiceYears(serviceYears: number) {
+  return Math.max(0, serviceYears);
 }
 
 /**
  * 연금 인정연수:
- * - 총 재직연수와 동일하게 처리
+ * - 총 재직기간와 동일하게 처리
  * - 최대 36년
  */
 function getPensionRecognizedYears(totalYears: number) {
@@ -186,21 +180,12 @@ function calcAverageMonthlyBaseFallback(
   return Math.round(currentMonthlyBase * 0.9);
 }
 
-/**
- * 기본정보 totalYears가 있으면 우선 사용
- * 단, 군복무가 아직 반영 안 된 값일 수 있으므로 군복무를 추가 반영하고 36년 상한 적용
- */
 function pickBasicInfoTotalYears(profile: ProfileWithDerived) {
-  const militaryServiceYears = pickMilitaryServiceYears(profile);
-
   if (
     typeof profile.calculatedTotalYears === "number" &&
     Number.isFinite(profile.calculatedTotalYears)
   ) {
-    return Math.min(
-      Math.max(0, profile.calculatedTotalYears) + militaryServiceYears,
-      36
-    );
+    return Math.max(0, profile.calculatedTotalYears);
   }
 
   const leaveOfAbsenceYears = Math.max(
@@ -211,16 +196,15 @@ function pickBasicInfoTotalYears(profile: ProfileWithDerived) {
   const totalYearsRaw = diffYears(profile.startDate, profile.retireDate);
   const pureServiceYears = Math.max(0, totalYearsRaw - leaveOfAbsenceYears);
 
-  return getTotalServiceYearsIncludingMilitary(
-    pureServiceYears,
-    militaryServiceYears
-  );
+  return getTotalServiceYears(pureServiceYears);
 }
 
 function pickBasicInfoRecognizedYears(
   profile: ProfileWithDerived,
   totalYears: number
 ) {
+  const militaryServiceYears = pickMilitaryServiceYears(profile);
+
   if (
     typeof profile.calculatedPensionRecognizedYears === "number" &&
     Number.isFinite(profile.calculatedPensionRecognizedYears)
@@ -228,7 +212,7 @@ function pickBasicInfoRecognizedYears(
     return Math.min(Math.max(0, profile.calculatedPensionRecognizedYears), 36);
   }
 
-  return getPensionRecognizedYears(totalYears);
+  return getPensionRecognizedYears(totalYears + militaryServiceYears);
 }
 
 function pickBasicInfoAverageMonthlyBase(
@@ -289,47 +273,60 @@ function makeGradeSimulation(
 ): PensionGradeSimulationItem[] {
   const series = String(profile.currentSeries ?? profile.series);
   const preferredStep = clampInt(profile.currentStep ?? profile.step, 1, 32);
+  const currentColumnKey = String(profile.currentColumnKey ?? profile.columnKey ?? "");
   const candidates = getGradeComparisonColumns(series);
 
-  const averageRatio =
-    baseCurrentMonthlyBase > 0
-      ? baseAverageMonthlyBase / baseCurrentMonthlyBase
-      : 0.9;
+  // 현재 프로필에서 평균기준소득월액이 얼마나 더해졌는지 "차액"으로 유지
+  const averageGap = baseAverageMonthlyBase - baseCurrentMonthlyBase;
 
   return candidates
     .map((item) => {
-      const { step: appliedStep, pay: fallbackPay } = getValidStepPay(
-        series,
-        item.key,
-        preferredStep
-      );
+      const isCurrentGrade = item.key === currentColumnKey;
 
-      const isManagementEligible =
-        item.label.includes("5급") || item.label.includes("6급");
+      let appliedStep = preferredStep;
+      let currentMonthlyBase = 0;
+      let averageMonthlyBase = 0;
 
-      const simulatedProfile: ProfileWithDerived = {
-        ...profile,
-        currentSeries: series,
-        currentColumnKey: item.key,
-        currentStep: appliedStep,
-        pensionableAutoFlags: {
-          ...(profile.pensionableAutoFlags ?? {}),
-          isManagementEligible,
-        },
-      };
+      if (isCurrentGrade) {
+        // ✅ 현재 지급기준 직급은 상단 메인 결과값을 그대로 사용
+        currentMonthlyBase = Math.max(0, baseCurrentMonthlyBase);
+        averageMonthlyBase = Math.max(0, baseAverageMonthlyBase);
+      } else {
+        const { step, pay: fallbackPay } = getValidStepPay(
+          series,
+          item.key,
+          preferredStep
+        );
+        appliedStep = step;
 
-      const pensionable =
-        calcEstimatedCurrentPensionableMonthly(simulatedProfile);
+        const isManagementEligible =
+          item.label.includes("5급") || item.label.includes("6급");
 
-      const currentMonthlyBase = Math.max(
-        0,
-        pensionable.estimatedCurrentPensionableMonthly || fallbackPay
-      );
+        const simulatedProfile: ProfileWithDerived = {
+          ...profile,
+          currentSeries: series,
+          currentColumnKey: item.key,
+          currentStep: appliedStep,
+          pensionableAutoFlags: {
+            ...(profile.pensionableAutoFlags ?? {}),
+            isManagementEligible,
+          },
+        };
 
-      const averageMonthlyBase = Math.max(
-        0,
-        Math.round(currentMonthlyBase * averageRatio)
-      );
+        const pensionable =
+          calcEstimatedCurrentPensionableMonthly(simulatedProfile);
+
+        currentMonthlyBase = Math.max(
+          0,
+          pensionable.estimatedCurrentPensionableMonthly || fallbackPay
+        );
+
+        // ✅ 기본정보에서 반영된 평균기준소득월액 보정분을 그대로 더함
+        averageMonthlyBase = Math.max(
+          0,
+          Math.round(currentMonthlyBase + averageGap)
+        );
+      }
 
       const { pensionRate, monthlyPensionGross } = calcMonthlyPension(
         averageMonthlyBase,
@@ -373,9 +370,9 @@ export function calcPension(
   const stored = profile as ProfileWithDerived;
 
   const totalYears =
-    typeof overrides?.totalYears === "number" && Number.isFinite(overrides.totalYears)
-      ? Math.min(Math.max(0, overrides.totalYears), 36)
-      : pickBasicInfoTotalYears(stored);
+  typeof overrides?.totalYears === "number" && Number.isFinite(overrides.totalYears)
+    ? Math.max(0, overrides.totalYears)
+    : pickBasicInfoTotalYears(stored);
 
   const recognizedYears =
     typeof overrides?.recognizedYears === "number" &&

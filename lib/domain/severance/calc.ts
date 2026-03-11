@@ -95,7 +95,7 @@ export function severanceRateByYears(years: number) {
 }
 
 /**
- * 퇴직수당 계산 시 재직연수는 33년 상한
+ * 퇴직수당 계산 시 재직기간는 33년 상한
  */
 export function capSeveranceYears(years: number) {
   const y = Number.isFinite(years) ? years : 0;

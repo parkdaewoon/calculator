@@ -1181,7 +1181,7 @@ export default function BasicInfoForm({
         </div>
       </SectionCard>
 
-      <SectionCard title="산출결과">
+            <SectionCard title="산출결과">
         <div className="grid grid-cols-2 gap-3">
           <Field label="최종기준소득월액(예상)">
             <div className="flex h-10 items-center justify-end rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
@@ -1198,7 +1198,7 @@ export default function BasicInfoForm({
             </div>
           </Field>
 
-          <Field label="총 재직연수">
+          <Field label="재직기간(총)">
             <div className="flex h-10 items-center justify-end rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
               {formatYearsText(totalYears)}
             </div>
@@ -1225,6 +1225,28 @@ export default function BasicInfoForm({
           </Field>
         </div>
       </SectionCard>
+
+            <SectionCard title="< 참고 > (2024년 기준)">
+  <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-4">
+    <div className="flex justify-center text-sm text-neutral-700">
+      <div className="space-y-1 leading-6 text-center">
+        <div>
+          1인당 평균기준소득월액{" "}
+          <span className="font-semibold text-neutral-900">
+            517만원
+          </span>
+        </div>
+
+        <div>
+          1인당 평균 연금수령액{" "}
+          <span className="font-semibold text-neutral-900">
+            274만원
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</SectionCard>
 
       {promotionGuideOpen ? (
         <div className="fixed inset-0 z-[210]">

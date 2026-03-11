@@ -52,10 +52,8 @@ export default function PensionStub({ profile }: { profile: BaseProfile }) {
           <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
             <div className="text-xs text-neutral-500">재직기간(총)</div>
             <div className="mt-1 text-base font-semibold text-neutral-900">
-              {result.totalYears >= 36
-                ? "36년(최대)"
-                : formatYearsText(result.totalYears)}
-            </div>
+  {formatYearsText(result.totalYears)}
+</div>
           </div>
 
           <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">

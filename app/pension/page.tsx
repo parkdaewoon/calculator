@@ -37,7 +37,7 @@ export default function PensionPage() {
 
   const title =
     tab === "menu"
-      ? "연금"
+      ? "공무원 연금 알아보기"
       : tab === "basic"
       ? "기본 정보"
       : tab === "severance"
@@ -76,7 +76,7 @@ export default function PensionPage() {
 
         <p className="mt-3 text-sm text-neutral-500">
           {tab === "menu"
-            ? "기본 정보를 저장하고, 퇴직수당·연금·비교를 한 곳에서 확인하세요."
+            ? "기본정보, 퇴직수당, 연금 계산, 납부·수령 비교 메뉴를 선택하세요."
             : "기본 정보를 저장하면, 퇴직수당/연금/비교 탭에서 자동 반영됩니다."}
         </p>
       </div>

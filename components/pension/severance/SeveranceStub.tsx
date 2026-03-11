@@ -56,7 +56,7 @@ const result = useMemo(
       <SectionCard title="퇴직수당 예상">
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-            <div className="text-xs text-neutral-500">총 재직연수</div>
+            <div className="text-xs text-neutral-500">재직기간(총)</div>
             <div className="mt-1 text-base font-semibold text-neutral-900">
               {formatYearsText(result.totalYears)}
             </div>
@@ -85,15 +85,13 @@ const result = useMemo(
         </div>
 
         {result.totalYears > 33 && (
-          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] leading-5 text-amber-800">
-            퇴직수당은 <span className="font-semibold">최대 33년까지만 반영</span>
-            됩니다.
-            <br />
-            총 근무연수는 {formatYearsText(result.totalYears)}이며, 계산에는{" "}
-            {formatAppliedYearsText(result.totalYears, result.cappedYears)}이
-            적용되었습니다.
-          </div>
-        )}
+  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] leading-5 text-amber-800">
+    퇴직수당 인정연수는 <span className="font-semibold">최대 33년까지만 반영</span>
+    됩니다.
+    <br />
+    계산된 퇴직수당 인정연수는 {formatYearsText(result.cappedYears)}입니다.
+  </div>
+)}
       </SectionCard>
 
       <section className="rounded-3xl bg-neutral-900 p-5 text-white">
