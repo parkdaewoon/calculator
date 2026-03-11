@@ -73,7 +73,7 @@ export default function PensionPageClient() {
           ) : null}
         </div>
 
-        <p className="mt-3 text-sm text-neutral-500">
+        <p className="mt-3 text-sm text-neutral-500 tracking-tighter">
           {tab === "menu"
             ? "기본정보, 퇴직수당, 연금 계산, 납부·수령 비교 메뉴를 선택하세요."
             : "기본 정보를 저장하면, 퇴직수당/연금/비교 탭에서 자동 반영됩니다."}
