@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import NotificationSettingsCard from "@/components/NotificationSettingsCard";
+import { X } from "lucide-react";
 export default function SideMenu({
   open,
   onClose,
@@ -31,17 +32,20 @@ export default function SideMenu({
         <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
           <div className="text-sm font-semibold">메뉴</div>
           <button
-            onClick={onClose}
-            className="rounded-full border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
-          >
-            닫기
-          </button>
+                    onClick={onClose}
+                    className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100"
+                    type="button"
+                    aria-label="닫기"
+                  >
+                    <X size={18} />
+                  </button>
+
         </div>
 
         <nav className="flex h-[calc(100dvh-58px)] flex-col px-5 py-4">
           <div className="text-xs text-neutral-500">바로가기</div>
           <div className="mt-3 space-y-2">
-            <MenuLink href="/" label="홈 화면" onClick={onClose} />
+            <MenuLink href="/" label="홈" onClick={onClose} />
             <MenuLink href="/salary" label="공무원 봉급 알아보기" onClick={onClose} />
             <MenuLink href="/pension" label="공무원 연금 알아보기" onClick={onClose} />
             <MenuLink href="/calendar" label="일정 관리하기" onClick={onClose} />
@@ -50,7 +54,10 @@ export default function SideMenu({
           <div className="mt-8 text-xs text-neutral-500">정보</div>
           <div className="mt-3 space-y-2">
             <button className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50">
-              면책/출처 (준비중)
+              출처 (준비중)
+            </button>
+                        <button className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50">
+              개인정보 처리 방침 (준비중)
             </button>
             <button className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50">
               문의 (준비중)
