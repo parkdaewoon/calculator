@@ -5,7 +5,7 @@ import SplashScreen from "@/components/SplashScreen";
 import SwipeBackBlocker from "@/components/SwipeBackBlocker";
 
 const siteName = "공무원 노트";
-const siteUrl = "https://너의도메인.com";
+const siteUrl = "https://nokobridge.com";
 const siteDescription = "봉급·수당·연금 계산과 달력을 한 곳에서";
 
 export const metadata: Metadata = {
@@ -70,9 +70,9 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "구글서치콘솔인증코드",
+    google: "QH2tu1jVQN-Fsn3Pnav9Pw7NcqiAMxtyaT5C3",
     other: {
-      "naver-site-verification": "네이버서치어드바이저인증코드",
+      "naver-site-verification": "b4734cb10293d0179bebef3ca5d12cf790df6d81",
     },
   },
   icons: {
