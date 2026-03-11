@@ -53,15 +53,11 @@ export default function SideMenu({
 
           <div className="mt-8 text-xs text-neutral-500">정보</div>
           <div className="mt-3 space-y-2">
-            <button className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50">
-              출처 (준비중)
-            </button>
-                        <button className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50">
-              개인정보 처리 방침 (준비중)
-            </button>
-            <button className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50">
-              문의 (준비중)
-            </button>
+          <Link href="/sources" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 출처 </Link>
+          <Link href="/privacy" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 개인정보 처리방침 </Link>
+          <Link href="/terms" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 이용약관 </Link>
+          <Link href="/disclaimer" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 면책조항 </Link>
+          <Link href="/contact" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 문의 </Link>
           </div>
           <div className="mt-auto pb-2 pt-6">
             <NotificationSettingsCard compact />
