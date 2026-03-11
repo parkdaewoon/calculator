@@ -2,14 +2,14 @@
 
 import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
-
+import { X } from "lucide-react";
 export default function BottomSheet({
   open,
   title,
   onClose,
   children,
   footer,
-  zIndexClass = "z-[90]",
+  zIndexClass = "z-[200]",
 }: {
   open: boolean;
   title: string;
@@ -18,7 +18,6 @@ export default function BottomSheet({
   footer?: React.ReactNode;
   zIndexClass?: string;
 }) {
-  // ✅ ESC 닫기 + body 스크롤 잠금
   useEffect(() => {
     if (!open) return;
 
@@ -51,12 +50,13 @@ export default function BottomSheet({
         <div className="flex items-center justify-between px-5 pt-4">
           <div className="text-sm font-semibold text-neutral-900">{title}</div>
           <button
-            onClick={onClose}
-            className="rounded-xl px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100"
-            type="button"
-          >
-            닫기
-          </button>
+      onClick={onClose}
+      className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100"
+      type="button"
+      aria-label="닫기"
+    >
+      <X size={18} />
+    </button>
         </div>
 
         <div className="px-5 pt-4 pb-3">{children}</div>

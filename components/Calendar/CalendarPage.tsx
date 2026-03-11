@@ -13,6 +13,7 @@ import EventEditorSheet from "./EventEditorSheet";
 import { ensureDeviceUserId } from "@/lib/push/client";
 import {
   addMonths,
+  buildMonthGrid,
   calcWorkStatsForMonth,
   defaultPattern,
   getToday,
@@ -264,7 +265,16 @@ export default function CalendarPage() {
     holidaysCacheRef.current = cache;
     return cache[toMonthKey(today)] ?? {};
   });
+  const visibleMonths = useMemo<YYYYMM[]>(() => {
+    const grid = buildMonthGrid(month);
+    const set = new Set<YYYYMM>();
 
+    for (const d of grid) {
+      set.add(toMonthKey(d.date as YYYYMMDD));
+    }
+
+    return Array.from(set);
+  }, [month]);
   // ✅ 로드 완료 후에만 저장하기 위한 플래그
   const [hydrated, setHydrated] = useState(false);
 
@@ -347,16 +357,18 @@ export default function CalendarPage() {
   /** =========================
    * 1.5) month가 바뀌면: 캐시를 즉시 적용
    * ========================= */
-  useEffect(() => {
+    useEffect(() => {
     if (!holidaysCacheRef.current) holidaysCacheRef.current = readHolidaysCache();
 
-    const cached = holidaysCacheRef.current?.[month];
-    if (cached) {
-      setHolidays(cached);
-    } else {
-      setHolidays({});
+    const cache = holidaysCacheRef.current ?? {};
+    const merged: HolidaysMap = {};
+
+    for (const ym of visibleMonths) {
+      Object.assign(merged, cache[ym] ?? {});
     }
-  }, [month]);
+
+    setHolidays(merged);
+  }, [visibleMonths]);
 
   /** =========================
    * 2) persist state (hydrated 이후만)
@@ -378,27 +390,40 @@ export default function CalendarPage() {
   /** =========================
    * 3) holidays fetch when month changes
    * ========================= */
-  useEffect(() => {
+    useEffect(() => {
     let alive = true;
 
     (async () => {
       try {
-        const res = await fetch(`/api/holidays?month=${month}`, { cache: "no-store" });
-        const data = await res.json();
+        const cache = holidaysCacheRef.current ?? readHolidaysCache();
+        const nextCache = { ...cache };
+
+        await Promise.all(
+          visibleMonths.map(async (ym) => {
+            // 이미 캐시에 있으면 스킵
+            if (nextCache[ym]) return;
+
+            const res = await fetch(`/api/holidays?month=${ym}`, { cache: "no-store" });
+            const data = await res.json();
+
+            nextCache[ym] = normalizeHolidayMap(data?.holidays ?? {});
+          })
+        );
+
         if (!alive) return;
 
-        // ✅ 서버 응답 키가 무엇이든 YYYY-MM-DD로 정규화
-        const next = normalizeHolidayMap(data?.holidays ?? {});
+        holidaysCacheRef.current = nextCache;
+        writeHolidaysCache(nextCache);
 
-        const cache = holidaysCacheRef.current ?? readHolidaysCache();
-        cache[month] = next;
-        holidaysCacheRef.current = cache;
-        writeHolidaysCache(cache);
+        const merged: HolidaysMap = {};
+        for (const ym of visibleMonths) {
+          Object.assign(merged, nextCache[ym] ?? {});
+        }
 
         setHolidays((prev) => {
           const a = JSON.stringify(prev);
-          const b = JSON.stringify(next);
-          return a === b ? prev : next;
+          const b = JSON.stringify(merged);
+          return a === b ? prev : merged;
         });
       } catch {
         if (!alive) return;
@@ -408,7 +433,7 @@ export default function CalendarPage() {
     return () => {
       alive = false;
     };
-  }, [month]);
+  }, [visibleMonths]);
 
   const stats = useMemo(() => {
     return calcWorkStatsForMonth({ month, pattern, events, workMode, holidays } as any);

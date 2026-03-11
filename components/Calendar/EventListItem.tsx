@@ -1,7 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { CalendarEvent } from "@/lib/calendar";
+import {
+  COLOR_PRESETS,
+  type TypeKey,
+} from "@/lib/calendar/typeColors";
+import { loadTypeColors } from "@/lib/storage/typeColorStorage";
 
 type Props = {
   event: CalendarEvent;
@@ -13,14 +18,12 @@ function normalizeToDash(input: any): string {
   const s = String(input ?? "");
   if (!s) return "";
 
-  // YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
     const [y, m, d] = s.split("-").map(Number);
     if (y > 0 && m >= 1 && m <= 12 && d >= 1 && d <= 31) return s;
     return "";
   }
 
-  // YYYYMMDD
   if (/^\d{8}$/.test(s)) {
     const y = s.slice(0, 4);
     const m = s.slice(4, 6);
@@ -29,12 +32,11 @@ function normalizeToDash(input: any): string {
     return `${y}-${m}-${d}`;
   }
 
-  // YYYY-M-D / YYYY/MM/DD
-  const m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-  if (m) {
-    const y = m[1];
-    const mm = m[2].padStart(2, "0");
-    const dd = m[3].padStart(2, "0");
+  const match = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (match) {
+    const y = match[1];
+    const mm = match[2].padStart(2, "0");
+    const dd = match[3].padStart(2, "0");
     if (Number(y) <= 0 || Number(mm) < 1 || Number(mm) > 12 || Number(dd) < 1 || Number(dd) > 31) return "";
     return `${y}-${mm}-${dd}`;
   }
@@ -75,19 +77,52 @@ function timeLabel(ev: any) {
 export default function EventListItem({ event, onEdit, canEdit = true }: Props) {
   const ev: any = event;
 
+  const [typeColors, setTypeColors] = useState<Record<string, string>>(() => loadTypeColors() as any);
+
+  useEffect(() => {
+    const reload = () => {
+      setTypeColors(loadTypeColors() as any);
+    };
+
+    window.addEventListener("type-colors-updated", reload);
+    window.addEventListener("focus", reload);
+
+    return () => {
+      window.removeEventListener("type-colors-updated", reload);
+      window.removeEventListener("focus", reload);
+    };
+  }, []);
+
+  const typeKey = useMemo(() => {
+    const main = String(ev?.typeMain ?? "WORK");
+    const sub = String(ev?.typeSub ?? "");
+    return `${main}|${sub}` as TypeKey;
+  }, [ev?.typeMain, ev?.typeSub]);
+
+  const accentColor = useMemo(() => {
+    return typeColors[typeKey] ?? COLOR_PRESETS[0];
+  }, [typeColors, typeKey]);
+
   return (
     <div className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-white px-4 py-3 shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
-      <div className="min-w-0">
-        <div className="text-xs text-neutral-500">{timeLabel(ev)}</div>
-        <div className="truncate text-sm font-semibold text-neutral-900">
-          {ev?.title ?? "(제목 없음)"}
+      <div className="flex min-w-0 items-center gap-3">
+        <div
+          className="h-10 w-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: accentColor }}
+          aria-hidden
+        />
+
+        <div className="min-w-0">
+          <div className="text-xs text-neutral-500">{timeLabel(ev)}</div>
+          <div className="truncate text-sm font-semibold text-neutral-900">
+            {ev?.title ?? "(제목 없음)"}
+          </div>
+          {ev?.memo ? (
+            <div className="truncate text-xs text-neutral-400">{ev.memo}</div>
+          ) : null}
         </div>
-        {ev?.memo ? (
-          <div className="truncate text-xs text-neutral-400">{ev.memo}</div>
-        ) : null}
       </div>
 
-      {/* ✅ canEdit=false면 수정 버튼 숨김 */}
       {canEdit ? (
         <button
           onClick={onEdit}

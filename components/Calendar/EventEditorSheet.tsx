@@ -15,6 +15,7 @@ import {
   type TypeKey,
 } from "@/lib/calendar/typeColors";
 import { loadTypeColors, saveTypeColors } from "@/lib/storage/typeColorStorage";
+import { loadTypeItems, saveTypeItems } from "@/lib/storage/typeItemsStorage";
 import {
   Calendar,
   Clock,
@@ -494,7 +495,7 @@ export default function EventEditorSheet({
 
   // ===== 유형 색상(저장/불러오기) =====
   const [typeColors, setTypeColors] = useState<Record<string, string>>(() => loadTypeColors() as any);
-  useEffect(() => saveTypeColors(typeColors), [typeColors]);
+useEffect(() => saveTypeColors(typeColors), [typeColors]);
 
   const newId = () => crypto.randomUUID();
 
@@ -521,9 +522,27 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
 
   const [reminderMinutes, setReminderMinutes] = useState<number | null>(null);
 
-  const [workSubs, setWorkSubs] = useState<string[]>(DEFAULT_WORK_SUBS);
-  const [dutySubs, setDutySubs] = useState<string[]>(DEFAULT_DUTY_SUBS);
-  const [etcSubs, setEtcSubs] = useState<string[]>(DEFAULT_ETC_SUBS);
+  const [workSubs, setWorkSubs] = useState<string[]>(() => {
+  const saved = loadTypeItems();
+  return saved.workSubs?.length ? saved.workSubs : DEFAULT_WORK_SUBS;
+});
+
+const [dutySubs, setDutySubs] = useState<string[]>(() => {
+  const saved = loadTypeItems();
+  return saved.dutySubs?.length ? saved.dutySubs : DEFAULT_DUTY_SUBS;
+});
+
+const [etcSubs, setEtcSubs] = useState<string[]>(() => {
+  const saved = loadTypeItems();
+  return saved.etcSubs?.length ? saved.etcSubs : DEFAULT_ETC_SUBS;
+});
+useEffect(() => {
+  saveTypeItems({
+    workSubs,
+    dutySubs,
+    etcSubs,
+  });
+}, [workSubs, dutySubs, etcSubs]);
   const [typeValue, setTypeValue] = useState<string>("WORK|미팅");
   const [selectedMain, setSelectedMain] = useState<MainType>("WORK");
   const [salaryReminderEnabled, setSalaryReminderEnabled] = useState(false);
@@ -532,9 +551,10 @@ const [endTime, setEndTime] = useState<HHMM>("18:00" as HHMM);
   const [newTypeInput, setNewTypeInput] = useState("");
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+const menuRef = useRef<HTMLDivElement | null>(null);
+const contentScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const [typeSheetOpen, setTypeSheetOpen] = useState(false);
+const [typeSheetOpen, setTypeSheetOpen] = useState(false);
   const [reminderListOpen, setReminderListOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const reminderWrapRef = useRef<HTMLDivElement | null>(null);
@@ -614,7 +634,13 @@ useEffect(() => {
     setTypeSheetOpen(false);
     setReminderListOpen(false);
   }, [open, event, date]);
+useEffect(() => {
+  if (!open) return;
 
+  requestAnimationFrame(() => {
+    contentScrollRef.current?.scrollTo({ top: 0 });
+  });
+}, [open, event?.id]);
   const typeOptions = useMemo(() => {
     return {
       WORK: workSubs.map((s) => ({ value: `WORK|${s}`, label: s })),
@@ -670,27 +696,30 @@ useEffect(() => {
   };
 
   const removeCurrentTypeItem = () => {
-    const { main, sub } = unpackType(typeValue);
-    if (!sub || main === "SALARY") return;
+  const { main, sub } = unpackType(typeValue);
+  if (!sub || main === "SALARY") return;
 
-    if (main === "WORK") {
-      setWorkSubs((prev) => prev.filter((x) => x !== sub));
-      const next = workSubs.filter((x) => x !== sub)[0] ?? DEFAULT_WORK_SUBS[0];
-      setTypeValue(`WORK|${next}`);
-      return;
-    }
+  if (main === "WORK") {
+    const nextList = workSubs.filter((x) => x !== sub);
+    if (nextList.length === 0) return;
+    setWorkSubs(nextList);
+    setTypeValue(`WORK|${nextList[0]}`);
+    return;
+  }
 
-    if (main === "DUTY") {
-      setDutySubs((prev) => prev.filter((x) => x !== sub));
-      const next = dutySubs.filter((x) => x !== sub)[0] ?? DEFAULT_DUTY_SUBS[0];
-      setTypeValue(`DUTY|${next}`);
-      return;
-    }
+  if (main === "DUTY") {
+    const nextList = dutySubs.filter((x) => x !== sub);
+    if (nextList.length === 0) return;
+    setDutySubs(nextList);
+    setTypeValue(`DUTY|${nextList[0]}`);
+    return;
+  }
 
-    setEtcSubs((prev) => prev.filter((x) => x !== sub));
-    const next = etcSubs.filter((x) => x !== sub)[0] ?? DEFAULT_ETC_SUBS[0];
-    setTypeValue(`ETC|${next}`);
-  };
+  const nextList = etcSubs.filter((x) => x !== sub);
+  if (nextList.length === 0) return;
+  setEtcSubs(nextList);
+  setTypeValue(`ETC|${nextList[0]}`);
+};
 
   const handleSave = async () => {
   if (!canSave) return;
@@ -784,9 +813,9 @@ useEffect(() => {
       <button className="absolute inset-0 bg-black/25" onClick={onClose} aria-label="닫기" />
 
       {/* iOS 느낌: 카드형 시트 */}
-      <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-md rounded-t-[28px] bg-white shadow-2xl overflow-hidden">
+      <div className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-[28px] bg-white shadow-2xl overflow-hidden">
         {/* top bar */}
-        <div className="flex items-center justify-between px-4 pt-4">
+        <div className="flex flex-none items-center justify-between px-4 pt-4">
           <button
   onClick={onClose}
   aria-label="닫기"
@@ -796,8 +825,8 @@ useEffect(() => {
 </button>
 
           <div className="text-[13px] font-semibold text-neutral-500">
-            {isEdit ? "일정 추가" : "새 이벤트"}
-          </div>
+  {isEdit ? "일정 수정" : "새로운 일정"}
+</div>
 
           <div className="relative" ref={menuRef}>
             <button
@@ -829,7 +858,10 @@ useEffect(() => {
         </div>
 
         {/* content */}
-        <div className="px-4 pb-6 pt-2">
+        <div
+  ref={contentScrollRef}
+  className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-24 pt-2"
+>
           {/* 제목 (iOS 큰 입력) */}
           <div className="mt-2 rounded-3xl bg-neutral-50 px-4 py-3">
             <div className="flex items-start gap-3">
@@ -1091,11 +1123,6 @@ useEffect(() => {
               </button>
             </div>
           ) : null}
-
-          {/* 선택 날짜 힌트(작게) */}
-          <div className="mt-4 text-center text-xs text-neutral-400">
-            {fmtHeaderDateLabel(date)}
-          </div>
         </div>
 
         {/* ✅ iOS 스타일 완료 버튼(우하단) */}
@@ -1354,13 +1381,21 @@ useEffect(() => {
           key={c}
           type="button"
           onClick={() => {
-            if (!colorEditingKey) return;
+  if (!colorEditingKey) return;
 
-            setTypeColors((p) => ({ ...(p ?? {}), [colorEditingKey]: c }));
+  const nextColors = {
+    ...(typeColors ?? {}),
+    [colorEditingKey]: c,
+  };
 
-            setColorSheetOpen(false);
-            setColorEditingKey(null);
-          }}
+  setTypeColors(nextColors);
+  saveTypeColors(nextColors);
+
+  window.dispatchEvent(new Event("type-colors-updated"));
+
+  setColorSheetOpen(false);
+  setColorEditingKey(null);
+}}
           className={[
             "grid place-items-center rounded-2xl p-2",
             active ? "bg-neutral-100" : "hover:bg-neutral-50",

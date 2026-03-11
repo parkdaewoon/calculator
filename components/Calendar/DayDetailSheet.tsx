@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CalendarEvent, WorkPattern, YYYYMMDD } from "@/lib/calendar";
 import { getWorkCodeForDate } from "@/lib/calendar";
@@ -89,6 +89,25 @@ function workLabelFromCode(code: string) {
   }
 }
 
+function workColorFromCode(code: string) {
+  switch (code) {
+    case "DAY":
+      return "#ef4444"; // 빨강
+    case "EVE":
+      return "#f59e0b"; // 주황
+    case "NIGHT":
+      return "#3b82f6"; // 파랑
+    case "DANG":
+      return "#8b5cf6"; // 보라
+    case "OFF":
+      return "#6b7280"; // 회색
+    case "REST":
+      return "#9ca3af"; // 연회색
+    default:
+      return "#374151";
+  }
+}
+
 function sortByTime(a: any, b: any) {
   const aAll = !!a?.allDay;
   const bAll = !!b?.allDay;
@@ -126,15 +145,22 @@ export default function DayDetailSheet({
 
   const workModeType: WorkModeType = workMode.type;
 
-  const workText = useMemo(() => {
-    if (!dateDash) return "—";
-    if (workModeType === "NONE") return "—";
-    if (workModeType === "DAY") return "주";
+  const workCode = useMemo(() => {
+  if (!dateDash) return "";
+  if (workModeType === "NONE") return "";
+  if (workModeType === "DAY") return "DAY";
 
-    const runtimePattern = workModeToPattern(workMode as any, dateDash);
-    const code = getWorkCodeForDate(runtimePattern as any, dateDash as any);
-    return workLabelFromCode(code) || "—";
-  }, [workModeType, workMode, dateDash]);
+  const runtimePattern = workModeToPattern(workMode as any, dateDash);
+  return getWorkCodeForDate(runtimePattern as any, dateDash as any) || "";
+}, [workModeType, workMode, dateDash]);
+
+const workText = useMemo(() => {
+  return workLabelFromCode(workCode) || "—";
+}, [workCode]);
+
+const workBadgeColor = useMemo(() => {
+  return workColorFromCode(workCode);
+}, [workCode]);
 
   // ✅✅✅ 공휴일 찾기 (여기가 핵심)
   const holiday = useMemo(() => {
@@ -163,7 +189,29 @@ export default function DayDetailSheet({
     return list.slice().sort(sortByTime);
   }, [events, dateDash, dateKey]);
 
-  const typeColors = useMemo(() => loadTypeColors(), []);
+  const [typeColors, setTypeColors] = useState<Record<string, string>>(() => loadTypeColors() as any);
+
+useEffect(() => {
+  const reloadTypeColors = () => {
+    setTypeColors(loadTypeColors() as any);
+  };
+
+  // 시트 열릴 때도 한번 새로 읽기
+  if (open) {
+    reloadTypeColors();
+  }
+
+  // 같은 앱 안에서 색상 변경 즉시 반영용
+  window.addEventListener("type-colors-updated", reloadTypeColors);
+
+  // 포커스 돌아왔을 때도 반영
+  window.addEventListener("focus", reloadTypeColors);
+
+  return () => {
+    window.removeEventListener("type-colors-updated", reloadTypeColors);
+    window.removeEventListener("focus", reloadTypeColors);
+  };
+}, [open]);
 
   if (!open) return null;
 
@@ -189,18 +237,22 @@ export default function DayDetailSheet({
                 <div className="text-[22px] font-semibold tracking-tight text-neutral-900">
                   {dayOnly ? `${dayOnly}일` : " "}
                 </div>
-                <div className="text-[14px] font-medium text-neutral-500">{dow || " "}</div>
+                <div className="text-[14px] font-medium text-neutral-500">({dow || " "}요일)</div>
               </div>
 
-              <div className="text-[12px] text-neutral-400">
-                {dateDash ? dateDash.replaceAll("-", ".") : ""}
-              </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-[12px] font-semibold text-neutral-700">
-                {workText}
-              </span>
+              <span
+  className="rounded-full px-3 py-1 text-[12px] font-semibold"
+  style={{
+    color: workBadgeColor,
+    backgroundColor: hexToRgba(workBadgeColor, 0.12),
+    border: `1px solid ${hexToRgba(workBadgeColor, 0.24)}`,
+  }}
+>
+  {workText}
+</span>
 
               <button
                 onClick={onClose}

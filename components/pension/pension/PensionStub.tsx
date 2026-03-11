@@ -50,9 +50,11 @@ export default function PensionStub({ profile }: { profile: BaseProfile }) {
       <SectionCard title="연금 예상">
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-            <div className="text-xs text-neutral-500">총 재직연수</div>
+            <div className="text-xs text-neutral-500">재직기간(총)</div>
             <div className="mt-1 text-base font-semibold text-neutral-900">
-              {formatYearsText(result.totalYears)}
+              {result.totalYears >= 36
+                ? "36년(최대)"
+                : formatYearsText(result.totalYears)}
             </div>
           </div>
 

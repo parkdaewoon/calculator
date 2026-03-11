@@ -38,7 +38,7 @@ const STEP_OPTIONS: Opt[] = Array.from({ length: 32 }, (_, i) => {
   return { value: String(n), label: `${n}호봉` };
 });
 
-const MILITARY_YEAR_OPTIONS: Opt[] = Array.from({ length: 3 }, (_, i) => ({
+const MILITARY_YEAR_OPTIONS: Opt[] = Array.from({ length: 4 }, (_, i) => ({
   value: String(i),
   label: `${i}년`,
 }));
@@ -837,20 +837,7 @@ export default function BasicInfoForm({
                 {fmtYmd(profile.retireDate)}
               </button>
             </Field>
-
-            <Field label="재직기간(현재)">
-              <div className="flex h-10 items-center rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
-                {formatYearsText(currentYears)}
-              </div>
-            </Field>
-
-            <Field label="재직기간(총)">
-              <div className="flex h-10 items-center rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
-                {formatYearsText(totalYears)}
-              </div>
-            </Field>
-
-            <Field label="군복무 인정">
+<Field label="군복무 인정">
               <NiceSelect
                 value={String(militaryServiceYears)}
                 options={MILITARY_YEAR_OPTIONS}
@@ -868,6 +855,17 @@ export default function BasicInfoForm({
                   update({ leaveOfAbsenceYears: Number(v) })
                 }
               />
+            </Field>
+            <Field label="재직기간(현재)">
+              <div className="flex h-10 items-center rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
+                {formatYearsText(currentYears)}
+              </div>
+            </Field>
+
+            <Field label="재직기간(총)">
+              <div className="flex h-10 items-center rounded-2xl border border-neutral-200 bg-neutral-50 px-3 text-sm">
+                {formatYearsText(totalYears)}
+              </div>
             </Field>
           </div>
 

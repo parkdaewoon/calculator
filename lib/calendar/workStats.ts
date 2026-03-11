@@ -74,17 +74,14 @@ function getNightMinutesForCode(workMode: WorkMode, code: ShiftCode): number {
   const tr = (workMode as any).times?.[code];
   if (!tr) return 0;
 
-  const rawNight = overlapMinutes(expandRange(tr, code), expandRange(NIGHT_WINDOW));
-  const rawWork = overlapMinutes(expandRange(tr, code), [[0, MINUTES_PER_DAY]]);
+  // ✅ 공제시간은 총근무시간에서만 반영하고,
+  // 야간시간은 실제 22:00~06:00 겹치는 시간 그대로 계산
+  const rawNight = overlapMinutes(
+    expandRange(tr, code),
+    expandRange(NIGHT_WINDOW)
+  );
 
-  const br = getBreakMinutesForCode(workMode, code);
-  const netWork = Math.max(0, rawWork - br);
-
-  if (rawWork <= 0) return 0;
-
-  // ✅ 휴게 위치를 모르면 night에서 임의로 빼면 튀므로 "비율 근사"로 일관
-  const ratio = netWork / rawWork;
-  return Math.max(0, Math.round(rawNight * ratio));
+  return Math.max(0, rawNight);
 }
 
 function minutesToHours(min: number) {

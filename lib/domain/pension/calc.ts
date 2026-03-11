@@ -57,18 +57,33 @@ function pensionRateByYears(years: number) {
 }
 
 /**
- * 기본정보 화면과 동일하게:
- * - 총 재직연수는 휴직 제외 후 계산
- * - 연금 인정연수는 최대 36년
- * - 군복무는 최대 2년까지만 반영
+ * 군복무는 최대 3년까지만 인정
  */
-function getPensionRecognizedYears(
-  totalYears: number,
+function pickMilitaryServiceYears(profile: ProfileWithDerived) {
+  return Math.max(0, Math.min(3, Number(profile.militaryServiceYears ?? 0)));
+}
+
+/**
+ * 총 재직연수:
+ * - 근무기간 - 휴직기간 + 군복무
+ * - 최대 36년
+ */
+function getTotalServiceYearsIncludingMilitary(
+  serviceYears: number,
   militaryServiceYears: number
 ) {
-  const serviceYears = Math.min(Math.max(totalYears, 0), 36);
-  const militaryYears = Math.min(Math.max(militaryServiceYears, 0), 2);
-  return Math.min(serviceYears + militaryYears, 36);
+  const safeServiceYears = Math.max(0, serviceYears);
+  const safeMilitaryYears = Math.max(0, Math.min(3, militaryServiceYears));
+  return Math.min(safeServiceYears + safeMilitaryYears, 36);
+}
+
+/**
+ * 연금 인정연수:
+ * - 총 재직연수와 동일하게 처리
+ * - 최대 36년
+ */
+function getPensionRecognizedYears(totalYears: number) {
+  return Math.min(Math.max(totalYears, 0), 36);
 }
 
 function estimatePensionDeductions(monthlyGross: number) {
@@ -171,12 +186,21 @@ function calcAverageMonthlyBaseFallback(
   return Math.round(currentMonthlyBase * 0.9);
 }
 
+/**
+ * 기본정보 totalYears가 있으면 우선 사용
+ * 단, 군복무가 아직 반영 안 된 값일 수 있으므로 군복무를 추가 반영하고 36년 상한 적용
+ */
 function pickBasicInfoTotalYears(profile: ProfileWithDerived) {
+  const militaryServiceYears = pickMilitaryServiceYears(profile);
+
   if (
     typeof profile.calculatedTotalYears === "number" &&
     Number.isFinite(profile.calculatedTotalYears)
   ) {
-    return Math.max(0, profile.calculatedTotalYears);
+    return Math.min(
+      Math.max(0, profile.calculatedTotalYears) + militaryServiceYears,
+      36
+    );
   }
 
   const leaveOfAbsenceYears = Math.max(
@@ -185,7 +209,12 @@ function pickBasicInfoTotalYears(profile: ProfileWithDerived) {
   );
 
   const totalYearsRaw = diffYears(profile.startDate, profile.retireDate);
-  return Math.max(0, totalYearsRaw - leaveOfAbsenceYears);
+  const pureServiceYears = Math.max(0, totalYearsRaw - leaveOfAbsenceYears);
+
+  return getTotalServiceYearsIncludingMilitary(
+    pureServiceYears,
+    militaryServiceYears
+  );
 }
 
 function pickBasicInfoRecognizedYears(
@@ -196,15 +225,10 @@ function pickBasicInfoRecognizedYears(
     typeof profile.calculatedPensionRecognizedYears === "number" &&
     Number.isFinite(profile.calculatedPensionRecognizedYears)
   ) {
-    return Math.max(0, profile.calculatedPensionRecognizedYears);
+    return Math.min(Math.max(0, profile.calculatedPensionRecognizedYears), 36);
   }
 
-  const militaryServiceYears = Math.max(
-    0,
-    Math.min(2, Number(profile.militaryServiceYears ?? 0))
-  );
-
-  return getPensionRecognizedYears(totalYears, militaryServiceYears);
+  return getPensionRecognizedYears(totalYears);
 }
 
 function pickBasicInfoAverageMonthlyBase(
@@ -267,8 +291,6 @@ function makeGradeSimulation(
   const preferredStep = clampInt(profile.currentStep ?? profile.step, 1, 32);
   const candidates = getGradeComparisonColumns(series);
 
-  // 현재 저장된 평균기준소득월액 / 현재 기준소득월액 비율
-  // 예: 현재 4급 기준소득월액 450, 평균기준소득월액 420 이면 ratio = 420 / 450
   const averageRatio =
     baseCurrentMonthlyBase > 0
       ? baseAverageMonthlyBase / baseCurrentMonthlyBase
@@ -304,9 +326,6 @@ function makeGradeSimulation(
         pensionable.estimatedCurrentPensionableMonthly || fallbackPay
       );
 
-      // ✅ 핵심:
-      // 기본정보에 저장된 "현재 직급 기준 평균기준소득월액"을 기준으로
-      // 비교 대상 직급은 기준소득월액 비례로 환산
       const averageMonthlyBase = Math.max(
         0,
         Math.round(currentMonthlyBase * averageRatio)
@@ -355,13 +374,13 @@ export function calcPension(
 
   const totalYears =
     typeof overrides?.totalYears === "number" && Number.isFinite(overrides.totalYears)
-      ? Math.max(0, overrides.totalYears)
+      ? Math.min(Math.max(0, overrides.totalYears), 36)
       : pickBasicInfoTotalYears(stored);
 
   const recognizedYears =
     typeof overrides?.recognizedYears === "number" &&
     Number.isFinite(overrides.recognizedYears)
-      ? Math.max(0, overrides.recognizedYears)
+      ? Math.min(Math.max(0, overrides.recognizedYears), 36)
       : pickBasicInfoRecognizedYears(stored, totalYears);
 
   const pensionable = calcEstimatedCurrentPensionableMonthly(stored);
@@ -404,12 +423,12 @@ export function calcPension(
     estimatePensionDeductions(monthlyPensionGross);
 
   const gradeSimulation = makeGradeSimulation(
-  stored,
-  recognizedYears,
-  averageMonthlyBase,
-  currentMonthlyBase,
-  pensionRate
-);
+    stored,
+    recognizedYears,
+    averageMonthlyBase,
+    currentMonthlyBase,
+    pensionRate
+  );
 
   return {
     totalYears,

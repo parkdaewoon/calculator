@@ -225,18 +225,17 @@ export function calcWorkStatsForMonth(
         code === "DANG"
       );
 
-    // ✅ 4) 야간수당시간: 휴일근무 인정일(DAY/EVE>=8h 또는 DANG)은 제외
-    if (wr && !isHolidayWorkForAllowance) {
-      const rawNight = overlapMinutes(
-        expandRange(wr.start, wr.end, code),
-        expandRange(NIGHT_WINDOW.start, NIGHT_WINDOW.end)
-      );
+    // ✅ 4) 야간수당시간
+// 공제시간은 "총 근무시간"에서만 차감하고,
+// 야간근무시간은 실제 22:00~06:00 겹치는 시간 그대로 본다.
+if (wr && !isHolidayWorkForAllowance) {
+  const rawNight = overlapMinutes(
+    expandRange(wr.start, wr.end, code),
+    expandRange(NIGHT_WINDOW.start, NIGHT_WINDOW.end)
+  );
 
-      if (workMin > 0) {
-        const ratio = netWorkMin / workMin;
-        nightMin += Math.max(0, Math.round(rawNight * ratio));
-      }
-    }
+  nightMin += Math.max(0, rawNight);
+}
 
     if (isHol) {
       // ✅ 2) holidayDays 카운트(기존 유지: NIGHT 제외)
