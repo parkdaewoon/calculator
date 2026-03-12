@@ -4,14 +4,14 @@ import IconCard from "@/components/IconCard";
 import { Calculator, Landmark, Calendar, Clock } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "공무원 봉급·수당·연금 계산기",
+  title: "공무원 봉급·수당·연금 계산기 및 캘린더",
   description:
     "공무원 봉급, 수당, 연금 계산과 달력 기능을 한 곳에서 간편하게 이용하세요.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "공무원 봉급·수당·연금 계산기 | 공무원 노트",
+    title: "공무원 봉급·수당·연금 계산기 및 캘린더 | 공무원 노트",
     description:
       "공무원 급여와 연금을 확인하고 업무 일정을 관리하세요.",
     url: "/",
