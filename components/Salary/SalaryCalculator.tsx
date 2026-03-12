@@ -1542,7 +1542,7 @@ useEffect(() => {
         <div className="h-px bg-neutral-100" />
         <div className="mt-4 flex justify-center">
           <div className="w-full max-w-md rounded-2xl border border-neutral-100 bg-white p-3 text-center shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
-            <AdsenseSlot height={90} />
+            <AdsenseSlot slot="1234567890" height={90} />
           </div>
         </div>
       </section>

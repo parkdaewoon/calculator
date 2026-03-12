@@ -582,7 +582,7 @@ const res = await fetch("/api/calendar-events/upsert", {
 
       <section className="mx-auto w-full max-w-md px-4 pt-2">
         <div className="rounded-2xl border border-neutral-100 bg-white p-3 text-center shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
-          <AdsenseSlot height={90} />
+          <AdsenseSlot slot="1234567890" height={90} />
         </div>
       </section>
 
