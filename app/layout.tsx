@@ -8,16 +8,20 @@ import SwipeBackBlocker from "@/components/SwipeBackBlocker";
 const siteName = "공무원 노트";
 const siteUrl = "https://nokobridge.com";
 const siteDescription = "봉급·수당·연금 계산과 달력을 한 곳에서";
+const ogImage = `${siteUrl}/og-image.png`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+
   title: {
     default: `${siteName} | 공무원 봉급·수당·연금 계산기`,
     template: `%s | ${siteName}`,
   },
+
   description: siteDescription,
   applicationName: siteName,
   manifest: "/manifest.json",
+
   keywords: [
     "공무원 노트",
     "공무원 봉급",
@@ -34,31 +38,35 @@ export const metadata: Metadata = {
     "소방공무원 봉급",
     "경찰공무원 봉급",
   ],
+
   alternates: {
     canonical: "/",
   },
+
   openGraph: {
     type: "website",
     locale: "ko_KR",
     url: siteUrl,
     siteName,
-    title: `${siteName} | 공무원 봉급·수당·연금 계산기`,
+    title: `${siteName} | 공무원 봉급·수당·연금 계산기 및 캘린더`,
     description: siteDescription,
     images: [
       {
-        url: "/og-image.png",
+        url: ogImage,
         width: 1200,
         height: 630,
         alt: "공무원 노트",
       },
     ],
   },
+
   twitter: {
     card: "summary_large_image",
-    title: `${siteName} | 공무원 봉급·수당·연금 계산기`,
+    title: `${siteName} | 공무원 봉급·수당·연금 계산기 및 캘린더`,
     description: siteDescription,
-    images: ["/og-image.png"],
+    images: [ogImage],
   },
+
   robots: {
     index: true,
     follow: true,
@@ -70,17 +78,20 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+
   verification: {
-    google: "QH2tu1jVQN-Fsn3Pnav9Pw7NcqiAMxtyaT5C3",
+    google: "여기에_구글_전체_인증코드_넣기",
     other: {
       "naver-site-verification": "b4734cb10293d0179bebef3ca5d12cf790df6d81",
     },
   },
+
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
+
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -117,13 +128,12 @@ export default function RootLayout({
           strategy="beforeInteractive"
           crossOrigin="anonymous"
         />
-      </head>
-      <body>
         <script
           type="application/ld+json"
-          suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+      </head>
+      <body>
         <SwipeBackBlocker />
         <SplashScreen minDurationMs={700}>
           <AppShell>{children}</AppShell>
