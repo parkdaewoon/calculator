@@ -1,12 +1,33 @@
-export default function AdsenseSlot({ height = 72 }: { height?: number }) {
+"use client";
+
+import { useEffect } from "react";
+
+declare global {
+  interface Window {
+    adsbygoogle: unknown[];
+  }
+}
+
+type Props = {
+  slot: string;
+  height?: number;
+};
+
+export default function AdsenseSlot({ slot, height = 90 }: Props) {
+  useEffect(() => {
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch {}
+  }, []);
+
   return (
-    <div
-      className="w-full rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 text-center text-xs text-neutral-500"
-      style={{ height }}
-    >
-      <div className="flex h-full items-center justify-center">
-        광고 영역 (AdSense Slot)
-      </div>
-    </div>
+    <ins
+      className="adsbygoogle"
+      style={{ display: "block", height }}
+      data-ad-client="ca-pub-7723637407359078"
+      data-ad-slot={slot}
+      data-ad-format="auto"
+      data-full-width-responsive="true"
+    />
   );
 }
