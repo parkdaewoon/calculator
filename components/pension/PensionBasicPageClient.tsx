@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import PensionPageHeader from "@/components/Pension/PensionPageHeader";
+import PensionPageHeader from "@/components/pension/PensionPageHeader";
 import AdsenseSlot from "@/components/AdsenseSlot";
-import BasicInfoForm from "@/components/Pension/basic/BasicInfoForm";
-import BasicInfoHistoryModal from "@/components/Pension/basic/BasicInfoHistoryModal";
+import BasicInfoForm from "@/components/pension/basic/BasicInfoForm";
+import BasicInfoHistoryModal from "@/components/pension/basic/BasicInfoHistoryModal";
 import { useProfileDraft } from "@/lib/hooks/useProfileDraft";
 import {
   addProfileSnapshot,

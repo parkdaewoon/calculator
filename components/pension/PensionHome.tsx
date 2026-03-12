@@ -1,6 +1,6 @@
 "use client";
 
-import PensionMenuGrid from "@/components/Pension/nav/PensionMenuGrid";
+import PensionMenuGrid from "@/components/pension/nav/PensionMenuGrid";
 import AdsenseSlot from "@/components/AdsenseSlot";
 
 export default function PensionHome() {

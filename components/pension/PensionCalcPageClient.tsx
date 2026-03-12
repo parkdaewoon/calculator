@@ -1,7 +1,7 @@
 "use client";
 
-import PensionPageHeader from "@/components/Pension/PensionPageHeader";
-import PensionStub from "@/components/Pension/calc/PensionStub";
+import PensionPageHeader from "@/components/pension/PensionPageHeader";
+import PensionStub from "@/components/pension/calc/PensionStub";
 import { useProfileDraft } from "@/lib/hooks/useProfileDraft";
 import AdsenseSlot from "@/components/AdsenseSlot";
 export default function PensionCalcPageClient() {

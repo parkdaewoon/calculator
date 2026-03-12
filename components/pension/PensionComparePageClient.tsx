@@ -1,7 +1,7 @@
 "use client";
 
-import PensionPageHeader from "@/components/Pension/PensionPageHeader";
-import CompareStub from "@/components/Pension/compare/CompareStub";
+import PensionPageHeader from "@/components/pension/PensionPageHeader";
+import CompareStub from "@/components/pension/compare/CompareStub";
 import { useProfileDraft } from "@/lib/hooks/useProfileDraft";
 import AdsenseSlot from "@/components/AdsenseSlot";
 export default function PensionComparePageClient() {

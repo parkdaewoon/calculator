@@ -1,7 +1,7 @@
 "use client";
 
-import PensionPageHeader from "@/components/Pension/PensionPageHeader";
-import SeveranceStub from "@/components/Pension/severance/SeveranceStub";
+import PensionPageHeader from "@/components/pension/PensionPageHeader";
+import SeveranceStub from "@/components/pension/severance/SeveranceStub";
 import { useProfileDraft } from "@/lib/hooks/useProfileDraft";
 import AdsenseSlot from "@/components/AdsenseSlot";
 export default function PensionSeverancePageClient() {
