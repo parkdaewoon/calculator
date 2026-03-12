@@ -8,20 +8,16 @@ import SwipeBackBlocker from "@/components/SwipeBackBlocker";
 const siteName = "공무원 노트";
 const siteUrl = "https://nokobridge.com";
 const siteDescription = "봉급·수당·연금 계산과 달력을 한 곳에서";
-const ogImage = `${siteUrl}/og-image.png`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-
   title: {
-    default: `${siteName} | 공무원 봉급·수당·연금 계산기`,
+    default: `${siteName} | 공무원 봉급·수당·연금 계산기 및 캘린더`,
     template: `%s | ${siteName}`,
   },
-
   description: siteDescription,
   applicationName: siteName,
   manifest: "/manifest.json",
-
   keywords: [
     "공무원 노트",
     "공무원 봉급",
@@ -38,11 +34,9 @@ export const metadata: Metadata = {
     "소방공무원 봉급",
     "경찰공무원 봉급",
   ],
-
   alternates: {
     canonical: "/",
   },
-
   openGraph: {
     type: "website",
     locale: "ko_KR",
@@ -52,21 +46,19 @@ export const metadata: Metadata = {
     description: siteDescription,
     images: [
       {
-        url: ogImage,
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "공무원 노트",
       },
     ],
   },
-
   twitter: {
     card: "summary_large_image",
     title: `${siteName} | 공무원 봉급·수당·연금 계산기 및 캘린더`,
     description: siteDescription,
-    images: [ogImage],
+    images: ["/og-image.png"],
   },
-
   robots: {
     index: true,
     follow: true,
@@ -78,20 +70,17 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
-
   verification: {
-    google: "여기에_구글_전체_인증코드_넣기",
+    google: "QH2tu1jVQN-Fsn3Pnav9Pw7NcqiAMxtyaT5C3",
     other: {
       "naver-site-verification": "b4734cb10293d0179bebef3ca5d12cf790df6d81",
     },
   },
-
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
-
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -121,19 +110,20 @@ export default function RootLayout({
 
   return (
     <html lang="ko">
-      <head>
+      <body>
         <Script
           id="adsense-script"
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7723637407359078"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
           crossOrigin="anonymous"
         />
+
         <script
           type="application/ld+json"
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-      </head>
-      <body>
+
         <SwipeBackBlocker />
         <SplashScreen minDurationMs={700}>
           <AppShell>{children}</AppShell>
