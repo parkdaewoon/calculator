@@ -468,7 +468,11 @@ export function calcEstimatedPensionableMonthlyAtSnapshot(
 export function calcEstimatedCurrentPensionableMonthly(
   profile: BaseProfile
 ): PensionableAllowanceBreakdown {
-  const serviceYears = diffYears(profile.startDate, getTodayYmd());
+  const leaveOfAbsenceYears = Math.max(0, Number(profile.leaveOfAbsenceYears ?? 0));
+const serviceYears = Math.max(
+  0,
+  diffYears(profile.startDate, getTodayYmd()) - leaveOfAbsenceYears
+);
 
   return calcEstimatedPensionableMonthlyAtSnapshot({
     profile,

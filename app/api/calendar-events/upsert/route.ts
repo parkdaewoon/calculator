@@ -20,45 +20,21 @@ export async function POST(req: Request) {
     const body = await req.json();
     const supabaseAdmin = getSupabaseAdmin();
 
-    console.log("[upsert] incoming body", {
-      id: body.id,
-      title: body.title,
-      starts_at: body.starts_at,
-      remind_at: body.remind_at,
-      reminderMinutes: body.reminderMinutes,
-      type_main: body.type_main,
-    });
+    const id = String(body?.id ?? "").trim();
+    const userId = String(body?.user_id ?? "").trim();
 
-    const startsAtMs = body.starts_at ? new Date(body.starts_at).getTime() : NaN;
-const remindAtMs = body.remind_at ? new Date(body.remind_at).getTime() : NaN;
+    if (!id || !userId) {
+      return Response.json(
+        { ok: false, error: "Missing id or user_id" },
+        { status: 400 }
+      );
+    }
 
-const safeRemindAt =
-  Number.isFinite(startsAtMs) &&
-  Number.isFinite(remindAtMs) &&
-  remindAtMs <= startsAtMs
-    ? new Date(remindAtMs).toISOString()
-    : null;
-
-console.log("[upsert] incoming body", {
-  id: body.id,
-  title: body.title,
-  starts_at: body.starts_at,
-  remind_at: body.remind_at,
-  safeRemindAt,
-  reminderMinutes: body.reminderMinutes,
-  type_main: body.type_main,
-});
-
-const { error } = await supabaseAdmin.from("calendar_events").upsert({
-  id: body.id,
-  user_id: body.user_id,
-  title: body.title,
-  starts_at: body.starts_at,
-  remind_at: safeRemindAt,
-  reminder_sent: false,
-  type_main: body.type_main,
-  updated_at: new Date().toISOString(),
-});
+    const { error } = await supabaseAdmin
+      .from("calendar_events")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId);
 
     if (error) {
       return Response.json({ ok: false, error: error.message }, { status: 500 });

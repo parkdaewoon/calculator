@@ -295,9 +295,6 @@ export default function CalendarPage() {
     const st = loadCalendarState();
 
     if (st) {
-      if (st.month) setMonth(st.month);
-      if (st.selectedDate) setSelectedDate(normalizeYmd(st.selectedDate) || today);
-
       if (Array.isArray(st.events)) {
         const migrated = st.events.map((e: any) => migrateEvent(e, today));
         setEvents(migrated);
@@ -379,12 +376,12 @@ export default function CalendarPage() {
     const safeEvents = (events ?? []).map((e: any) => migrateEvent(e, today));
 
     saveCalendarState({
-      pattern,
-      events: safeEvents,
-      workMode,
-      month,
-      selectedDate,
-    });
+  pattern,
+  events: safeEvents,
+  workMode,
+  month: toMonthKey(today),
+  selectedDate: today,
+});
   }, [hydrated, pattern, events, workMode, month, selectedDate, today]);
 
   /** =========================
@@ -523,8 +520,6 @@ const res = await fetch("/api/calendar-events/upsert", {
 };
 
   const deleteEvent = async (id: string) => {
-  setEvents((prev) => (prev as any[]).filter((x) => x?.id !== id) as any);
-
   try {
     const res = await fetch("/api/calendar-events/delete", {
       method: "POST",
@@ -533,11 +528,17 @@ const res = await fetch("/api/calendar-events/upsert", {
     });
 
     const json = await res.json().catch(() => null);
+
     if (!res.ok || !json?.ok) {
       console.error("calendar event delete failed", json);
+      alert("일정 삭제에 실패했어요.");
+      return;
     }
+
+    setEvents((prev) => (prev as any[]).filter((x) => x?.id !== id) as any);
   } catch (e) {
     console.error("calendar event delete failed", e);
+    alert("일정 삭제 중 오류가 발생했어요.");
   }
 };
 

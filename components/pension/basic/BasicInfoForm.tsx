@@ -110,7 +110,7 @@ function formatYearsText(years: number, maxText?: string) {
   const y = Math.floor(safe);
   const months = Math.floor((safe - y) * 12);
 
-  if (maxText && months === 0 && safe >= y) {
+  if (maxText && months === 0) {
     return `${y}년${maxText}`;
   }
 
@@ -144,6 +144,250 @@ function calcAutoRetireDateFromBirth(birthDate?: string, retireAge = 65) {
   }
   return `${reachYear}-12-31`;
 }
+type PensionRateSegment = {
+  label: string;
+  start: Date;
+  end: Date;
+  years: number;
+  rate: number;
+};
+
+function parseYmdToDate(ymd?: string) {
+  if (!ymd) return null;
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+
+  const y = Number(m[1]);
+  const mm = Number(m[2]);
+  const d = Number(m[3]);
+
+  const dt = new Date(y, mm - 1, d);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+function diffDays(start: Date, end: Date) {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.max(0, (end.getTime() - start.getTime()) / msPerDay);
+}
+
+function yearsFromDays(days: number) {
+  return days / 365.2425;
+}
+
+function addDays(date: Date, days: number) {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function subtractYearsAsDays(date: Date, years: number) {
+  const days = Math.round(Math.max(0, years) * 365.2425);
+  return addDays(date, -days);
+}
+
+function startOfYear(year: number) {
+  return new Date(year, 0, 1);
+}
+
+function startOfNextYear(year: number) {
+  return new Date(year + 1, 0, 1);
+}
+
+function getPost2016AccrualRate(year: number) {
+  if (year <= 2015) return 1.9;
+  if (year >= 2035) return 1.7;
+
+  const rate = 1.878 - (year - 2016) * 0.022;
+  return Number(Math.max(1.7, rate).toFixed(3));
+}
+
+function pushSegment(
+  list: PensionRateSegment[],
+  label: string,
+  start: Date,
+  end: Date,
+  rate: number
+) {
+  if (end <= start) return;
+  const days = diffDays(start, end);
+  if (days <= 0) return;
+
+  list.push({
+    label,
+    start,
+    end,
+    years: yearsFromDays(days),
+    rate,
+  });
+}
+
+function buildPensionRateSegments(params: {
+  startDate?: string;
+  retireDate?: string;
+  militaryServiceYears?: number;
+}) {
+  const { startDate, retireDate, militaryServiceYears = 0 } = params;
+
+  const actualStart = parseYmdToDate(startDate);
+  const retire = parseYmdToDate(retireDate);
+
+  if (!actualStart || !retire || retire <= actualStart) {
+    return [];
+  }
+
+  // 군복무 인정연수는 임용일 이전으로 소급해서 반영
+  const deemedStart = subtractYearsAsDays(
+    actualStart,
+    Math.max(0, militaryServiceYears)
+  );
+
+  const segments: PensionRateSegment[] = [];
+
+  // 1기간: 2009.12.31. 이전
+  const oldPeriodEnd = new Date(2010, 0, 1);
+  const oldStart = deemedStart;
+  const oldEnd = retire < oldPeriodEnd ? retire : oldPeriodEnd;
+
+  if (oldEnd > oldStart) {
+    const oldYears = yearsFromDays(diffDays(oldStart, oldEnd));
+    const first20 = Math.min(oldYears, 20);
+    const over20 = Math.max(0, oldYears - 20);
+
+    if (first20 > 0) {
+      segments.push({
+        label: "2009년 이전(20년까지)",
+        start: oldStart,
+        end: oldEnd,
+        years: first20,
+        rate: 2.5,
+      });
+    }
+
+    if (over20 > 0) {
+      segments.push({
+        label: "2009년 이전(20년 초과)",
+        start: oldStart,
+        end: oldEnd,
+        years: over20,
+        rate: 2.0,
+      });
+    }
+  }
+
+  // 2기간: 2010~2015
+  for (let year = 2010; year <= 2015; year += 1) {
+    const segStart = deemedStart > startOfYear(year)
+      ? deemedStart
+      : startOfYear(year);
+
+    const segEnd = retire < startOfNextYear(year)
+      ? retire
+      : startOfNextYear(year);
+
+    pushSegment(segments, `${year}년`, segStart, segEnd, 1.9);
+  }
+
+  // 3기간: 2016년 이후
+  const endYear = retire.getFullYear();
+  for (let year = 2016; year <= endYear; year += 1) {
+    const segStart = deemedStart > startOfYear(year)
+      ? deemedStart
+      : startOfYear(year);
+
+    const segEnd = retire < startOfNextYear(year)
+      ? retire
+      : startOfNextYear(year);
+
+    pushSegment(
+      segments,
+      `${year}년`,
+      segStart,
+      segEnd,
+      getPost2016AccrualRate(year)
+    );
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function applyLeaveOfAbsenceToSegments(
+  segments: PensionRateSegment[],
+  leaveOfAbsenceYears: number
+) {
+  let remainingLeave = Math.max(0, leaveOfAbsenceYears);
+
+  // 휴직기간 합계만 있으므로 최근 재직기간부터 차감
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (remainingLeave <= 0) break;
+
+    const seg = segments[i];
+    const deduct = Math.min(seg.years, remainingLeave);
+    seg.years = Math.max(0, seg.years - deduct);
+    remainingLeave -= deduct;
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function applyPensionYearCapToSegments(
+  segments: PensionRateSegment[],
+  maxYears = 36
+) {
+  let total = segments.reduce((sum, seg) => sum + seg.years, 0);
+  let excess = Math.max(0, total - maxYears);
+
+  if (excess <= 0) return segments;
+
+  // 인정연수 상한 초과분은 최근 기간부터 제외
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (excess <= 0) break;
+
+    const seg = segments[i];
+    const deduct = Math.min(seg.years, excess);
+    seg.years = Math.max(0, seg.years - deduct);
+    excess -= deduct;
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function calcPensionRateWithMilitary(params: {
+  startDate?: string;
+  retireDate?: string;
+  militaryServiceYears?: number;
+  leaveOfAbsenceYears?: number;
+  maxRecognizedYears?: number;
+}) {
+  const {
+    startDate,
+    retireDate,
+    militaryServiceYears = 0,
+    leaveOfAbsenceYears = 0,
+    maxRecognizedYears = 36,
+  } = params;
+
+  let segments = buildPensionRateSegments({
+    startDate,
+    retireDate,
+    militaryServiceYears,
+  });
+
+  segments = applyLeaveOfAbsenceToSegments(
+    segments,
+    leaveOfAbsenceYears
+  );
+
+  segments = applyPensionYearCapToSegments(
+    segments,
+    maxRecognizedYears
+  );
+
+  const totalRate = segments.reduce(
+    (sum, seg) => sum + seg.years * seg.rate,
+    0
+  );
+
+  return Number(Math.max(0, totalRate).toFixed(2));
+}
 
 function severanceRateByYears(years: number) {
   if (years >= 20) return 39;
@@ -152,11 +396,6 @@ function severanceRateByYears(years: number) {
   if (years >= 5) return 22.57;
   if (years >= 1) return 6.5;
   return 0;
-}
-
-function pensionRateByYears(years: number) {
-  const rate = years * 1.7;
-  return Math.max(0, Math.min(rate, 100));
 }
 
 function getPensionRecognizedYears(
@@ -233,90 +472,6 @@ function buildCareerSegments(params: {
   return segments.filter((x) => x.years > 0);
 }
 
-function getGradeNumber(columnKey: string) {
-  const m = String(columnKey).match(/(\d+)/);
-  if (!m) return 9;
-  return Number(m[1]);
-}
-
-function getPositionAllowanceByGrade(grade: number) {
-  if (grade <= 1) return 750000;
-  if (grade === 2) return 650000;
-  if (grade === 3) return 500000;
-  if (grade === 4) return 400000;
-  if (grade === 5) return 250000;
-  if (grade === 6) return 185000;
-  if (grade === 7) return 180000;
-  if (grade === 8) return 175000;
-  return 165000;
-}
-
-function getRegularAddMonthlyByGrade(grade: number) {
-  if (grade <= 5) return 130000;
-  if (grade === 6) return 110000;
-  if (grade === 7) return 100000;
-  if (grade === 8) return 90000;
-  return 80000;
-}
-
-function calcSegmentEstimatedPensionableMonthly(params: {
-  series: string;
-  columnKey: string;
-  step: number;
-  profile: BaseProfile;
-}) {
-  const { series, columnKey, step, profile } = params;
-
-  const pay = getStepPay(series, columnKey, step);
-  const grade = getGradeNumber(columnKey);
-
-  const holidayBonusMonthly = pay * 0.1; // 명절휴가비 월환산
-  const regularBonusMonthly = pay * 0.05; // 정근수당 월환산 추정
-  const regularAddMonthly = getRegularAddMonthlyByGrade(grade); // 정근수당가산금 추정
-  const positionAllowance = getPositionAllowanceByGrade(grade);
-
-  const isManagementEligible =
-    Boolean(profile.pensionableAutoFlags?.isManagementEligible) || grade <= 4;
-
-  const managementRate = Number(
-    profile.pensionableAutoFlags?.managementRate ?? 0.09
-  );
-
-  const managementAllowance = isManagementEligible
-    ? pay * managementRate
-    : 0;
-
-  const isPwuEligible = Boolean(profile.pensionableAutoFlags?.isPwuEligible);
-  const pwuAllowance = isPwuEligible ? pay * 0.041 : 0;
-
-  const specialArea = Number(
-    profile.pensionableMonthlyInputs?.specialArea ?? 0
-  );
-  const specialDuty = Number(
-    profile.pensionableMonthlyInputs?.specialDuty ?? 0
-  );
-  const dangerousDuty = Number(
-    profile.pensionableMonthlyInputs?.dangerousDuty ?? 0
-  );
-  const taxableEtcIncluded = Number(
-    profile.pensionableMonthlyInputs?.taxableEtcIncluded ?? 0
-  );
-
-  return Math.round(
-    pay +
-      holidayBonusMonthly +
-      regularBonusMonthly +
-      regularAddMonthly +
-      positionAllowance +
-      managementAllowance +
-      pwuAllowance +
-      specialArea +
-      specialDuty +
-      dangerousDuty +
-      taxableEtcIncluded
-  );
-}
-
 function calcAverageIncomeWithPromotionsA(params: {
   startSeries: string;
   startColumnKey: string;
@@ -326,7 +481,6 @@ function calcAverageIncomeWithPromotionsA(params: {
   currentStep: number;
   totalYears: number;
   promotions: PromotionEntry[];
-  fallbackCurrentPay: number;
   profile: BaseProfile;
 }) {
   const {
@@ -338,7 +492,6 @@ function calcAverageIncomeWithPromotionsA(params: {
     currentStep,
     totalYears,
     promotions,
-    fallbackCurrentPay,
     profile,
   } = params;
 
@@ -633,13 +786,6 @@ export default function BasicInfoForm({
       ? pensionStartAgeByBirthYear(birthYear)
       : null;
 
-  const currentPay =
-    getPay(
-      (profile.currentSeries ?? profile.series) as PayTableId,
-      profile.currentColumnKey ?? profile.columnKey,
-      profile.currentStep ?? profile.step
-    ) ?? 0;
-
   const pensionable = calcEstimatedCurrentPensionableMonthly(profile);
 
   const incomeMode: MoneyMode = profile.incomeMode ?? "auto";
@@ -657,11 +803,16 @@ export default function BasicInfoForm({
         currentStep: profile.currentStep ?? profile.step,
         totalYears,
         promotions: promotionItems,
-        fallbackCurrentPay: currentPay,
         profile,
       });
 
-  const pensionRate = pensionRateByYears(pensionRecognizedYears);
+  const pensionRate = calcPensionRateWithMilitary({
+  startDate: profile.startDate,
+  retireDate: profile.retireDate,
+  militaryServiceYears,
+  leaveOfAbsenceYears,
+  maxRecognizedYears: 36,
+});
   const severanceRecognizedYears = getSeveranceRecognizedYears(totalYears);
   const severanceRate = severanceRateByYears(severanceRecognizedYears);
 
@@ -711,17 +862,6 @@ export default function BasicInfoForm({
     } as Partial<BaseProfile>);
   };
 
-  const updateExcludedAnnualInputs = (
-    patch: Partial<NonNullable<BaseProfile["pensionableExcludedAnnualInputs"]>>
-  ) => {
-    update({
-      pensionableExcludedAnnualInputs: {
-        ...(profile.pensionableExcludedAnnualInputs ?? {}),
-        ...patch,
-      },
-    } as Partial<BaseProfile>);
-  };
-
   const updateAutoFlags = (
     patch: Partial<NonNullable<BaseProfile["pensionableAutoFlags"]>>
   ) => {
@@ -732,12 +872,6 @@ export default function BasicInfoForm({
       },
     } as Partial<BaseProfile>);
   };
-
-  function toNonNegativeNumber(v: string) {
-    const num = Number(String(v).replaceAll(",", "").trim());
-    if (!Number.isFinite(num) || num < 0) return 0;
-    return Math.round(num);
-  }
 
   const openDate = (key: PickerKey) => setPicker(key);
 

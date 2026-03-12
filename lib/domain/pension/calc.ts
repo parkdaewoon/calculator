@@ -37,6 +37,14 @@ export type PensionCalcResult = {
   gradeSimulation: PensionGradeSimulationItem[];
 };
 
+type PensionRateSegment = {
+  label: string;
+  start: Date;
+  end: Date;
+  years: number;
+  rate: number;
+};
+
 function clampInt(n: number, min: number, max: number) {
   const x = Math.trunc(Number.isFinite(n) ? n : min);
   return Math.min(max, Math.max(min, x));
@@ -51,9 +59,44 @@ function diffYears(start?: string, end?: string) {
   return (e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24 * 365.2425);
 }
 
-function pensionRateByYears(years: number) {
-  const rate = years * 1.7;
-  return Math.max(0, Math.min(rate, 100));
+function parseYmdToDate(ymd?: string) {
+  if (!ymd) return null;
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+
+  const y = Number(m[1]);
+  const mm = Number(m[2]);
+  const d = Number(m[3]);
+
+  const dt = new Date(y, mm - 1, d);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+function diffDays(start: Date, end: Date) {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.max(0, (end.getTime() - start.getTime()) / msPerDay);
+}
+
+function yearsFromDays(days: number) {
+  return days / 365.2425;
+}
+
+function addDays(date: Date, days: number) {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function subtractYearsAsDays(date: Date, years: number) {
+  const days = Math.round(Math.max(0, years) * 365.2425);
+  return addDays(date, -days);
+}
+
+function startOfYear(year: number) {
+  return new Date(year, 0, 1);
+}
+
+function startOfNextYear(year: number) {
+  return new Date(year + 1, 0, 1);
 }
 
 /**
@@ -65,7 +108,8 @@ function pickMilitaryServiceYears(profile: ProfileWithDerived) {
 
 /**
  * 총 재직기간:
- * - 근무기간 - 휴직기간 + 군복무
+ * - 근무기간 - 휴직기간
+ * - 군복무는 총 재직기간에 더하지 않고 인정연수/지급률 계산에서 별도 반영
  */
 function getTotalServiceYears(serviceYears: number) {
   return Math.max(0, serviceYears);
@@ -73,11 +117,197 @@ function getTotalServiceYears(serviceYears: number) {
 
 /**
  * 연금 인정연수:
- * - 총 재직기간와 동일하게 처리
+ * - 실제 재직기간 + 군복무 인정
  * - 최대 36년
  */
 function getPensionRecognizedYears(totalYears: number) {
   return Math.min(Math.max(totalYears, 0), 36);
+}
+
+function getPost2016AccrualRate(year: number) {
+  if (year <= 2015) return 1.9;
+  if (year >= 2035) return 1.7;
+
+  const rate = 1.878 - (year - 2016) * 0.022;
+  return Number(Math.max(1.7, rate).toFixed(3));
+}
+
+function pushSegment(
+  list: PensionRateSegment[],
+  label: string,
+  start: Date,
+  end: Date,
+  rate: number
+) {
+  if (end <= start) return;
+  const days = diffDays(start, end);
+  if (days <= 0) return;
+
+  list.push({
+    label,
+    start,
+    end,
+    years: yearsFromDays(days),
+    rate,
+  });
+}
+
+function buildPensionRateSegments(params: {
+  startDate?: string;
+  retireDate?: string;
+  militaryServiceYears?: number;
+}) {
+  const { startDate, retireDate, militaryServiceYears = 0 } = params;
+
+  const actualStart = parseYmdToDate(startDate);
+  const retire = parseYmdToDate(retireDate);
+
+  if (!actualStart || !retire || retire <= actualStart) {
+    return [];
+  }
+
+  // 군복무 인정연수는 임용일 이전 기간으로 소급 반영
+  const deemedStart = subtractYearsAsDays(
+    actualStart,
+    Math.max(0, militaryServiceYears)
+  );
+
+  const segments: PensionRateSegment[] = [];
+
+  // 2009년 이전 구간
+  const oldPeriodEnd = new Date(2010, 0, 1);
+  const oldStart = deemedStart;
+  const oldEnd = retire < oldPeriodEnd ? retire : oldPeriodEnd;
+
+  if (oldEnd > oldStart) {
+    const oldYears = yearsFromDays(diffDays(oldStart, oldEnd));
+    const first20 = Math.min(oldYears, 20);
+    const over20 = Math.max(0, oldYears - 20);
+
+    if (first20 > 0) {
+      segments.push({
+        label: "2009년 이전(20년까지)",
+        start: oldStart,
+        end: oldEnd,
+        years: first20,
+        rate: 2.5,
+      });
+    }
+
+    if (over20 > 0) {
+      segments.push({
+        label: "2009년 이전(20년 초과)",
+        start: oldStart,
+        end: oldEnd,
+        years: over20,
+        rate: 2.0,
+      });
+    }
+  }
+
+  // 2010~2015
+  for (let year = 2010; year <= 2015; year += 1) {
+    const segStart =
+      deemedStart > startOfYear(year) ? deemedStart : startOfYear(year);
+
+    const segEnd =
+      retire < startOfNextYear(year) ? retire : startOfNextYear(year);
+
+    pushSegment(segments, `${year}년`, segStart, segEnd, 1.9);
+  }
+
+  // 2016년 이후
+  const endYear = retire.getFullYear();
+  for (let year = 2016; year <= endYear; year += 1) {
+    const segStart =
+      deemedStart > startOfYear(year) ? deemedStart : startOfYear(year);
+
+    const segEnd =
+      retire < startOfNextYear(year) ? retire : startOfNextYear(year);
+
+    pushSegment(
+      segments,
+      `${year}년`,
+      segStart,
+      segEnd,
+      getPost2016AccrualRate(year)
+    );
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function applyLeaveOfAbsenceToSegments(
+  segments: PensionRateSegment[],
+  leaveOfAbsenceYears: number
+) {
+  let remainingLeave = Math.max(0, leaveOfAbsenceYears);
+
+  // 휴직 합계는 최근 기간부터 차감
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    if (remainingLeave <= 0) break;
+
+    const seg = segments[i];
+    const deduct = Math.min(seg.years, remainingLeave);
+    seg.years = Math.max(0, seg.years - deduct);
+    remainingLeave -= deduct;
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function applyPensionYearCapToSegments(
+  segments: PensionRateSegment[],
+  maxYears = 36
+) {
+  let total = segments.reduce((sum, seg) => sum + seg.years, 0);
+  let excess = Math.max(0, total - maxYears);
+
+  if (excess <= 0) return segments;
+
+  // 36년 초과분은 최근 기간부터 제외
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    if (excess <= 0) break;
+
+    const seg = segments[i];
+    const deduct = Math.min(seg.years, excess);
+    seg.years = Math.max(0, seg.years - deduct);
+    excess -= deduct;
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function calcPensionRateWithMilitary(params: {
+  startDate?: string;
+  retireDate?: string;
+  militaryServiceYears?: number;
+  leaveOfAbsenceYears?: number;
+  maxRecognizedYears?: number;
+}) {
+  const {
+    startDate,
+    retireDate,
+    militaryServiceYears = 0,
+    leaveOfAbsenceYears = 0,
+    maxRecognizedYears = 36,
+  } = params;
+
+  let segments = buildPensionRateSegments({
+    startDate,
+    retireDate,
+    militaryServiceYears,
+  });
+
+  segments = applyLeaveOfAbsenceToSegments(segments, leaveOfAbsenceYears);
+  segments = applyPensionYearCapToSegments(segments, maxRecognizedYears);
+
+  const totalRate = segments.reduce(
+    (sum, seg) => sum + seg.years * seg.rate,
+    0
+  );
+
+  return Number(Math.max(0, totalRate).toFixed(2));
 }
 
 function estimatePensionDeductions(monthlyGross: number) {
@@ -157,7 +387,7 @@ function calcMonthlyPension(
   const pensionRate =
     typeof pensionRateOverride === "number" && Number.isFinite(pensionRateOverride)
       ? Math.max(0, Math.min(pensionRateOverride, 100))
-      : pensionRateByYears(recognizedYears);
+      : Math.max(0, Math.min(recognizedYears * 1.7, 100));
 
   const monthlyPensionGross = Math.round(
     averageMonthlyBase * (pensionRate / 100)
@@ -227,7 +457,6 @@ function pickBasicInfoAverageMonthlyBase(
     return Math.max(0, overrideAverageMonthlyBase);
   }
 
-  // 기본정보 화면에서 저장된 평균기준소득월액을 최우선 사용
   if (
     typeof profile.calculatedAverageMonthlyBase === "number" &&
     Number.isFinite(profile.calculatedAverageMonthlyBase)
@@ -244,7 +473,7 @@ function pickBasicInfoAverageMonthlyBase(
 
 function pickBasicInfoPensionRate(
   profile: ProfileWithDerived,
-  recognizedYears: number,
+  _recognizedYears: number,
   overridePensionRate?: number
 ) {
   if (
@@ -261,7 +490,16 @@ function pickBasicInfoPensionRate(
     return Math.max(0, Math.min(profile.calculatedPensionRate, 100));
   }
 
-  return pensionRateByYears(recognizedYears);
+  return calcPensionRateWithMilitary({
+    startDate: profile.startDate,
+    retireDate: profile.retireDate,
+    militaryServiceYears: pickMilitaryServiceYears(profile),
+    leaveOfAbsenceYears: Math.max(
+      0,
+      Number(profile.leaveOfAbsenceYears ?? 0)
+    ),
+    maxRecognizedYears: 36,
+  });
 }
 
 function makeGradeSimulation(
@@ -273,10 +511,11 @@ function makeGradeSimulation(
 ): PensionGradeSimulationItem[] {
   const series = String(profile.currentSeries ?? profile.series);
   const preferredStep = clampInt(profile.currentStep ?? profile.step, 1, 32);
-  const currentColumnKey = String(profile.currentColumnKey ?? profile.columnKey ?? "");
+  const currentColumnKey = String(
+    profile.currentColumnKey ?? profile.columnKey ?? ""
+  );
   const candidates = getGradeComparisonColumns(series);
 
-  // 현재 프로필에서 평균기준소득월액이 얼마나 더해졌는지 "차액"으로 유지
   const averageGap = baseAverageMonthlyBase - baseCurrentMonthlyBase;
 
   return candidates
@@ -288,7 +527,6 @@ function makeGradeSimulation(
       let averageMonthlyBase = 0;
 
       if (isCurrentGrade) {
-        // ✅ 현재 지급기준 직급은 상단 메인 결과값을 그대로 사용
         currentMonthlyBase = Math.max(0, baseCurrentMonthlyBase);
         averageMonthlyBase = Math.max(0, baseAverageMonthlyBase);
       } else {
@@ -321,7 +559,6 @@ function makeGradeSimulation(
           pensionable.estimatedCurrentPensionableMonthly || fallbackPay
         );
 
-        // ✅ 기본정보에서 반영된 평균기준소득월액 보정분을 그대로 더함
         averageMonthlyBase = Math.max(
           0,
           Math.round(currentMonthlyBase + averageGap)
@@ -370,9 +607,10 @@ export function calcPension(
   const stored = profile as ProfileWithDerived;
 
   const totalYears =
-  typeof overrides?.totalYears === "number" && Number.isFinite(overrides.totalYears)
-    ? Math.max(0, overrides.totalYears)
-    : pickBasicInfoTotalYears(stored);
+    typeof overrides?.totalYears === "number" &&
+    Number.isFinite(overrides.totalYears)
+      ? Math.max(0, overrides.totalYears)
+      : pickBasicInfoTotalYears(stored);
 
   const recognizedYears =
     typeof overrides?.recognizedYears === "number" &&

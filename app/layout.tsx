@@ -3,6 +3,7 @@ import "./globals.css";
 import AppShell from "@/components/AppShell";
 import SplashScreen from "@/components/SplashScreen";
 import SwipeBackBlocker from "@/components/SwipeBackBlocker";
+import Script from "next/script";
 
 const siteName = "공무원 노트";
 const siteUrl = "https://nokobridge.com";
@@ -108,13 +109,21 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="ko">
-      <body>
-        <script
-          type="application/ld+json"
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
+<html lang="ko">
+  <body>
+
+    <Script
+      async
+      src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7723637407359078"
+      crossOrigin="anonymous"
+      strategy="afterInteractive"
+    />
+
+    <script
+      type="application/ld+json"
+      suppressHydrationWarning
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
         <SwipeBackBlocker />
         <SplashScreen minDurationMs={700}>
           <AppShell>{children}</AppShell>

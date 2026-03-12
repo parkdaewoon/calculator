@@ -76,7 +76,250 @@ function getValidStepPay(
 
   return { step: 1, pay: 0 };
 }
+type PensionRateSegment = {
+  label: string;
+  start: Date;
+  end: Date;
+  years: number;
+  rate: number;
+};
 
+function parseYmdToDate(ymd?: string) {
+  if (!ymd) return null;
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+
+  const y = Number(m[1]);
+  const mm = Number(m[2]);
+  const d = Number(m[3]);
+
+  const dt = new Date(y, mm - 1, d);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+function diffDays(start: Date, end: Date) {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.max(0, (end.getTime() - start.getTime()) / msPerDay);
+}
+
+function yearsFromDays(days: number) {
+  return days / 365.2425;
+}
+
+function addDays(date: Date, days: number) {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function subtractYearsAsDays(date: Date, years: number) {
+  const days = Math.round(Math.max(0, years) * 365.2425);
+  return addDays(date, -days);
+}
+
+function startOfYear(year: number) {
+  return new Date(year, 0, 1);
+}
+
+function startOfNextYear(year: number) {
+  return new Date(year + 1, 0, 1);
+}
+
+function getPost2016AccrualRate(year: number) {
+  if (year <= 2015) return 1.9;
+  if (year >= 2035) return 1.7;
+
+  const rate = 1.878 - (year - 2016) * 0.022;
+  return Number(Math.max(1.7, rate).toFixed(3));
+}
+
+function pushSegment(
+  list: PensionRateSegment[],
+  label: string,
+  start: Date,
+  end: Date,
+  rate: number
+) {
+  if (end <= start) return;
+  const days = diffDays(start, end);
+  if (days <= 0) return;
+
+  list.push({
+    label,
+    start,
+    end,
+    years: yearsFromDays(days),
+    rate,
+  });
+}
+
+function buildPensionRateSegments(params: {
+  startDate?: string;
+  retireDate?: string;
+  militaryServiceYears?: number;
+}) {
+  const { startDate, retireDate, militaryServiceYears = 0 } = params;
+
+  const actualStart = parseYmdToDate(startDate);
+  const retire = parseYmdToDate(retireDate);
+
+  if (!actualStart || !retire || retire <= actualStart) {
+    return [];
+  }
+
+  // 군복무 인정연수는 임용일 이전으로 소급해서 반영
+  const deemedStart = subtractYearsAsDays(
+    actualStart,
+    Math.max(0, militaryServiceYears)
+  );
+
+  const segments: PensionRateSegment[] = [];
+
+  // 1기간: 2009.12.31. 이전
+  const oldPeriodEnd = new Date(2010, 0, 1);
+  const oldStart = deemedStart;
+  const oldEnd = retire < oldPeriodEnd ? retire : oldPeriodEnd;
+
+  if (oldEnd > oldStart) {
+    const oldYears = yearsFromDays(diffDays(oldStart, oldEnd));
+    const first20 = Math.min(oldYears, 20);
+    const over20 = Math.max(0, oldYears - 20);
+
+    if (first20 > 0) {
+      segments.push({
+        label: "2009년 이전(20년까지)",
+        start: oldStart,
+        end: oldEnd,
+        years: first20,
+        rate: 2.5,
+      });
+    }
+
+    if (over20 > 0) {
+      segments.push({
+        label: "2009년 이전(20년 초과)",
+        start: oldStart,
+        end: oldEnd,
+        years: over20,
+        rate: 2.0,
+      });
+    }
+  }
+
+  // 2기간: 2010~2015
+  for (let year = 2010; year <= 2015; year++) {
+    const segStart = deemedStart > startOfYear(year)
+      ? deemedStart
+      : startOfYear(year);
+
+    const segEnd = retire < startOfNextYear(year)
+      ? retire
+      : startOfNextYear(year);
+
+    pushSegment(segments, `${year}년`, segStart, segEnd, 1.9);
+  }
+
+  // 3기간: 2016년 이후
+  const endYear = retire.getFullYear();
+  for (let year = 2016; year <= endYear; year++) {
+    const segStart = deemedStart > startOfYear(year)
+      ? deemedStart
+      : startOfYear(year);
+
+    const segEnd = retire < startOfNextYear(year)
+      ? retire
+      : startOfNextYear(year);
+
+    pushSegment(
+      segments,
+      `${year}년`,
+      segStart,
+      segEnd,
+      getPost2016AccrualRate(year)
+    );
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function applyLeaveOfAbsenceToSegments(
+  segments: PensionRateSegment[],
+  leaveOfAbsenceYears: number
+) {
+  let remainingLeave = Math.max(0, leaveOfAbsenceYears);
+
+  // 휴직기간 합계만 있으므로 최근 재직기간부터 차감
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (remainingLeave <= 0) break;
+
+    const seg = segments[i];
+    const deduct = Math.min(seg.years, remainingLeave);
+    seg.years = Math.max(0, seg.years - deduct);
+    remainingLeave -= deduct;
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function applyPensionYearCapToSegments(
+  segments: PensionRateSegment[],
+  maxYears = 36
+) {
+  let total = segments.reduce((sum, seg) => sum + seg.years, 0);
+  let excess = Math.max(0, total - maxYears);
+
+  if (excess <= 0) return segments;
+
+  // 인정연수 상한 초과분은 최근 기간부터 제외
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (excess <= 0) break;
+
+    const seg = segments[i];
+    const deduct = Math.min(seg.years, excess);
+    seg.years = Math.max(0, seg.years - deduct);
+    excess -= deduct;
+  }
+
+  return segments.filter((x) => x.years > 0);
+}
+
+function calcPensionRateWithMilitary(params: {
+  startDate?: string;
+  retireDate?: string;
+  militaryServiceYears?: number;
+  leaveOfAbsenceYears?: number;
+  maxRecognizedYears?: number;
+}) {
+  const {
+    startDate,
+    retireDate,
+    militaryServiceYears = 0,
+    leaveOfAbsenceYears = 0,
+    maxRecognizedYears = 36,
+  } = params;
+
+  let segments = buildPensionRateSegments({
+    startDate,
+    retireDate,
+    militaryServiceYears,
+  });
+
+  segments = applyLeaveOfAbsenceToSegments(
+    segments,
+    leaveOfAbsenceYears
+  );
+
+  segments = applyPensionYearCapToSegments(
+    segments,
+    maxRecognizedYears
+  );
+
+  const totalRate = segments.reduce(
+    (sum, seg) => sum + seg.years * seg.rate,
+    0
+  );
+
+  return Number(Math.max(0, totalRate).toFixed(2));
+}
 /**
  * 공무원 퇴직수당 지급률
  * - 1년 이상 5년 미만: 6.5%
