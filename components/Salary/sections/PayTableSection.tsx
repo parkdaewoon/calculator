@@ -6,10 +6,10 @@ import { PAY_TABLES, getPay, type PayTableId } from "@/lib/payTables";
 
 type Props = {
   series: PayTableId;
-  columnKey: string; // ✅ grade -> columnKey
+  columnKey: string;
   step: number;
   onChangeSeries: (v: PayTableId) => void;
-  onChangeColumnKey: (v: string) => void; // ✅ onChangeGrade -> onChangeColumnKey
+  onChangeColumnKey: (v: string) => void;
   onChangeStep: (v: number) => void;
 };
 
@@ -28,47 +28,40 @@ export default function PayTableSection({
   onChangeColumnKey,
   onChangeStep,
 }: Props) {
-  // ✅ PAY_TABLES에 등록된 모든 직렬 키
   const tableIds = useMemo(() => Object.keys(PAY_TABLES) as PayTableId[], []);
 
-  // ✅ PAY_TABLES가 비어있으면 안전하게 안내 (런타임 방지)
   if (tableIds.length === 0) {
     return (
       <section className="rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
         <div className="text-sm font-semibold">봉급표</div>
         <p className="mt-2 text-sm text-neutral-500">
-          봉급표 데이터를 찾을 수 없습니다. (PAY_TABLES가 비어있어요)
+          봉급표 데이터를 찾을 수 없습니다.
         </p>
       </section>
     );
   }
 
-  // ✅ series 값이 PAY_TABLES에 없으면 첫 번째 테이블로 fallback
   const tableId: PayTableId = tableIds.includes(series) ? series : tableIds[0];
   const table = PAY_TABLES[tableId];
 
-  // ✅ table이 없으면 안내 UI (런타임 에러 방지)
   if (!table) {
     return (
       <section className="rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
         <div className="text-sm font-semibold">봉급표</div>
         <p className="mt-2 text-sm text-neutral-500">
-          봉급표 데이터를 찾을 수 없습니다. (PAY_TABLES 설정을 확인해 주세요)
+          봉급표 데이터를 찾을 수 없습니다.
         </p>
       </section>
     );
   }
 
-  // ✅ columnKey 안전 보정: 표에 없으면 첫 번째 컬럼으로
   const firstKey = table.columns[0]?.key ?? "";
   const safeColumnKey =
     firstKey && table.columns.some((c) => c.key === columnKey)
       ? columnKey
       : firstKey;
 
-  // ✅ 호봉은 1~32 고정
   const safeStep = clampInt(String(step ?? 1), 1, 32);
-
   const pay = safeColumnKey ? getPay(tableId, safeColumnKey, safeStep) : null;
 
   const selectedColLabel =
@@ -79,14 +72,10 @@ export default function PayTableSection({
     if (!nextTable) return;
 
     onChangeSeries(nextId);
-
-    // ✅ 표 바꾸면: 해당 표의 첫 직급 + 호봉 1로 리셋 (호환 보장)
-    const firstKey = nextTable.columns[0]?.key ?? "";
-    onChangeColumnKey(firstKey);
+    onChangeColumnKey(nextTable.columns[0]?.key ?? "");
     onChangeStep(1);
   };
 
-  // ✅ 옵션들
   const seriesOptions: Opt[] = tableIds.map((id) => ({
     value: id,
     label: PAY_TABLES[id]?.title ?? id,
@@ -104,35 +93,31 @@ export default function PayTableSection({
         직렬/직급/호봉을 선택하면 월 기본급을 보여줍니다.
       </p>
 
-      {/* ✅ 기존과 어울리게: 같은 톤의 “필드 + 드롭다운” */}
-<div className="mt-3 grid grid-cols-2 gap-3">
-  <Field label="직렬">
-    <NiceSelect
-      value={tableId}
-      options={seriesOptions}
-      onChange={(v) => onChangeTable(v as PayTableId)}
-      className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-    />
-  </Field>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Field label="직렬">
+          <NiceSelect
+            value={tableId}
+            options={seriesOptions}
+            onChange={(v) => onChangeTable(v as PayTableId)}
+          />
+        </Field>
 
-  <Field label="직급">
-    <NiceSelect
-      value={safeColumnKey}
-      options={gradeOptions}
-      onChange={(v) => onChangeColumnKey(v)}
-      className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-    />
-  </Field>
+        <Field label="직급">
+          <NiceSelect
+            value={safeColumnKey}
+            options={gradeOptions}
+            onChange={onChangeColumnKey}
+          />
+        </Field>
 
-  <Field label="호봉">
-    <NiceSelect
-      value={String(safeStep)}
-      options={STEPS_1_TO_32}
-      onChange={(v) => onChangeStep(Number(v))}
-      className="w-full rounded-2xl border border-neutral-200 bg-white px-3 py-2 text-sm"
-    />
-  </Field>
-</div>
+        <Field label="호봉">
+          <NiceSelect
+            value={String(safeStep)}
+            options={STEPS_1_TO_32}
+            onChange={(v) => onChangeStep(Number(v))}
+          />
+        </Field>
+      </div>
 
       <div className="mt-6 flex justify-center">
         <div className="w-full max-w-md rounded-3xl border border-neutral-200 bg-gradient-to-b from-white to-neutral-50 p-6 text-center shadow-[0_15px_35px_rgba(0,0,0,0.06)]">
@@ -151,15 +136,12 @@ export default function PayTableSection({
           <div className="mx-auto mt-4 h-1 w-16 rounded-full bg-neutral-300" />
         </div>
       </div>
-
-      <div className="mt-4 text-xs text-neutral-400">
-        * 표에 없는 구간은 “해당 없음”으로 표시됩니다.
-      </div>
+      <p className="mt-3 text-xs text-neutral-400">
+  * 표에 없는 구간은 “해당 없음”으로 표시됩니다.
+</p>
     </section>
   );
 }
-
-/** -------------------- UI: 기존 톤 유지용 필드 -------------------- */
 
 function Field({
   label,
@@ -176,23 +158,14 @@ function Field({
   );
 }
 
-/**
- * ✅ “옵션 리스트(빨간 영역)”까지 예쁘게 나오는 커스텀 드롭다운
- * - 둥근 모서리/그림자/hover/선택 강조
- * - 최대 높이 + 스크롤
- * - 바깥 클릭/ESC 닫기
- * - 버튼 폭에 딱 맞춰 아래로 펼침
- */
 function NiceSelect({
   value,
   options,
   onChange,
-  className,
 }: {
   value: string;
   options: Opt[];
   onChange: (v: string) => void;
-  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
@@ -237,44 +210,16 @@ function NiceSelect({
     return () => window.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
   return (
     <>
       <button
         ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={[
-          "relative flex w-full items-center justify-between",
-          "h-10", // ✅ 기본정보와 동일 높이
-          "rounded-2xl border border-neutral-200 bg-white px-3",
-          "text-left text-sm text-neutral-900", // ✅ 동일 폰트
-          "shadow-sm transition hover:border-neutral-300",
-          "focus:outline-none focus:ring-4 focus:ring-neutral-200/60 focus:border-neutral-400",
-          className ?? "",
-        ].join(" ")}
+        className="relative flex h-10 w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-3 text-left text-sm text-neutral-900 shadow-sm transition hover:border-neutral-300 focus:border-neutral-400 focus:outline-none focus:ring-4 focus:ring-neutral-200/60"
       >
         <span className="truncate">{selectedLabel}</span>
-
-        <span className="ml-2 flex h-6 w-6 items-center justify-center rounded-xl text-neutral-500">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M5 7.5L10 12.5L15 7.5"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
+        <span className="ml-2 text-neutral-500">⌄</span>
       </button>
 
       {open && pos
@@ -288,10 +233,7 @@ function NiceSelect({
                 width: pos.width,
                 zIndex: 2000,
               }}
-              className={[
-                "overflow-hidden rounded-2xl border border-neutral-200 bg-white",
-                "shadow-[0_20px_60px_rgba(0,0,0,0.18)]",
-              ].join(" ")}
+              className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
             >
               <div className="max-h-[320px] overflow-auto p-1">
                 {options.map((o) => {
@@ -323,8 +265,6 @@ function NiceSelect({
     </>
   );
 }
-
-/** -------------------- helpers -------------------- */
 
 function clampInt(v: string, min: number, max: number) {
   const n = Number(v);

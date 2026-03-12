@@ -55,7 +55,6 @@ export default function TravelSection() {
     <section className="rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_10px_25px_rgba(0,0,0,0.05)] space-y-6">
       <div className="text-sm font-semibold">여비제도</div>
 
-      {/* 개요 */}
       <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
         <div className="text-xs font-semibold text-neutral-700">개요</div>
         <p className="mt-2 text-sm text-neutral-600 leading-relaxed">
@@ -63,11 +62,8 @@ export default function TravelSection() {
         </p>
       </div>
 
-      {/* 여비 종류 */}
       <div>
-        <div className="text-xs font-semibold text-neutral-700">
-          여비 종류
-        </div>
+        <div className="text-xs font-semibold text-neutral-700">여비 종류</div>
 
         <div className="mt-3 grid grid-cols-1 gap-3">
           {expenseTypes.map((t) => (
@@ -78,15 +74,12 @@ export default function TravelSection() {
               <div className="text-sm font-semibold text-neutral-900">
                 {t.name}
               </div>
-              <div className="mt-1 text-xs text-neutral-600">
-                {t.desc}
-              </div>
+              <div className="mt-1 text-xs text-neutral-600">{t.desc}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* 지급 구분 표 */}
       <div>
         <div className="text-xs font-semibold text-neutral-700">
           여비 지급 구분
@@ -110,9 +103,7 @@ export default function TravelSection() {
                   <td className="px-4 py-3 font-medium text-neutral-900">
                     {c.type}
                   </td>
-                  <td className="px-4 py-3 text-neutral-600">
-                    {c.items}
-                  </td>
+                  <td className="px-4 py-3 text-neutral-600">{c.items}</td>
                 </tr>
               ))}
             </tbody>
@@ -120,7 +111,6 @@ export default function TravelSection() {
         </div>
       </div>
 
-      {/* 공적 항공마일리지 */}
       <div className="rounded-2xl border border-neutral-200 bg-white p-4">
         <div className="text-xs font-semibold text-neutral-700">
           공적 항공마일리지

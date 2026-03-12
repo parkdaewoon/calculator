@@ -15,17 +15,30 @@ export default function ContactPage() {
       </section>
 
       <section className="mt-8 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4">
-        <h2 className="mb-2 font-semibold text-neutral-900">연락처</h2>
-        <p>
-          이메일:{" "}
-          <a
-            href="mailto:contact@example.com"
-            className="font-medium text-blue-600 underline underline-offset-2"
-          >
-            nokobridge.contact@gmail.com
-          </a>
-        </p>
-      </section>
+  <h2 className="mb-2 font-semibold text-neutral-900">연락처</h2>
+
+  <p className="mb-1">
+    이메일:{" "}
+    <a
+      href="mailto:nokobridge.contact@gmail.com"
+      className="font-medium text-blue-600 underline underline-offset-2"
+    >
+      nokobridge.contact@gmail.com
+    </a>
+  </p>
+
+  <p>
+    블로그:{" "}
+    <a
+      href="https://blog.naver.com/nokobridge"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium text-blue-600 underline underline-offset-2"
+    >
+      https://blog.naver.com/nokobridge
+    </a>
+  </p>
+</section>
 
       <section className="mt-8">
         <h2 className="mb-2 font-semibold text-neutral-900">문의 가능 내용</h2>

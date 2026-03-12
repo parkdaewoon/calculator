@@ -7,7 +7,6 @@ import {
   type AllowanceDefinition,
   type AllowanceId,
 } from "@/lib/allowances";
-
 export default function AllowanceSection() {
   const summary =
     "공무원 수당은 공무원에게 지급되는 보수 중의 일부로서 직무여건 및 생활여건 등에 따라 지급되는 부가급여를 말합니다. 「공무원수당 등에 관한 규정」에 따라 5개 분야 14종으로 구분되며, 실비변상 4종도 함께 규정하고 있습니다. 국가공무원에 적용되며, 지방공무원은 「지방공무원수당 등에 관한 규정」을 따릅니다.";
@@ -23,7 +22,6 @@ export default function AllowanceSection() {
     <section className="rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
       <div className="text-sm font-semibold text-neutral-900">수당제도</div>
 
-      {/* 개요 */}
       <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
         <div className="text-xs font-semibold text-neutral-700">개요</div>
         <p className="mt-2 text-sm leading-relaxed text-neutral-600">
@@ -31,7 +29,6 @@ export default function AllowanceSection() {
         </p>
       </div>
 
-      {/* 카테고리별 요약(접기/펼치기) */}
       <div className="mt-5 space-y-3">
         {allowanceGroups.map((g) => (
           <details
@@ -94,7 +91,6 @@ export default function AllowanceSection() {
         ))}
       </div>
 
-      {/* 선택된 수당의 표 */}
       <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5">
         {!selectedDef ? (
           <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5">
@@ -111,7 +107,6 @@ export default function AllowanceSection() {
   );
 }
 
-/** 같은 파일 안에 내부 컴포넌트로 유지 */
 function AllowanceTablePanel({ def }: { def: AllowanceDefinition }) {
   return (
     <div>
@@ -131,7 +126,6 @@ function AllowanceTablePanel({ def }: { def: AllowanceDefinition }) {
           근거: {def.lawRefs.join(" · ")}
         </div>
       ) : null}
-
       <div className="mt-3 overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
         <table className="min-w-[640px] w-full border-separate border-spacing-0 text-sm">
           <thead>
@@ -173,6 +167,7 @@ function AllowanceTablePanel({ def }: { def: AllowanceDefinition }) {
           ))}
         </div>
       ) : null}
+      
     </div>
   );
 }

@@ -57,6 +57,7 @@ export default function SideMenu({
           <Link href="/privacy" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 개인정보 처리방침 </Link>
           <Link href="/terms" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 이용약관 </Link>
           <Link href="/disclaimer" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 면책조항 </Link>
+          <Link href="/pwa-install" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 앱(APP) 사용 방법 </Link>
           <Link href="/contact" onClick={onClose} className="block w-full rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm hover:bg-neutral-50" > 문의 </Link>
           </div>
           <div className="mt-auto pb-2 pt-6">
