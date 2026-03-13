@@ -49,7 +49,7 @@ export default function PwaInstallPage() {
                 key={idx}
                 className="flex items-start gap-3 rounded-2xl border border-neutral-100 bg-neutral-50 px-4 py-4"
               >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
                   {idx + 1}
                 </div>
                 <p className="text-sm leading-6 text-neutral-700">{item}</p>
@@ -90,7 +90,7 @@ export default function PwaInstallPage() {
                 key={idx}
                 className="flex items-start gap-3 rounded-2xl border border-neutral-100 bg-neutral-50 px-4 py-4"
               >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
                   {idx + 1}
                 </div>
                 <p className="text-sm leading-6 text-neutral-700">{item}</p>
