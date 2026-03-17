@@ -1,4 +1,7 @@
 let CURRENT_USER_ID = null;
+const DB_NAME = "nokobridge-push-db";
+const DB_VERSION = 1;
+const STORE_NAME = "kv";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -13,32 +16,39 @@ self.addEventListener("message", (event) => {
 
   if (data.type === "SET_USER_ID" && data.userId) {
     CURRENT_USER_ID = data.userId;
+    event.waitUntil(setStoredUserId(data.userId));
   }
 });
 
 self.addEventListener("push", (event) => {
-  let data = {};
+  event.waitUntil(
+    (async () => {
+      let data = {};
 
-  try {
-    data = event.data ? event.data.json() : {};
-  } catch {
-    data = {};
-  }
+      try {
+        data = event.data ? event.data.json() : {};
+      } catch (e) {
+        console.error("push payload parse failed", e);
+        data = {};
+      }
 
-  const title = data.title || "공무원 노트";
+      const title = data.title || "공무원 노트";
 
-  const options = {
-    body: data.body || "알림이 도착했어요.",
-    icon: data.icon || "/icon-192.png",
-    badge: data.badge || "/icon-192.png",
-    data: {
-      url: data.url || "/",
-      sentAt: data.sentAt || Date.now(),
-    },
-    timestamp: data.sentAt || Date.now(),
-  };
+      const options = {
+        body: data.body || "알림이 도착했어요.",
+        icon: data.icon || "/icon-192.png",
+        badge: data.badge || "/icon-192.png",
+        tag: data.tag || undefined,
+        data: {
+          url: data.url || "/",
+          sentAt: data.sentAt || Date.now(),
+        },
+        timestamp: data.sentAt || Date.now(),
+      };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+      await self.registration.showNotification(title, options);
+    })()
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
@@ -47,20 +57,32 @@ self.addEventListener("notificationclick", (event) => {
   const url = event.notification?.data?.url || "/";
 
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+    (async () => {
+      const clientList = await clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+
       for (const client of clientList) {
         const clientUrl = new URL(client.url);
 
         if (clientUrl.origin === self.location.origin) {
+          if ("navigate" in client) {
+            try {
+              await client.navigate(url);
+            } catch (e) {
+              console.error("client.navigate failed", e);
+            }
+          }
+
           if ("focus" in client) {
-            client.postMessage({ type: "OPEN_URL", url });
             return client.focus();
           }
         }
       }
 
       return clients.openWindow(url);
-    })
+    })()
   );
 });
 
@@ -69,12 +91,17 @@ self.addEventListener("pushsubscriptionchange", (event) => {
     (async () => {
       try {
         const userId = await getStoredUserId();
+
         if (!userId) {
           console.warn("pushsubscriptionchange: missing userId");
           return;
         }
 
-        const res = await fetch("/api/push/public-key", { cache: "no-store" });
+        const res = await fetch("/api/push/public-key", {
+          method: "GET",
+          cache: "no-store",
+        });
+
         const json = await res.json().catch(() => null);
         const key = json?.key;
 
@@ -87,7 +114,7 @@ self.addEventListener("pushsubscriptionchange", (event) => {
           applicationServerKey: urlBase64ToUint8Array(key),
         });
 
-        await fetch("/api/push/subscribe", {
+        const saveRes = await fetch("/api/push/subscribe", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -98,6 +125,12 @@ self.addEventListener("pushsubscriptionchange", (event) => {
             deviceLabel: "PWA",
           }),
         });
+
+        const saveJson = await saveRes.json().catch(() => null);
+
+        if (!saveRes.ok || !saveJson?.ok) {
+          throw new Error(saveJson?.error || "push subscription resave failed");
+        }
       } catch (e) {
         console.error("pushsubscriptionchange failed", e);
       }
@@ -121,6 +154,12 @@ function urlBase64ToUint8Array(base64String) {
 async function getStoredUserId() {
   if (CURRENT_USER_ID) return CURRENT_USER_ID;
 
+  const fromDb = await readKv("userId");
+  if (fromDb) {
+    CURRENT_USER_ID = fromDb;
+    return fromDb;
+  }
+
   const allClients = await clients.matchAll({
     includeUncontrolled: true,
     type: "window",
@@ -132,5 +171,55 @@ async function getStoredUserId() {
 
   await new Promise((resolve) => setTimeout(resolve, 500));
 
+  if (CURRENT_USER_ID) {
+    await setStoredUserId(CURRENT_USER_ID);
+  }
+
   return CURRENT_USER_ID;
+}
+
+async function setStoredUserId(userId) {
+  await writeKv("userId", userId);
+}
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function readKv(key) {
+  const db = await openDb();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get(key);
+
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function writeKv(key, value) {
+  const db = await openDb();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.put(value, key);
+
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => reject(req.error);
+  });
 }
