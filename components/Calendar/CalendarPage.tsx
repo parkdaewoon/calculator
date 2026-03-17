@@ -10,7 +10,11 @@ import AdsenseSlot from "@/components/AdsenseSlot";
 
 import DayDetailSheet from "./DayDetailSheet";
 import EventEditorSheet from "./EventEditorSheet";
-import { ensureDeviceUserId } from "@/lib/push/client";
+import {
+  ensureDeviceUserId,
+  fetchPushEnabled,
+  subscribeCalendarPush,
+} from "@/lib/push/client";
 import {
   addMonths,
   buildMonthGrid,
@@ -182,7 +186,9 @@ function normalizeHolidayMap(input: any): HolidaysMap {
  * ✅ holidays localStorage cache
  * ========================= */
 const HOLI_CACHE_KEY = "holidays_cache_v1";
-
+function hasAnyEnabledShiftReminder(reminder: ShiftReminderSettings) {
+  return Object.values(reminder ?? {}).some((item) => !!item?.enabled);
+}
 function readHolidaysCache(): Record<string, HolidaysMap> {
   if (typeof window === "undefined") return {};
   try {
@@ -315,22 +321,47 @@ useEffect(() => {
     setHolidays(merged);
   }, [visibleMonths]);
 
-  /** =========================
+ /** =========================
  * 2.1) persist remote calendar settings
  * ========================= */
 useEffect(() => {
   if (!settingsLoadedRef.current) return;
 
+  let cancelled = false;
+
   (async () => {
     try {
+      const needShiftPush = hasAnyEnabledShiftReminder(shiftReminder);
+
+      if (needShiftPush) {
+        const pushEnabled = await fetchPushEnabled(userId).catch(() => false);
+
+        if (!pushEnabled) {
+          console.log("[calendar] enabling push subscription before saving reminders");
+          await subscribeCalendarPush(userId);
+        }
+      }
+
+      if (cancelled) return;
+
       await saveCalendarSettings(userId, {
         workMode,
+        shiftReminder,
+      });
+
+      console.log("[calendar] saveCalendarSettings success", {
+        userId,
+        needShiftPush,
         shiftReminder,
       });
     } catch (e) {
       console.error("saveCalendarSettings failed", e);
     }
   })();
+
+  return () => {
+    cancelled = true;
+  };
 }, [userId, workMode, shiftReminder]);
 
   /** =========================
