@@ -122,7 +122,7 @@ export async function POST(req: Request) {
     const ignoreTime = body?.ignoreTime === true;
 
     const supabaseAdmin = getSupabaseAdmin();
-    const now = new Date();
+    const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
     const today = getTodayYmdInKst(now);
     const nowHhmm = getNowHhmmInKst(now);
 
