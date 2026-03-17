@@ -498,10 +498,12 @@ if (!startMs || !startsAtIso) {
 
 const res = await fetch("/api/calendar-events/upsert", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+    "x-device-id": userId,
+  },
   body: JSON.stringify({
     id: fixed.id,
-    user_id: userId,
     title: fixed.title ?? null,
     starts_at: startsAtIso,
     remind_at: remindAtIso,
@@ -522,10 +524,13 @@ const res = await fetch("/api/calendar-events/upsert", {
   const deleteEvent = async (id: string) => {
   try {
     const res = await fetch("/api/calendar-events/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, user_id: userId }),
-    });
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-device-id": userId,
+  },
+  body: JSON.stringify({ id }),
+});
 
     const json = await res.json().catch(() => null);
 

@@ -15,24 +15,43 @@ function getSupabaseAdmin() {
   });
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const supabaseAdmin = getSupabaseAdmin();
 
-    const { error } = await supabaseAdmin.from("calendar_events").upsert({
-      id: body.id,
-      user_id: body.user_id,
-      title: body.title,
-      starts_at: body.starts_at,
-      remind_at: body.remind_at,
-      reminder_sent: false,
-      type_main: body.type_main,
-      updated_at: new Date().toISOString(),
-    });
+    const id = isNonEmptyString(body?.id) ? body.id.trim() : "";
+    const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
+
+    if (!id || !deviceId) {
+      return Response.json(
+        { ok: false, error: "Missing id or device id" },
+        { status: 400 }
+      );
+    }
+
+    const { error, count } = await supabaseAdmin
+      .from("calendar_events")
+      .delete({ count: "exact" })
+      .eq("id", id)
+      .eq("user_id", deviceId);
 
     if (error) {
-      return Response.json({ ok: false, error: error.message }, { status: 500 });
+      return Response.json(
+        { ok: false, error: error.message },
+        { status: 500 }
+      );
+    }
+
+    if (!count) {
+      return Response.json(
+        { ok: false, error: "Event not found or not owned by this device" },
+        { status: 404 }
+      );
     }
 
     return Response.json({ ok: true });

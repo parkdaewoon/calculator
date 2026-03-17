@@ -79,10 +79,13 @@ async function syncUserIdToServiceWorker(userId: string) {
 }
 
 export async function fetchPushEnabled(userId: string) {
-  const res = await fetch(`/api/push/settings?userId=${encodeURIComponent(userId)}`, {
-    method: "GET",
-    cache: "no-store",
-  });
+  const res = await fetch("/api/push/settings", {
+  method: "GET",
+  cache: "no-store",
+  headers: {
+    "x-device-id": userId,
+  },
+});
 
   const json = await res.json().catch(() => null);
 
@@ -136,14 +139,16 @@ if (!sub) {
   const subscriptionJson = sub.toJSON();
 
   const saveRes = await fetch("/api/push/subscribe", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      userId,
-      subscription: subscriptionJson,
-      deviceLabel: "PWA",
-    }),
-  });
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-device-id": userId,
+  },
+  body: JSON.stringify({
+    subscription: subscriptionJson,
+    deviceLabel: "PWA",
+  }),
+});
 
   const saveJson = await saveRes.json().catch(() => null);
 
@@ -152,10 +157,13 @@ if (!sub) {
   }
 
   const settingsRes = await fetch("/api/push/settings", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, push_enabled: true }),
-  });
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-device-id": userId,
+  },
+  body: JSON.stringify({ push_enabled: true }),
+});
 
   const settingsJson = await settingsRes.json().catch(() => null);
 
@@ -178,13 +186,15 @@ export async function unsubscribeCalendarPush(userId: string) {
 
   if (sub) {
     const unsubRes = await fetch("/api/push/unsubscribe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        endpoint: sub.endpoint,
-      }),
-    });
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-device-id": userId,
+  },
+  body: JSON.stringify({
+    endpoint: sub.endpoint,
+  }),
+});
 
     const unsubJson = await unsubRes.json().catch(() => null);
 

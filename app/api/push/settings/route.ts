@@ -1,36 +1,57 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createClient } from "@supabase/supabase-js";
+
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+  if (!serviceRoleKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
+    const supabaseAdmin = getSupabaseAdmin();
+    const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
 
-    if (!userId) {
-      return Response.json({ ok: false, error: "Missing userId" }, { status: 400 });
+    if (!deviceId) {
+      return Response.json(
+        { ok: false, error: "Missing device id" },
+        { status: 401 }
+      );
     }
 
     const { data, error } = await supabaseAdmin
       .from("notification_settings")
-      .select("user_id, push_enabled, updated_at")
-      .eq("user_id", userId)
+      .select("user_id, push_enabled, updated_at, endpoint")
+      .eq("user_id", deviceId)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      return Response.json(
+        { ok: false, error: error.message },
+        { status: 500 }
+      );
+    }
 
     return Response.json({
       ok: true,
-      data: {
-        user_id: userId,
-        push_enabled: data?.push_enabled ?? false,
-        updated_at: data?.updated_at ?? null,
+      data: data ?? {
+        user_id: deviceId,
+        push_enabled: false,
+        updated_at: null,
+        endpoint: null,
       },
     });
-  } catch (e: any) {
+  } catch (e) {
     return Response.json(
-      { ok: false, error: e?.message || String(e) },
+      { ok: false, error: e instanceof Error ? e.message : "Unknown error" },
       { status: 500 }
     );
   }
@@ -39,29 +60,48 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { userId, ...rest } = body ?? {};
+    const supabaseAdmin = getSupabaseAdmin();
+    const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
 
-    if (!userId) {
-      return Response.json({ ok: false, error: "Missing userId" }, { status: 400 });
+    if (!deviceId) {
+      return Response.json(
+        { ok: false, error: "Missing device id" },
+        { status: 401 }
+      );
     }
+
+    if (typeof body?.push_enabled !== "boolean") {
+      return Response.json(
+        { ok: false, error: "Invalid push_enabled" },
+        { status: 400 }
+      );
+    }
+
+    const endpoint =
+      typeof body?.endpoint === "string" && body.endpoint.trim().length > 0
+        ? body.endpoint.trim()
+        : null;
 
     const { error } = await supabaseAdmin
       .from("notification_settings")
-      .upsert(
-        {
-          user_id: userId,
-          ...rest,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" }
-      );
+      .upsert({
+        user_id: deviceId,
+        push_enabled: body.push_enabled,
+        endpoint,
+        updated_at: new Date().toISOString(),
+      });
 
-    if (error) throw error;
+    if (error) {
+      return Response.json(
+        { ok: false, error: error.message },
+        { status: 500 }
+      );
+    }
 
     return Response.json({ ok: true });
-  } catch (e: any) {
+  } catch (e) {
     return Response.json(
-      { ok: false, error: e?.message || String(e) },
+      { ok: false, error: e instanceof Error ? e.message : "Unknown error" },
       { status: 500 }
     );
   }
