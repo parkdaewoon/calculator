@@ -19,6 +19,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+export async function GET() {
+  return Response.json({ ok: true, route: "calendar-events/delete alive" });
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -54,7 +58,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, deleted: true });
   } catch (e) {
     return Response.json(
       { ok: false, error: e instanceof Error ? e.message : "Unknown error" },

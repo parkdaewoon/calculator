@@ -23,6 +23,10 @@ function isValidIsoDate(value: unknown) {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
+export async function GET() {
+  return Response.json({ ok: true, route: "calendar-events/upsert alive" });
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -66,12 +70,14 @@ export async function POST(req: Request) {
       );
     }
 
+    const now = new Date().toISOString();
     const title = typeof body.title === "string" ? body.title.trim() : null;
     const remindAt =
       typeof body.remind_at === "string" ? body.remind_at : null;
     const typeMain =
       typeof body.type_main === "string" ? body.type_main.trim() : null;
 
+    // 새 일정 생성
     if (!id) {
       const { data, error } = await supabaseAdmin
         .from("calendar_events")
@@ -82,7 +88,7 @@ export async function POST(req: Request) {
           remind_at: remindAt,
           reminder_sent: false,
           type_main: typeMain,
-          updated_at: new Date().toISOString(),
+          updated_at: now,
         })
         .select("id")
         .single();
@@ -94,9 +100,10 @@ export async function POST(req: Request) {
         );
       }
 
-      return Response.json({ ok: true, id: data.id });
+      return Response.json({ ok: true, id: data.id, inserted: true });
     }
 
+    // 기존 일정 수정 시도
     const { error, count } = await supabaseAdmin
       .from("calendar_events")
       .update(
@@ -106,7 +113,7 @@ export async function POST(req: Request) {
           remind_at: remindAt,
           reminder_sent: false,
           type_main: typeMain,
-          updated_at: new Date().toISOString(),
+          updated_at: now,
         },
         { count: "exact" }
       )
@@ -120,14 +127,33 @@ export async function POST(req: Request) {
       );
     }
 
+    // 못 찾았으면 새로 저장
     if (!count) {
-      return Response.json(
-        { ok: false, error: "Event not found or not owned by this device" },
-        { status: 404 }
-      );
+      const { data, error: insertError } = await supabaseAdmin
+        .from("calendar_events")
+        .insert({
+          user_id: deviceId,
+          title,
+          starts_at: body.starts_at,
+          remind_at: remindAt,
+          reminder_sent: false,
+          type_main: typeMain,
+          updated_at: now,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        return Response.json(
+          { ok: false, error: insertError.message },
+          { status: 500 }
+        );
+      }
+
+      return Response.json({ ok: true, id: data.id, inserted: true, fallback: true });
     }
 
-    return Response.json({ ok: true, id });
+    return Response.json({ ok: true, id, updated: true });
   } catch (e) {
     return Response.json(
       { ok: false, error: e instanceof Error ? e.message : "Unknown error" },
