@@ -83,3 +83,4 @@ export type CalendarHeaderProps = {
   onClear: () => void;
   onChangeMonth: (next: YYYYMM) => void;
 };
+

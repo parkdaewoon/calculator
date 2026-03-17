@@ -30,7 +30,7 @@ export type HHMM = `${TimeHH}:${TimeMM}`;
 export type TimeRange = {
   start: HHMM;
   end: HHMM;
-  breakMinutes?: number; // ✅ 공제시간(분)
+  breakMinutes?: number;
 };
 
 export type ShiftPatternId =
@@ -40,7 +40,7 @@ export type ShiftPatternId =
   | "3_B"
   | "4_A"
   | "4_B"
-  | "CUSTOM"; // ✅ 추가
+  | "CUSTOM";
 
 export type WorkMode =
   | { type: "NONE" }
@@ -50,9 +50,30 @@ export type WorkMode =
       rotation: ShiftRotation;
       patternId: ShiftPatternId;
       times: Partial<Record<ShiftCode, TimeRange>>;
-      anchorDate?: YYYYMMDD; // ✅ (권장) 지금 as any 쓰는거 정리용
-      customCycle?: ShiftCode[]; // ✅ 직접입력 패턴 저장
+      anchorDate?: YYYYMMDD;
+      customCycle?: ShiftCode[];
     };
+
+/** ===== Shift Reminder ===== */
+
+export type ShiftReminderWhenMode = "today" | "previousDay";
+
+export type ReminderTargetCode = "DAY" | "EVE" | "NIGHT" | "DANG";
+
+export type ShiftReminderItem = {
+  enabled: boolean;
+  whenMode: ShiftReminderWhenMode;
+  reminderTime: HHMM;
+};
+
+export type ShiftReminderSettings = Partial<Record<ReminderTargetCode, ShiftReminderItem>>;
+
+export const DEFAULT_SHIFT_REMINDER: ShiftReminderSettings = {
+  DAY: { enabled: false, whenMode: "today", reminderTime: "07:00" },
+  EVE: { enabled: false, whenMode: "today", reminderTime: "13:00" },
+  NIGHT: { enabled: false, whenMode: "previousDay", reminderTime: "21:00" },
+  DANG: { enabled: false, whenMode: "today", reminderTime: "08:00" },
+};
 
 /** ===== UI Props ===== */
 
@@ -76,16 +97,13 @@ export type MonthGridProps = {
 
   pattern: WorkPattern;
   events: CalendarEvent[];
-  onChangeEvents: (events: CalendarEvent[]) => void; // ✅ 추가
+  onChangeEvents: (events: CalendarEvent[]) => void;
 
   showWorkBadges: boolean;
   onPrevMonth: () => void;
   onNextMonth: () => void;
 
-  // ✅ 추가: 날짜 더블클릭/상세보기 열기
   onOpenDay?: (date: YYYYMMDD) => void;
-
-  // ✅✅✅ 추가: CalendarPage에서 내려주는 공휴일 맵
   holidays?: Record<string, { name: string; isHoliday: boolean }>;
 };
 
@@ -97,8 +115,8 @@ export type SummaryBarProps = {
 export type WorkSummarySheetProps = {
   open: boolean;
   onClose: () => void;
-  stats: any; // 너 프로젝트에 있는 stats 타입으로 유지
-  month: YYYYMM; // ✅ 추가 (예: "2026-03")
+  stats: any;
+  month: YYYYMM;
 };
 
 export type WorkModeSheetProps = {
@@ -106,4 +124,7 @@ export type WorkModeSheetProps = {
   onClose: () => void;
   value: WorkMode;
   onChange: (v: WorkMode) => void;
+
+  reminderValue: ShiftReminderSettings;
+  onChangeReminder: (v: ShiftReminderSettings) => void;
 };

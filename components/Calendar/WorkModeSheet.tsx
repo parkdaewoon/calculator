@@ -1,4 +1,3 @@
-// components/Calendar/WorkModeSheet.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -11,15 +10,18 @@ import type {
   ShiftCode,
   HHMM,
   TimeRange,
+  ShiftReminderSettings,
 } from "./types";
 
 import DateWheelModal from "@/components/ui/wheel/presets/DateWheelModal";
 import TimeWheelModal from "@/components/ui/wheel/presets/TimeWheelModal";
 import BreakWheelModal from "@/components/ui/wheel/presets/BreakWheelModal";
 import { X } from "lucide-react";
+
 function todayYMD() {
   return new Date().toISOString().slice(0, 10);
 }
+
 function formatYmdKorean(ymd: string) {
   const s = String(ymd ?? "").trim();
   if (!s) return "";
@@ -31,6 +33,7 @@ function formatYmdKorean(ymd: string) {
   const dd = String(Number(d)).padStart(2, "0");
   return `${y}년 ${mm}월 ${dd}일`;
 }
+
 const SHIFT_PATTERNS: Record<
   ShiftPatternId,
   { rotation: ShiftRotation; title: string; seq: ShiftCode[] }
@@ -52,7 +55,6 @@ const SHIFT_PATTERNS: Record<
   "4_A": { rotation: 4, title: "주야비휴", seq: ["DAY", "NIGHT", "OFF", "REST"] },
   "4_B": { rotation: 4, title: "당비휴휴", seq: ["DANG", "OFF", "REST", "REST"] },
 
-  // ✅ 직접입력 (기본값은 주야비휴로 두고, 실제론 draft.customCycle을 씀)
   CUSTOM: { rotation: 4, title: "직접입력", seq: ["DAY", "NIGHT", "OFF", "REST"] },
 };
 
@@ -145,6 +147,15 @@ function getDefaultTimes(): Partial<Record<ShiftCode, TimeRange>> {
   };
 }
 
+function getDefaultReminder(): ShiftReminderSettings {
+  return {
+    DAY: { enabled: false, whenMode: "today", reminderTime: "07:00" },
+    EVE: { enabled: false, whenMode: "today", reminderTime: "13:00" },
+    NIGHT: { enabled: false, whenMode: "previousDay", reminderTime: "21:00" },
+    DANG: { enabled: false, whenMode: "today", reminderTime: "08:00" },
+  };
+}
+
 function CardButton({
   active,
   title,
@@ -171,7 +182,6 @@ function CardButton({
   );
 }
 
-/** ===== TimeRangePicker (Wheel launcher) ===== */
 function TimeRangePicker({
   label,
   value,
@@ -253,24 +263,91 @@ function TimeRangePicker({
   );
 }
 
+function Toggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={[
+        "relative h-7 w-12 rounded-full transition",
+        checked ? "bg-neutral-900" : "bg-neutral-300",
+      ].join(" ")}
+      aria-pressed={checked}
+    >
+      <span
+        className={[
+          "absolute top-1 h-5 w-5 rounded-full bg-white transition",
+          checked ? "left-6" : "left-1",
+        ].join(" ")}
+      />
+    </button>
+  );
+}
+
+function ReminderCodeChip({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "h-10 rounded-xl border px-3 text-sm font-semibold",
+        active
+          ? "border-neutral-900 bg-neutral-900 text-white"
+          : "border-neutral-200 bg-white text-neutral-700",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+}
+
 function isShift(m: WorkMode): m is Extract<WorkMode, { type: "SHIFT" }> {
   return (m as any)?.type === "SHIFT";
 }
 
+type ReminderTargetCode = "DAY" | "EVE" | "NIGHT" | "DANG";
+
 type TimePick =
   | { kind: "DAYMODE"; side: "start" | "end" }
-  | { kind: "SHIFT"; code: ShiftCode; side: "start" | "end" };
+  | { kind: "SHIFT"; code: ShiftCode; side: "start" | "end" }
+  | { kind: "REMINDER"; code: ReminderTargetCode };
 
 type BreakPick = { kind: "DAYMODE" } | { kind: "SHIFT"; code: ShiftCode };
 
-export default function WorkModeSheet({ open, onClose, value, onChange }: WorkModeSheetProps) {
+export default function WorkModeSheet({
+  open,
+  onClose,
+  value,
+  onChange,
+  reminderValue,
+  onChangeReminder,
+}: WorkModeSheetProps) {
   const [draft, setDraft] = useState<WorkMode>(value);
+  const [draftReminder, setDraftReminder] = useState<ShiftReminderSettings>(
+    reminderValue ?? getDefaultReminder()
+  );
 
   useEffect(() => {
-    if (open) setDraft(value);
-  }, [open, value]);
+    if (open) {
+      setDraft(value);
+      setDraftReminder(reminderValue ?? getDefaultReminder());
+    }
+  }, [open, value, reminderValue]);
 
-  // ✅ modal controls (DAYMODE vs SHIFT 구분!)
   const [openAnchorWheel, setOpenAnchorWheel] = useState(false);
   const [timePick, setTimePick] = useState<TimePick | null>(null);
   const [breakPick, setBreakPick] = useState<BreakPick | null>(null);
@@ -283,46 +360,49 @@ export default function WorkModeSheet({ open, onClose, value, onChange }: WorkMo
     return all.filter((id) => SHIFT_PATTERNS[id].rotation === shiftRotation);
   }, [shiftRotation]);
 
-  const neededCodes = useMemo(() => {
-    if (!isShift(draft)) return [];
+  const neededCodes = useMemo<ReminderTargetCode[]>(() => {
+  if (!isShift(draft)) return [];
 
-    const patternId = draft.patternId;
+  const patternId = draft.patternId;
 
-    const seq =
-      patternId === "CUSTOM"
-        ? (((draft as { customCycle?: ShiftCode[] }).customCycle ?? SHIFT_PATTERNS.CUSTOM.seq) as ShiftCode[])
-        : (SHIFT_PATTERNS[patternId]?.seq ?? []);
+  const seq =
+    patternId === "CUSTOM"
+      ? (((draft as { customCycle?: ShiftCode[] }).customCycle ??
+          SHIFT_PATTERNS.CUSTOM.seq) as ShiftCode[])
+      : (SHIFT_PATTERNS[patternId]?.seq ?? []);
 
-    return uniqCodes(seq).filter((c) => c !== "OFF" && c !== "REST");
-  }, [draft]);
+  return uniqCodes(seq).filter(
+    (c): c is ReminderTargetCode => c !== "OFF" && c !== "REST"
+  );
+}, [draft]);
 
   const applyAndClose = () => {
     onChange(draft);
+    onChangeReminder(draftReminder);
     onClose();
   };
 
   return (
-  <Sheet
-    open={open}
-    onClose={onClose}
-    title={
-  <div className="flex w-full items-center justify-between">
-    <span className="text-sm font-semibold">근무형태 설정</span>
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={
+        <div className="flex w-full items-center justify-between">
+          <span className="text-sm font-semibold">근무형태 설정</span>
 
-    <button
-      onClick={onClose}
-      className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100"
-      type="button"
-      aria-label="닫기"
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100"
+            type="button"
+            aria-label="닫기"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      }
     >
-      <X size={18} />
-    </button>
-  </div>
-}
-  >
       <div className="pr-1">
         <div className="space-y-4">
-          {/* 1) 유형 */}
           <div className="space-y-3">
             <CardButton
               active={(draft as any).type === "DAY"}
@@ -356,7 +436,6 @@ export default function WorkModeSheet({ open, onClose, value, onChange }: WorkMo
             />
           </div>
 
-          {/* 2) 일반근무 시간 */}
           {(draft as any).type === "DAY" ? (
             <TimeRangePicker
               label="일반근무 시간"
@@ -368,27 +447,24 @@ export default function WorkModeSheet({ open, onClose, value, onChange }: WorkMo
             />
           ) : null}
 
-          {/* 3) 교대 설정 */}
           {(draft as any).type === "SHIFT" ? (
             <div className="space-y-3">
-              {/* 교대 시작일 */}
-<div className="rounded-2xl border border-neutral-100 p-3">
-  <div className="text-xs font-semibold text-neutral-700">교대 시작일</div>
+              <div className="rounded-2xl border border-neutral-100 p-3">
+                <div className="text-xs font-semibold text-neutral-700">교대 시작일</div>
 
-  <div className="mt-2">
-    <button
-      type="button"
-      onClick={() => setOpenAnchorWheel(true)}
-      className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-left text-sm font-semibold text-neutral-900 hover:bg-neutral-50"
-    >
-      {formatYmdKorean((draft as any).anchorDate ?? todayYMD())}
-    </button>
-  </div>
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpenAnchorWheel(true)}
+                    className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-left text-sm font-semibold text-neutral-900 hover:bg-neutral-50"
+                  >
+                    {formatYmdKorean((draft as any).anchorDate ?? todayYMD())}
+                  </button>
+                </div>
 
-  <div className="mt-2 ml-2 text-[11px] text-neutral-400">* 해당 일부터 1일차</div>
-</div>
+                <div className="mt-2 ml-2 text-[11px] text-neutral-400">* 해당 일부터 1일차</div>
+              </div>
 
-              {/* 3-1) 2/3/4교대 + 직접입력 */}
               <div className="grid grid-cols-4 gap-2">
                 {[2, 3, 4].map((r) => {
                   const active =
@@ -428,7 +504,6 @@ export default function WorkModeSheet({ open, onClose, value, onChange }: WorkMo
                   );
                 })}
 
-                {/* 직접입력 버튼 */}
                 <button
                   type="button"
                   onClick={() => {
@@ -460,13 +535,10 @@ export default function WorkModeSheet({ open, onClose, value, onChange }: WorkMo
                 </button>
               </div>
 
-              {/* CUSTOM 패턴 입력 */}
               {(draft as any).type === "SHIFT" && (draft as any).patternId === "CUSTOM" ? (
                 <div className="rounded-2xl border border-neutral-100 p-3">
                   <div className="text-xs font-semibold text-neutral-700">패턴 직접입력</div>
-                  <div className="mt-2 text-[11px] text-neutral-500">
-                    사용가능: 주/저/야/당/비/휴
-                  </div>
+                  <div className="mt-2 text-[11px] text-neutral-500">사용가능: 주/저/야/당/비/휴</div>
 
                   <input
                     className="mt-2 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm"
@@ -487,7 +559,6 @@ export default function WorkModeSheet({ open, onClose, value, onChange }: WorkMo
                 </div>
               ) : null}
 
-              {/* 3-2) 패턴 (직접입력일 때 숨김) */}
               {!((draft as any).type === "SHIFT" && (draft as any).patternId === "CUSTOM") ? (
                 <div className="space-y-2">
                   <div className="text-xs ml-2 font-semibold text-neutral-700">패턴</div>
@@ -525,41 +596,124 @@ export default function WorkModeSheet({ open, onClose, value, onChange }: WorkMo
                 </div>
               ) : null}
 
-              {/* 3-3) 근무 시간(+공제시간) */}
-              <div className="space-y-2">
-                <div className="text-xs ml-2 font-semibold text-neutral-700">근무 시간</div>
+              {/* 3-3) 근무 시간(+공제시간) + 근무 알림 */}
+<div className="space-y-2">
+  <div className="text-xs ml-2 font-semibold text-neutral-700">근무 시간</div>
 
-                {neededCodes.length === 0 ? (
-                  <div className="text-xs text-neutral-500">설정할 근무 시간이 없습니다.</div>
-                ) : (
-                  <div className="space-y-2">
-                    {neededCodes.map((code) => {
-                      const current =
-                        (isShift(draft) ? (draft as any).times?.[code] : undefined) ??
-                        getDefaultTimes()[code] ??
-                        ({ start: "09:00", end: "18:00", breakMinutes: 0 } as TimeRange);
+  {neededCodes.length === 0 ? (
+    <div className="text-xs text-neutral-500">설정할 근무 시간이 없습니다.</div>
+  ) : (
+    <div className="space-y-2">
+      {neededCodes.map((code) => {
+  const current =
+    (isShift(draft) ? (draft as any).times?.[code] : undefined) ??
+    getDefaultTimes()[code] ??
+    ({ start: "09:00", end: "18:00", breakMinutes: 0 } as TimeRange);
 
-                      return (
-                        <TimeRangePicker
-                          key={code}
-                          label={codeLabel(code)}
-                          value={current}
-                          wheel={{
-                            openTime: (side) => setTimePick({ kind: "SHIFT", code, side }),
-                            openBreak: () => setBreakPick({ kind: "SHIFT", code }),
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
+  const reminder = draftReminder[code] ?? {
+    enabled: false,
+    whenMode: code === "NIGHT" ? "previousDay" : "today",
+    reminderTime:
+      code === "DAY"
+        ? "07:00"
+        : code === "EVE"
+        ? "13:00"
+        : code === "NIGHT"
+        ? "21:00"
+        : "08:00",
+  };
 
-                <div className="text-[11px] ml-2 text-neutral-400">* 비번/휴무는 시간 설정을 생략합니다.</div>
-              </div>
+  return (
+    <div key={code} className="space-y-2">
+      <TimeRangePicker
+        label={codeLabel(code)}
+        value={current}
+        wheel={{
+          openTime: (side) => setTimePick({ kind: "SHIFT", code, side }),
+          openBreak: () => setBreakPick({ kind: "SHIFT", code }),
+        }}
+      />
+
+      <div className="rounded-2xl border border-neutral-100 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold text-neutral-700">
+              {codeLabel(code)} 알림
+            </div>
+            <div className="mt-1 text-[11px] text-neutral-500">
+              {codeLabel(code)} 근무 알림을 설정합니다.
+            </div>
+          </div>
+
+          <Toggle
+            checked={reminder.enabled}
+            onChange={(next) =>
+              setDraftReminder((prev: ShiftReminderSettings) => ({
+                ...prev,
+                [code]: {
+                  ...(prev[code] ?? reminder),
+                  enabled: next,
+                },
+              }))
+            }
+          />
+        </div>
+
+        <div className="mt-3 rounded-2xl border border-neutral-100 p-3">
+  <div className="grid grid-cols-[110px_1fr] items-end gap-2">
+    <div>
+      <div className="mb-2 text-xs font-semibold text-neutral-700">알림 기준</div>
+      <select
+        value={reminder.whenMode}
+        onChange={(e) =>
+          setDraftReminder((prev: ShiftReminderSettings) => ({
+            ...prev,
+            [code]: {
+              ...(prev[code] ?? reminder),
+              whenMode: e.target.value as "today" | "previousDay",
+            },
+          }))
+        }
+        className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-900 outline-none"
+      >
+        <option value="previousDay">전날</option>
+        <option value="today">당일</option>
+      </select>
+    </div>
+
+    <div>
+      <div className="mb-2 text-xs font-semibold text-neutral-700">알림 시간</div>
+      <button
+        type="button"
+        onClick={() => setTimePick({ kind: "REMINDER", code })}
+        className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-left text-sm font-semibold text-neutral-900 hover:bg-neutral-50"
+      >
+        {reminder.reminderTime}
+      </button>
+    </div>
+  </div>
+
+  <div className="mt-2 text-[11px] text-neutral-400">
+    {reminder.whenMode === "today"
+      ? "해당 근무일 당일에 알림"
+      : "다음날 근무를 전날 미리 알림"}
+  </div>
+</div>
+
+      </div>
+    </div>
+  );
+})}
+    </div>
+  )}
+
+  <div className="text-[11px] ml-2 text-neutral-400">
+    * 비번/휴무는 시간 설정을 생략합니다.
+  </div>
+</div>
             </div>
           ) : null}
 
-          {/* 하단 버튼 */}
           <div className="space-y-2 pt-1">
             <button
               type="button"
@@ -572,154 +726,190 @@ export default function WorkModeSheet({ open, onClose, value, onChange }: WorkMo
         </div>
       </div>
 
-      {/* ===== Modals ===== */}
-<DateWheelModal
-  open={openAnchorWheel}
-  title="교대 시작일 선택"
-  value={(draft as any).anchorDate ?? todayYMD()}
-  onClose={() => setOpenAnchorWheel(false)}
-  onConfirm={(next) => {
-    setDraft((p) => ({ ...(p as any), anchorDate: next } as any));
-    setOpenAnchorWheel(false); // ✅ 확인 누르면 닫기
-  }}
-/>
+      <DateWheelModal
+        open={openAnchorWheel}
+        title="교대 시작일 선택"
+        value={(draft as any).anchorDate ?? todayYMD()}
+        onClose={() => setOpenAnchorWheel(false)}
+        onConfirm={(next) => {
+          setDraft((p) => ({ ...(p as any), anchorDate: next } as any));
+          setOpenAnchorWheel(false);
+        }}
+      />
 
-{timePick ? (
-  <TimeWheelModal
-    open={true}
-    title={
-      timePick.kind === "DAYMODE"
-        ? timePick.side === "start"
-          ? "일반근무 시작시간"
-          : "일반근무 종료시간"
-        : timePick.side === "start"
-        ? `${codeLabel(timePick.code)} 시작시간`
-        : `${codeLabel(timePick.code)} 종료시간`
-    }
-    value={
-      (timePick.kind === "DAYMODE"
-        ? ((timePick.side === "start"
-            ? (draft as any).day?.start
-            : (draft as any).day?.end) ?? "09:00")
-        : (isShift(draft)
-            ? (draft as any).times?.[timePick.code]?.[timePick.side] ??
-              (timePick.side === "start" ? "09:00" : "18:00")
-            : "09:00")) as HHMM
-    }
-    stepMin={5}
-    onClose={() => setTimePick(null)}
-    onConfirm={(next) => {
-      const pick = timePick;
-      if (!pick) return;
+      {timePick ? (
+        <TimeWheelModal
+          open={true}
+          title={
+  timePick.kind === "DAYMODE"
+    ? timePick.side === "start"
+      ? "일반근무 시작시간"
+      : "일반근무 종료시간"
+    : timePick.kind === "REMINDER"
+    ? `${codeLabel(timePick.code)} 알림 시간`
+    : timePick.side === "start"
+    ? `${codeLabel(timePick.code)} 시작시간`
+    : `${codeLabel(timePick.code)} 종료시간`
+}
+          value={
+  (timePick.kind === "DAYMODE"
+    ? ((timePick.side === "start"
+        ? (draft as any).day?.start
+        : (draft as any).day?.end) ?? "09:00")
+    : timePick.kind === "REMINDER"
+    ? (draftReminder[timePick.code]?.reminderTime ??
+        (timePick.code === "DAY"
+          ? "07:00"
+          : timePick.code === "EVE"
+          ? "13:00"
+          : timePick.code === "NIGHT"
+          ? "21:00"
+          : "08:00"))
+    : (isShift(draft)
+        ? (draft as any).times?.[timePick.code]?.[timePick.side] ??
+          (timePick.side === "start" ? "09:00" : "18:00")
+        : "09:00")) as HHMM
+}
+          stepMin={5}
+          onClose={() => setTimePick(null)}
+          onConfirm={(next) => {
+            const pick = timePick;
+            if (!pick) return;
 
-      // ✅ 일반근무
-      if (pick.kind === "DAYMODE") {
-        const side = pick.side;
-        setDraft((p) => ({
-          ...(p as any),
-          type: "DAY",
-          day: { ...(p as any).day, [side]: next },
-        }));
-        setTimePick(null); // ✅ 닫기 (중요)
-        return;
-      }
+            if (pick.kind === "REMINDER") {
+  const code = pick.code;
 
-      // ✅ 교대근무
-      const code = pick.code;
-      const side = pick.side;
+  setDraftReminder((prev: ShiftReminderSettings) => {
+    const fallback = {
+      enabled: false,
+      whenMode: code === "NIGHT" ? "previousDay" : "today" as "today" | "previousDay",
+      reminderTime:
+        code === "DAY"
+          ? "07:00"
+          : code === "EVE"
+          ? "13:00"
+          : code === "NIGHT"
+          ? "21:00"
+          : "08:00" as HHMM,
+    };
 
-      setDraft((p) => {
-        const prev = isShift(p)
-          ? (p as any)
-          : ({
-              type: "SHIFT",
-              rotation: 4,
-              patternId: "4_A",
-              times: {},
-              anchorDate: todayYMD(),
-            } as any);
+    return {
+      ...prev,
+      [code]: {
+        ...(prev[code] ?? fallback),
+        reminderTime: next,
+      },
+    };
+  });
 
-        const cur =
-          prev.times?.[code] ??
-          (getDefaultTimes()[code] as any) ??
-          ({ start: "09:00", end: "18:00", breakMinutes: 0 } as TimeRange);
+  setTimePick(null);
+  return;
+}
 
-        return {
-          ...prev,
-          times: {
-            ...prev.times,
-            [code]: { ...cur, [side]: next },
-          },
-        } as any;
-      });
+            if (pick.kind === "DAYMODE") {
+              const side = pick.side;
+              setDraft((p) => ({
+                ...(p as any),
+                type: "DAY",
+                day: { ...(p as any).day, [side]: next },
+              }));
+              setTimePick(null);
+              return;
+            }
 
-      setTimePick(null); // ✅ 닫기
-    }}
-  />
-) : null}
+            const code = pick.code;
+            const side = pick.side;
 
-{breakPick ? (
-  <BreakWheelModal
-    open={true}
-    value={
-      breakPick.kind === "DAYMODE"
-        ? Number((draft as any).day?.breakMinutes ?? 0)
-        : Number(
-            isShift(draft)
-              ? (draft as any).times?.[breakPick.code]?.breakMinutes ??
-                  getDefaultTimes()[breakPick.code]?.breakMinutes ??
-                  0
-              : 0
-          )
-    }
-    onClose={() => setBreakPick(null)}
-    onConfirm={(nextMin) => {
-      const pick = breakPick;
-      if (!pick) return;
+            setDraft((p) => {
+              const prev = isShift(p)
+                ? (p as any)
+                : ({
+                    type: "SHIFT",
+                    rotation: 4,
+                    patternId: "4_A",
+                    times: {},
+                    anchorDate: todayYMD(),
+                  } as any);
 
-      // ✅ 일반근무
-      if (pick.kind === "DAYMODE") {
-        setDraft((p) => ({
-          ...(p as any),
-          type: "DAY",
-          day: { ...(p as any).day, breakMinutes: nextMin },
-        }));
-        setBreakPick(null); // ✅ 닫기
-        return;
-      }
+              const cur =
+                prev.times?.[code] ??
+                (getDefaultTimes()[code] as any) ??
+                ({ start: "09:00", end: "18:00", breakMinutes: 0 } as TimeRange);
 
-      // ✅ 교대근무
-      const code = pick.code;
+              return {
+                ...prev,
+                times: {
+                  ...prev.times,
+                  [code]: { ...cur, [side]: next },
+                },
+              } as any;
+            });
 
-      setDraft((p) => {
-        const prev = isShift(p)
-          ? (p as any)
-          : ({
-              type: "SHIFT",
-              rotation: 4,
-              patternId: "4_A",
-              times: {},
-              anchorDate: todayYMD(),
-            } as any);
+            setTimePick(null);
+          }}
+        />
+      ) : null}
 
-        const cur =
-          prev.times?.[code] ??
-          (getDefaultTimes()[code] as any) ??
-          ({ start: "09:00", end: "18:00", breakMinutes: 0 } as TimeRange);
+      {breakPick ? (
+        <BreakWheelModal
+          open={true}
+          value={
+            breakPick.kind === "DAYMODE"
+              ? Number((draft as any).day?.breakMinutes ?? 0)
+              : Number(
+                  isShift(draft)
+                    ? (draft as any).times?.[breakPick.code]?.breakMinutes ??
+                        getDefaultTimes()[breakPick.code]?.breakMinutes ??
+                        0
+                    : 0
+                )
+          }
+          onClose={() => setBreakPick(null)}
+          onConfirm={(nextMin) => {
+            const pick = breakPick;
+            if (!pick) return;
 
-        return {
-          ...prev,
-          times: {
-            ...prev.times,
-            [code]: { ...cur, breakMinutes: nextMin },
-          },
-        } as any;
-      });
+            if (pick.kind === "DAYMODE") {
+              setDraft((p) => ({
+                ...(p as any),
+                type: "DAY",
+                day: { ...(p as any).day, breakMinutes: nextMin },
+              }));
+              setBreakPick(null);
+              return;
+            }
 
-      setBreakPick(null); // ✅ 닫기
-    }}
-  />
-) : null}
+            const code = pick.code;
+
+            setDraft((p) => {
+              const prev = isShift(p)
+                ? (p as any)
+                : ({
+                    type: "SHIFT",
+                    rotation: 4,
+                    patternId: "4_A",
+                    times: {},
+                    anchorDate: todayYMD(),
+                  } as any);
+
+              const cur =
+                prev.times?.[code] ??
+                (getDefaultTimes()[code] as any) ??
+                ({ start: "09:00", end: "18:00", breakMinutes: 0 } as TimeRange);
+
+              return {
+                ...prev,
+                times: {
+                  ...prev.times,
+                  [code]: { ...cur, breakMinutes: nextMin },
+                },
+              } as any;
+            });
+
+            setBreakPick(null);
+          }}
+        />
+      ) : null}
     </Sheet>
   );
 }

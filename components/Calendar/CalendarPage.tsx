@@ -30,45 +30,11 @@ import {
   saveCalendarState,
   clearCalendarState,
 } from "@/lib/storage/calendarStorage";
-import type { WorkMode } from "./types";
-
+import type { WorkMode, ShiftReminderSettings } from "./types";
+import { DEFAULT_SHIFT_REMINDER } from "./types";
+import { loadCalendarSettings, saveCalendarSettings } from "@/lib/calendar/settings";
 type HolidaysMap = Record<string, { name: string; isHoliday: boolean }>;
-const REMINDER_FIRED_KEY = "calendar_reminder_fired_v1";
-const MAX_TIMEOUT_MS = 2_147_000_000;
 
-function readReminderFiredMap(): Record<string, number> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(REMINDER_FIRED_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeReminderFiredMap(map: Record<string, number>) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(REMINDER_FIRED_KEY, JSON.stringify(map));
-  } catch {}
-}
-
-function toEventStartMs(ev: CalendarEvent): number | null {
-  const ymd = normalizeYmd(ev?.dateStart);
-  if (!ymd) return null;
-  const [y, m, d] = ymd.split("-").map(Number);
-
-  const time = ev?.allDay ? "09:00" : String(ev?.startTime || "09:00");
-  const tm = time.match(/^(\d{1,2}):(\d{2})$/);
-  if (!tm) return null;
-
-  const hh = Math.min(23, Math.max(0, Number(tm[1])));
-  const mm = Math.min(59, Math.max(0, Number(tm[2])));
-  const dt = new Date(y, (m ?? 1) - 1, d ?? 1, hh, mm, 0, 0);
-  const ms = dt.getTime();
-  return Number.isFinite(ms) ? ms : null;
-}
 function getEventScheduleTimes(ev: CalendarEvent): {
   startMs: number | null;
   startsAtIso: string | null;
@@ -255,7 +221,9 @@ export default function CalendarPage() {
 
   const [workMode, setWorkMode] = useState<WorkMode>(() => ({ type: "NONE" }));
   const [workModeOpen, setWorkModeOpen] = useState(false);
-
+const [shiftReminder, setShiftReminder] =
+  useState<ShiftReminderSettings>(DEFAULT_SHIFT_REMINDER);
+  const settingsLoadedRef = useRef(false);
   // ✅ holidays: 캐시 ref
   const holidaysCacheRef = useRef<Record<string, HolidaysMap> | null>(null);
 
@@ -288,68 +256,48 @@ export default function CalendarPage() {
     return (events as any[]).find((e) => e?.id === editingId) ?? null;
   }, [events, editingId]);
 
-  /** =========================
-   * 1) load persisted state
-   * ========================= */
-  useEffect(() => {
-    const st = loadCalendarState();
+/** =========================
+ * 1.1) load remote calendar settings
+ * ========================= */
+useEffect(() => {
+  let alive = true;
 
-    if (st) {
-      if (Array.isArray(st.events)) {
-        const migrated = st.events.map((e: any) => migrateEvent(e, today));
-        setEvents(migrated);
-      }
+  (async () => {
+    try {
+      const userId = ensureDeviceUserId();
+      const { workMode: remoteWorkMode, shiftReminder: remoteShiftReminder } =
+        await loadCalendarSettings(userId);
 
-      let nextWorkMode: WorkMode | null = null;
+      if (!alive) return;
 
-      if (st.workMode) {
-        if (typeof st.workMode === "string") {
-          if (st.workMode === "SHIFT") {
-            nextWorkMode = {
-              type: "SHIFT",
-              rotation: 4,
-              patternId: "4_A",
-              times: {},
-              anchorDate: today,
-            };
-          } else {
-            nextWorkMode = { type: "NONE" };
-          }
-        } else if (isWorkModeObject(st.workMode)) {
-          if (st.workMode.type === "SHIFT") {
-            nextWorkMode = {
-              ...st.workMode,
-              anchorDate: normalizeYmd((st.workMode as any).anchorDate) || today,
-            } as any;
-          } else {
-            nextWorkMode = st.workMode;
-          }
-        }
-      }
+      if (remoteWorkMode) {
+        const nextWorkMode: WorkMode =
+          remoteWorkMode.type === "SHIFT"
+            ? ({
+                ...remoteWorkMode,
+                anchorDate: normalizeYmd((remoteWorkMode as any).anchorDate) || today,
+              } as any)
+            : remoteWorkMode;
 
-      if (nextWorkMode?.type === "SHIFT" && !(nextWorkMode as any).anchorDate) {
-        nextWorkMode = { ...(nextWorkMode as any), anchorDate: today };
-      }
-
-      if (nextWorkMode) setWorkMode(nextWorkMode);
-
-      if (nextWorkMode) {
+        setWorkMode(nextWorkMode);
         setPattern(workModeToPattern(nextWorkMode as any, today));
-      } else if (st.pattern) {
-        const p: any = st.pattern;
-        const nextPattern =
-          p?.anchorDate
-            ? { ...p, anchorDate: normalizeYmd(p.anchorDate) || today }
-            : p;
-        setPattern(nextPattern);
-      } else {
-        setPattern(defaultPattern(today));
       }
-    }
 
-    // ✅ 로드가 끝났다고 표시 (이후부터만 save effect 실행)
-    setHydrated(true);
-  }, [today]);
+      if (remoteShiftReminder) {
+        setShiftReminder(remoteShiftReminder);
+      }
+
+      settingsLoadedRef.current = true;
+    } catch (e) {
+      console.error("loadCalendarSettings failed", e);
+      settingsLoadedRef.current = true;
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, [today]);
 
   /** =========================
    * 1.5) month가 바뀌면: 캐시를 즉시 적용
@@ -368,21 +316,22 @@ export default function CalendarPage() {
   }, [visibleMonths]);
 
   /** =========================
-   * 2) persist state (hydrated 이후만)
-   * ========================= */
-  useEffect(() => {
-    if (!hydrated) return;
+ * 2.1) persist remote calendar settings
+ * ========================= */
+useEffect(() => {
+  if (!settingsLoadedRef.current) return;
 
-    const safeEvents = (events ?? []).map((e: any) => migrateEvent(e, today));
-
-    saveCalendarState({
-  pattern,
-  events: safeEvents,
-  workMode,
-  month,
-  selectedDate,
-});
-  }, [hydrated, pattern, events, workMode, month, selectedDate, today]);
+  (async () => {
+    try {
+      await saveCalendarSettings(userId, {
+        workMode,
+        shiftReminder,
+      });
+    } catch (e) {
+      console.error("saveCalendarSettings failed", e);
+    }
+  })();
+}, [userId, workMode, shiftReminder]);
 
   /** =========================
    * 3) holidays fetch when month changes
@@ -622,20 +571,23 @@ export default function CalendarPage() {
       />
 
       <WorkModeSheet
-        open={workModeOpen}
-        onClose={() => setWorkModeOpen(false)}
-        value={workMode}
-        onChange={(v) => {
-          const next: WorkMode =
-            v.type === "SHIFT"
-              ? ({ ...v, anchorDate: normalizeYmd((v as any).anchorDate) || today } as any)
-              : v;
+  open={workModeOpen}
+  onClose={() => setWorkModeOpen(false)}
+  value={workMode}
+  onChange={(v) => {
+    const next: WorkMode =
+      v.type === "SHIFT"
+        ? ({ ...v, anchorDate: normalizeYmd((v as any).anchorDate) || today } as any)
+        : v;
 
-          setWorkMode(next);
-          setPattern(workModeToPattern(next as any, today));
-          setWorkModeOpen(false);
-        }}
-      />
+    setWorkMode(next);
+    setPattern(workModeToPattern(next as any, today));
+  }}
+  reminderValue={shiftReminder}
+  onChangeReminder={(next) => {
+    setShiftReminder(next);
+  }}
+/>
 
       <DayDetailSheet
         open={dayDetailOpen}
