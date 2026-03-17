@@ -26,9 +26,8 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
 
   const { data, error } = await supabaseAdmin
     .from("push_subscriptions")
-    .select("endpoint, p256dh, auth, enabled")
-    .eq("user_id", userId)
-    .eq("enabled", true);
+.select("endpoint, p256dh, auth, enabled")
+.eq("enabled", true);
 
   if (error) {
     console.error("[push] subscription query failed", error);
