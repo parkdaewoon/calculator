@@ -118,27 +118,15 @@ export async function POST(req: Request) {
     const today = getTodayYmdInKst();
     const nowHhmm = getNowHhmmInKst();
 
-    const { data: rows, error } = await supabaseAdmin
+    const { data: reminderRows, error: reminderError } = await supabaseAdmin
       .from("shift_reminder_settings")
-      .select(`
-        user_id,
-        enabled,
-        when_mode,
-        reminder_time,
-        target_codes,
-        user_work_modes!inner (
-          work_mode
-        ),
-        notification_settings (
-          push_enabled
-        )
-      `)
+      .select("user_id, enabled, when_mode, reminder_time, target_codes")
       .eq("enabled", true)
       .eq("reminder_time", nowHhmm);
 
-    if (error) {
+    if (reminderError) {
       return Response.json(
-        { ok: false, error: error.message },
+        { ok: false, error: reminderError.message },
         { status: 500 }
       );
     }
@@ -148,7 +136,7 @@ export async function POST(req: Request) {
     let skippedUsers = 0;
     let failedUsers = 0;
 
-    for (const row of rows ?? []) {
+    for (const row of reminderRows ?? []) {
       checkedUsers += 1;
 
       const userId = row.user_id as string;
@@ -159,15 +147,49 @@ export async function POST(req: Request) {
         ? row.target_codes.filter((v): v is string => typeof v === "string")
         : [];
 
-      const workMode = (row as any).user_work_modes?.work_mode;
-      const pushEnabled = !!(row as any).notification_settings?.[0]?.push_enabled;
-
-      if (!pushEnabled || !workMode || typeof workMode !== "object") {
+      if (!targetCodes.length) {
         skippedUsers += 1;
         continue;
       }
 
-      if (!targetCodes.length) {
+      const [
+        { data: workModeRow, error: workModeError },
+        { data: notificationRow, error: notificationError },
+      ] = await Promise.all([
+        supabaseAdmin
+          .from("user_work_modes")
+          .select("work_mode")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        supabaseAdmin
+          .from("notification_settings")
+          .select("push_enabled")
+          .eq("user_id", userId)
+          .maybeSingle(),
+      ]);
+
+      if (workModeError) {
+        console.error("[shift-reminder] work mode query failed", {
+          userId,
+          workModeError,
+        });
+        failedUsers += 1;
+        continue;
+      }
+
+      if (notificationError) {
+        console.error("[shift-reminder] notification settings query failed", {
+          userId,
+          notificationError,
+        });
+        failedUsers += 1;
+        continue;
+      }
+
+      const pushEnabled = !!notificationRow?.push_enabled;
+      const workMode = workModeRow?.work_mode;
+
+      if (!pushEnabled || !workMode || typeof workMode !== "object") {
         skippedUsers += 1;
         continue;
       }
