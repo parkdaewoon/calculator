@@ -120,10 +120,12 @@ export async function POST(req: Request) {
     const nowHhmm = getNowHhmmInKst();
 
     const { data: reminderRows, error: reminderError } = await supabaseAdmin
-      .from("shift_reminder_rules")
-      .select("user_id, target_code, enabled, when_mode, reminder_time")
-      .eq("enabled", true)
-      .eq("reminder_time", nowHhmm);
+  .from("shift_reminder_rules")
+  .select("user_id, target_code, enabled, when_mode, reminder_time")
+  .eq("enabled", true);
+
+console.log("[shift-reminder] now", { today, nowHhmm });
+console.log("[shift-reminder] loaded reminderRows", reminderRows);
 
     if (reminderError) {
       return Response.json(
@@ -139,7 +141,18 @@ export async function POST(req: Request) {
 
     for (const row of reminderRows ?? []) {
       checkedRules += 1;
+  console.log("[shift-reminder] checking row", row);
 
+  if (row.reminder_time !== nowHhmm) {
+    console.log("[shift-reminder] time mismatch", {
+      userId: row.user_id,
+      targetCode: row.target_code,
+      reminderTime: row.reminder_time,
+      nowHhmm,
+    });
+    skippedRules += 1;
+    continue;
+  }
       const userId = row.user_id as string;
       const targetCode = row.target_code as ReminderTargetCode;
       const whenMode = row.when_mode === "today" ? "today" : "previousDay";
@@ -279,14 +292,15 @@ export async function POST(req: Request) {
     }
 
     return Response.json({
-      ok: true,
-      today,
-      nowHhmm,
-      checkedRules,
-      sentRules,
-      skippedRules,
-      failedRules,
-    });
+  ok: true,
+  today,
+  nowHhmm,
+  matchedRules: reminderRows?.length ?? 0,
+  checkedRules,
+  sentRules,
+  skippedRules,
+  failedRules,
+});
   } catch (e) {
     return Response.json(
       { ok: false, error: e instanceof Error ? e.message : "Unknown error" },
