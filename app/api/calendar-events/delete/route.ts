@@ -31,6 +31,10 @@ export async function POST(req: Request) {
     const id = isNonEmptyString(body?.id) ? body.id.trim() : "";
     const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
 
+    console.log("[calendar delete] body =", body);
+    console.log("[calendar delete] id =", id);
+    console.log("[calendar delete] deviceId =", deviceId);
+
     if (!id) {
       return Response.json(
         { ok: false, error: "Missing id" },
@@ -45,12 +49,30 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1차: 현재 기기 소유 일정만 삭제
+    const { data: existingById, error: findError } = await supabaseAdmin
+      .from("calendar_events")
+      .select("id, user_id, title, starts_at")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (findError) {
+      return Response.json(
+        { ok: false, error: findError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!existingById) {
+      return Response.json(
+        { ok: false, error: "Event not found", debug: { id, deviceId } },
+        { status: 404 }
+      );
+    }
+
     const { error, count } = await supabaseAdmin
       .from("calendar_events")
       .delete({ count: "exact" })
-      .eq("id", id)
-      .eq("user_id", deviceId);
+      .eq("id", id);
 
     if (error) {
       return Response.json(
@@ -59,27 +81,13 @@ export async function POST(req: Request) {
       );
     }
 
-    if (count && count > 0) {
-      return Response.json({ ok: true, deleted: true, strict: true });
-    }
-
-    // 2차: legacy 데이터 fallback
-    // 예전 deviceId / 예전 구조로 저장된 일정 삭제 허용
-    const { error: fallbackError, count: fallbackCount } = await supabaseAdmin
-      .from("calendar_events")
-      .delete({ count: "exact" })
-      .eq("id", id);
-
-    if (fallbackError) {
+    if (!count) {
       return Response.json(
-        { ok: false, error: fallbackError.message },
-        { status: 500 }
-      );
-    }
-
-    if (!fallbackCount) {
-      return Response.json(
-        { ok: false, error: "Event not found" },
+        {
+          ok: false,
+          error: "Delete failed",
+          debug: { id, deviceId, existingById },
+        },
         { status: 404 }
       );
     }
@@ -87,8 +95,7 @@ export async function POST(req: Request) {
     return Response.json({
       ok: true,
       deleted: true,
-      strict: false,
-      fallback: true,
+      deletedEvent: existingById,
     });
   } catch (e) {
     return Response.json(
