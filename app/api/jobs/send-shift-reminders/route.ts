@@ -249,15 +249,31 @@ export async function POST(req: Request) {
         continue;
       }
 
-      const result = await sendPushToUser(userId, {
-        title: `${codeLabel(targetCode)} 근무 알림`,
-        body:
-          whenMode === "previousDay"
-            ? `내일 ${codeLabel(targetCode)} 근무 예정입니다.`
-            : `오늘 ${codeLabel(targetCode)} 근무 예정입니다.`,
-        url: "/calendar",
-        tag: `shift-${scheduledKey}`,
-      });
+      let result;
+
+try {
+  result = await sendPushToUser(userId, {
+    title: `${codeLabel(targetCode)} 근무 알림`,
+    body:
+      whenMode === "previousDay"
+        ? `내일 ${codeLabel(targetCode)} 근무 예정입니다.`
+        : `오늘 ${codeLabel(targetCode)} 근무 예정입니다.`,
+    url: "/calendar",
+    tag: `shift-${scheduledKey}`,
+  });
+} catch (e: any) {
+  debug.push({
+    userId,
+    targetCode,
+    whenMode,
+    reminderTime,
+    targetDate,
+    actualCode,
+    step: "sendError",
+    error: e?.message || String(e),
+  });
+  continue;
+}
 
       await supabaseAdmin.from("shift_reminder_logs").insert({
         user_id: userId,
