@@ -144,7 +144,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const debug: any[] = [];
+        const debug: any[] = [];
 
     for (const row of reminderRows ?? []) {
       const userId = row.user_id as string;
@@ -286,6 +286,9 @@ export async function POST(req: Request) {
       ok: true,
       today,
       nowHhmm,
+      debugUserId,
+      count: reminderRows?.length ?? 0,
+      reminderRows,
       debug,
     });
   } catch (e) {
