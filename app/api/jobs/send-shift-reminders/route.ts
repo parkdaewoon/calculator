@@ -195,12 +195,27 @@ console.log("[shift-reminder] loaded reminderRows", reminderRows);
       }
 
       const pushEnabled = !!notificationRow?.push_enabled;
-      const workMode = workModeRow?.work_mode;
+const workMode = workModeRow?.work_mode;
 
-      if (!pushEnabled || !workMode || typeof workMode !== "object") {
-        skippedRules += 1;
-        continue;
-      }
+console.log("[shift-reminder] user state", {
+  userId,
+  targetCode,
+  pushEnabled,
+  notificationRow,
+  hasWorkMode: !!workMode,
+  workMode,
+});
+
+if (!pushEnabled || !workMode || typeof workMode !== "object") {
+  console.log("[shift-reminder] skipped: push disabled or workMode missing", {
+    userId,
+    targetCode,
+    pushEnabled,
+    hasWorkMode: !!workMode,
+  });
+  skippedRules += 1;
+  continue;
+}
 
       const targetDate =
         whenMode === "previousDay" ? addDays(today, 1) : today;
@@ -214,10 +229,25 @@ console.log("[shift-reminder] loaded reminderRows", reminderRows);
         targetDate
       );
 
-      if (actualCode !== targetCode) {
-        skippedRules += 1;
-        continue;
-      }
+      console.log("[shift-reminder] code compare", {
+  userId,
+  targetCode,
+  actualCode,
+  today,
+  targetDate,
+  whenMode,
+});
+
+if (actualCode !== targetCode) {
+  console.log("[shift-reminder] skipped: code mismatch", {
+    userId,
+    targetCode,
+    actualCode,
+    targetDate,
+  });
+  skippedRules += 1;
+  continue;
+}
 
       const scheduledKey = buildScheduledKey({
         baseDate: today,
@@ -246,9 +276,14 @@ console.log("[shift-reminder] loaded reminderRows", reminderRows);
       }
 
       if (existingLog) {
-        skippedRules += 1;
-        continue;
-      }
+  console.log("[shift-reminder] skipped: already logged", {
+    userId,
+    targetCode,
+    scheduledKey,
+  });
+  skippedRules += 1;
+  continue;
+}
 
       try {
         const result = await sendPushToUser(userId, {
