@@ -31,13 +31,21 @@ export async function POST(req: Request) {
     const id = isNonEmptyString(body?.id) ? body.id.trim() : "";
     const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
 
-    if (!id || !deviceId) {
+    if (!id) {
       return Response.json(
-        { ok: false, error: "Missing id or device id" },
+        { ok: false, error: "Missing id" },
         { status: 400 }
       );
     }
 
+    if (!deviceId) {
+      return Response.json(
+        { ok: false, error: "Missing device id" },
+        { status: 401 }
+      );
+    }
+
+    // 1차: 현재 기기 소유 일정만 삭제
     const { error, count } = await supabaseAdmin
       .from("calendar_events")
       .delete({ count: "exact" })
@@ -51,14 +59,37 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!count) {
+    if (count && count > 0) {
+      return Response.json({ ok: true, deleted: true, strict: true });
+    }
+
+    // 2차: legacy 데이터 fallback
+    // 예전 deviceId / 예전 구조로 저장된 일정 삭제 허용
+    const { error: fallbackError, count: fallbackCount } = await supabaseAdmin
+      .from("calendar_events")
+      .delete({ count: "exact" })
+      .eq("id", id);
+
+    if (fallbackError) {
       return Response.json(
-        { ok: false, error: "Event not found or not owned by this device" },
+        { ok: false, error: fallbackError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!fallbackCount) {
+      return Response.json(
+        { ok: false, error: "Event not found" },
         { status: 404 }
       );
     }
 
-    return Response.json({ ok: true, deleted: true });
+    return Response.json({
+      ok: true,
+      deleted: true,
+      strict: false,
+      fallback: true,
+    });
   } catch (e) {
     return Response.json(
       { ok: false, error: e instanceof Error ? e.message : "Unknown error" },
