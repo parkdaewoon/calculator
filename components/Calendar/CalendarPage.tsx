@@ -465,9 +465,11 @@ export default function CalendarPage() {
 
   const upsertEvent = async (ev: CalendarEvent) => {
   const fixed = migrateEvent(ev as any, selectedDate || today);
+  const localId = fixed.id;
 
+  // 1) 먼저 화면에는 즉시 반영
   setEvents((prev) => {
-    const i = (prev as any[]).findIndex((x) => x?.id === (fixed as any).id);
+    const i = (prev as any[]).findIndex((x) => x?.id === localId);
     if (i >= 0) {
       const copy = [...prev] as any[];
       copy[i] = fixed as any;
@@ -479,42 +481,54 @@ export default function CalendarPage() {
   try {
     const { startMs, startsAtIso, remindAtIso } = getEventScheduleTimes(fixed);
 
-console.log("[saveEvent] payload times", {
-  title: fixed.title,
-  fixed,
-  startMs,
-  startsAtIso,
-  remindAtIso,
-  reminderMinutes: fixed.reminderMinutes,
-  dateStart: fixed.dateStart,
-  startTime: fixed.startTime,
-  allDay: fixed.allDay,
-});
+    console.log("[saveEvent] payload times", {
+      title: fixed.title,
+      fixed,
+      localId,
+      startMs,
+      startsAtIso,
+      remindAtIso,
+      reminderMinutes: fixed.reminderMinutes,
+      dateStart: fixed.dateStart,
+      startTime: fixed.startTime,
+      allDay: fixed.allDay,
+    });
 
-if (!startMs || !startsAtIso) {
-  console.error("[saveEvent] invalid start time", fixed);
-  return;
-}
+    if (!startMs || !startsAtIso) {
+      console.error("[saveEvent] invalid start time", fixed);
+      return;
+    }
 
-const res = await fetch("/api/calendar-events/upsert", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-device-id": userId,
-  },
-  body: JSON.stringify({
-    id: fixed.id,
-    title: fixed.title ?? null,
-    starts_at: startsAtIso,
-    remind_at: remindAtIso,
-    reminder_sent: false,
-    type_main: fixed.typeMain ?? null,
-  }),
-});
+    const res = await fetch("/api/calendar-events/upsert", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-device-id": userId,
+      },
+      body: JSON.stringify({
+        id: fixed.id,
+        title: fixed.title ?? null,
+        starts_at: startsAtIso,
+        remind_at: remindAtIso,
+        reminder_sent: false,
+        type_main: fixed.typeMain ?? null,
+      }),
+    });
 
     const json = await res.json().catch(() => null);
+
     if (!res.ok || !json?.ok) {
       console.error("calendar event upsert failed", json);
+      return;
+    }
+
+    // 2) 서버가 준 진짜 DB id로 로컬 상태 동기화
+    if (json?.id && json.id !== localId) {
+      setEvents((prev) =>
+        (prev as any[]).map((x) =>
+          x?.id === localId ? ({ ...x, id: json.id } as any) : x
+        ) as any
+      );
     }
   } catch (e) {
     console.error("calendar event upsert failed", e);
@@ -523,16 +537,20 @@ const res = await fetch("/api/calendar-events/upsert", {
 
   const deleteEvent = async (id: string) => {
   try {
+    console.log("[deleteEvent] id =", id);
+    console.log("[deleteEvent] userId =", userId);
+
     const res = await fetch("/api/calendar-events/delete", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-device-id": userId,
-  },
-  body: JSON.stringify({ id }),
-});
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-device-id": userId,
+      },
+      body: JSON.stringify({ id }),
+    });
 
     const json = await res.json().catch(() => null);
+    console.log("[deleteEvent] response =", res.status, json);
 
     if (!res.ok || !json?.ok) {
       console.error("calendar event delete failed", json);
