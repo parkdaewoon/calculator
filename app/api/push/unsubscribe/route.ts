@@ -60,14 +60,11 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!count) {
-      return Response.json(
-        { ok: false, error: "Subscription not found or not owned by this device" },
-        { status: 404 }
-      );
-    }
-
-    return Response.json({ ok: true });
+    return Response.json({
+      ok: true,
+      found: !!count,
+      alreadyDisabled: !count,
+    });
   } catch (e) {
     return Response.json(
       { ok: false, error: e instanceof Error ? e.message : "Unknown error" },

@@ -379,8 +379,8 @@ export default function CalendarPage() {
   pattern,
   events: safeEvents,
   workMode,
-  month: toMonthKey(today),
-  selectedDate: today,
+  month,
+  selectedDate,
 });
   }, [hydrated, pattern, events, workMode, month, selectedDate, today]);
 

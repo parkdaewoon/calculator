@@ -1,6 +1,7 @@
 "use client";
 
 import { getOrCreateDeviceUserId } from "@/lib/storage/deviceUserId";
+
 let CACHED_VAPID_KEY: string | null = null;
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -11,6 +12,7 @@ function urlBase64ToUint8Array(base64String: string) {
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out;
 }
+
 async function getPublicKey() {
   if (CACHED_VAPID_KEY) {
     return CACHED_VAPID_KEY;
@@ -80,12 +82,12 @@ async function syncUserIdToServiceWorker(userId: string) {
 
 export async function fetchPushEnabled(userId: string) {
   const res = await fetch("/api/push/settings", {
-  method: "GET",
-  cache: "no-store",
-  headers: {
-    "x-device-id": userId,
-  },
-});
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      "x-device-id": userId,
+    },
+  });
 
   const json = await res.json().catch(() => null);
 
@@ -113,42 +115,42 @@ export async function subscribeCalendarPush(userId: string) {
     throw new Error("홈 화면에 추가한 앱에서만 푸시가 동작해요.");
   }
 
-const perm =
-  Notification.permission === "granted"
-    ? "granted"
-    : await Notification.requestPermission();
+  const perm =
+    Notification.permission === "granted"
+      ? "granted"
+      : await Notification.requestPermission();
 
-if (perm !== "granted") {
-  throw new Error(`알림 권한 필요: ${perm}`);
-}
+  if (perm !== "granted") {
+    throw new Error(`알림 권한 필요: ${perm}`);
+  }
 
   const reg = await getRegistration();
   await syncUserIdToServiceWorker(userId);
 
   let sub = await reg.pushManager.getSubscription();
 
-if (!sub) {
-  const key = await getPublicKey();
+  if (!sub) {
+    const key = await getPublicKey();
 
-  sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(key),
-  });
-}
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key),
+    });
+  }
 
   const subscriptionJson = sub.toJSON();
 
   const saveRes = await fetch("/api/push/subscribe", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-device-id": userId,
-  },
-  body: JSON.stringify({
-    subscription: subscriptionJson,
-    deviceLabel: "PWA",
-  }),
-});
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-device-id": userId,
+    },
+    body: JSON.stringify({
+      subscription: subscriptionJson,
+      deviceLabel: "PWA",
+    }),
+  });
 
   const saveJson = await saveRes.json().catch(() => null);
 
@@ -157,13 +159,16 @@ if (!sub) {
   }
 
   const settingsRes = await fetch("/api/push/settings", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-device-id": userId,
-  },
-  body: JSON.stringify({ push_enabled: true }),
-});
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-device-id": userId,
+    },
+    body: JSON.stringify({
+      push_enabled: true,
+      endpoint: sub.endpoint,
+    }),
+  });
 
   const settingsJson = await settingsRes.json().catch(() => null);
 
@@ -186,15 +191,15 @@ export async function unsubscribeCalendarPush(userId: string) {
 
   if (sub) {
     const unsubRes = await fetch("/api/push/unsubscribe", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-device-id": userId,
-  },
-  body: JSON.stringify({
-    endpoint: sub.endpoint,
-  }),
-});
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-device-id": userId,
+      },
+      body: JSON.stringify({
+        endpoint: sub.endpoint,
+      }),
+    });
 
     const unsubJson = await unsubRes.json().catch(() => null);
 
@@ -211,8 +216,14 @@ export async function unsubscribeCalendarPush(userId: string) {
 
   const settingsRes = await fetch("/api/push/settings", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, push_enabled: false }),
+    headers: {
+      "Content-Type": "application/json",
+      "x-device-id": userId,
+    },
+    body: JSON.stringify({
+      push_enabled: false,
+      endpoint: null,
+    }),
   });
 
   const settingsJson = await settingsRes.json().catch(() => null);
