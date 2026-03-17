@@ -8,31 +8,12 @@ import {
   unsubscribeCalendarPush,
 } from "@/lib/push/client";
 import usePushUserId from "@/lib/hooks/usePushUserId";
-
-async function saveShiftReminderEnabled(userId: string, enabled: boolean) {
-  const res = await fetch("/api/calendar/settings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-device-id": userId,
-    },
-    body: JSON.stringify({
-      shiftReminder: {
-        enabled,
-        whenMode: "previousDay",
-        reminderTime: "19:10",
-        targetCodes: ["DAY"],
-      },
-    }),
-  });
-
-  const json = await res.json().catch(() => null);
-  console.log("saveShiftReminderEnabled", { enabled, status: res.status, json });
-
-  if (!res.ok || !json?.ok) {
-    throw new Error(json?.error || "근무 알림 설정 저장 실패");
-  }
-}
+import {
+  DEFAULT_SHIFT_REMINDER_RULES,
+  buildShiftReminderRulesEnabled,
+  fetchShiftReminderRules,
+  saveShiftReminderRules,
+} from "@/lib/push/reminderSettings";
 
 export default function NotificationSettingsCard({
   compact = false,
@@ -70,10 +51,30 @@ export default function NotificationSettingsCard({
         }
 
         await subscribeCalendarPush(userId);
-        await saveShiftReminderEnabled(userId, true);
+
+        const existingRules = await fetchShiftReminderRules(userId).catch(
+          () => []
+        );
+
+        const rulesToSave =
+          existingRules.length > 0
+            ? buildShiftReminderRulesEnabled(true, existingRules)
+            : DEFAULT_SHIFT_REMINDER_RULES;
+
+        await saveShiftReminderRules(userId, rulesToSave);
       } else {
         await unsubscribeCalendarPush(userId);
-        await saveShiftReminderEnabled(userId, false);
+
+        const existingRules = await fetchShiftReminderRules(userId).catch(
+          () => []
+        );
+
+        const rulesToSave =
+          existingRules.length > 0
+            ? buildShiftReminderRulesEnabled(false, existingRules)
+            : buildShiftReminderRulesEnabled(false, DEFAULT_SHIFT_REMINDER_RULES);
+
+        await saveShiftReminderRules(userId, rulesToSave);
       }
     } catch (e) {
       console.error("notification toggle failed", e);

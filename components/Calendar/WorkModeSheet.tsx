@@ -290,31 +290,6 @@ function Toggle({
   );
 }
 
-function ReminderCodeChip({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "h-10 rounded-xl border px-3 text-sm font-semibold",
-        active
-          ? "border-neutral-900 bg-neutral-900 text-white"
-          : "border-neutral-200 bg-white text-neutral-700",
-      ].join(" ")}
-    >
-      {label}
-    </button>
-  );
-}
-
 function isShift(m: WorkMode): m is Extract<WorkMode, { type: "SHIFT" }> {
   return (m as any)?.type === "SHIFT";
 }
@@ -361,20 +336,20 @@ export default function WorkModeSheet({
   }, [shiftRotation]);
 
   const neededCodes = useMemo<ReminderTargetCode[]>(() => {
-  if (!isShift(draft)) return [];
+    if (!isShift(draft)) return [];
 
-  const patternId = draft.patternId;
+    const patternId = draft.patternId;
 
-  const seq =
-    patternId === "CUSTOM"
-      ? (((draft as { customCycle?: ShiftCode[] }).customCycle ??
-          SHIFT_PATTERNS.CUSTOM.seq) as ShiftCode[])
-      : (SHIFT_PATTERNS[patternId]?.seq ?? []);
+    const seq =
+      patternId === "CUSTOM"
+        ? (((draft as { customCycle?: ShiftCode[] }).customCycle ??
+            SHIFT_PATTERNS.CUSTOM.seq) as ShiftCode[])
+        : (SHIFT_PATTERNS[patternId]?.seq ?? []);
 
-  return uniqCodes(seq).filter(
-    (c): c is ReminderTargetCode => c !== "OFF" && c !== "REST"
-  );
-}, [draft]);
+    return uniqCodes(seq).filter(
+      (c): c is ReminderTargetCode => c !== "OFF" && c !== "REST"
+    );
+  }, [draft]);
 
   const applyAndClose = () => {
     onChange(draft);
@@ -597,132 +572,137 @@ export default function WorkModeSheet({
               ) : null}
 
               {/* 3-3) 근무 시간(+공제시간) + 근무 알림 */}
-<div className="space-y-2">
-  <div className="text-xs ml-2 font-semibold text-neutral-700">근무 시간</div>
+              <div className="space-y-2">
+                <div className="ml-2 text-xs font-semibold text-neutral-700">근무 시간</div>
 
-  {neededCodes.length === 0 ? (
-    <div className="text-xs text-neutral-500">설정할 근무 시간이 없습니다.</div>
-  ) : (
-    <div className="space-y-2">
-      {neededCodes.map((code) => {
-  const current =
-    (isShift(draft) ? (draft as any).times?.[code] : undefined) ??
-    getDefaultTimes()[code] ??
-    ({ start: "09:00", end: "18:00", breakMinutes: 0 } as TimeRange);
+                {neededCodes.length === 0 ? (
+                  <div className="text-xs text-neutral-500">설정할 근무 시간이 없습니다.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {neededCodes.map((code) => {
+                      const current =
+                        (isShift(draft) ? (draft as any).times?.[code] : undefined) ??
+                        getDefaultTimes()[code] ??
+                        ({ start: "09:00", end: "18:00", breakMinutes: 0 } as TimeRange);
 
-  const reminder = draftReminder[code] ?? {
-    enabled: false,
-    whenMode: code === "NIGHT" ? "previousDay" : "today",
-    reminderTime:
-      code === "DAY"
-        ? "07:00"
-        : code === "EVE"
-        ? "13:00"
-        : code === "NIGHT"
-        ? "21:00"
-        : "08:00",
-  };
+                      const reminder = draftReminder[code] ?? {
+                        enabled: false,
+                        whenMode: code === "NIGHT" ? "previousDay" : "today",
+                        reminderTime:
+                          code === "DAY"
+                            ? "07:00"
+                            : code === "EVE"
+                            ? "13:00"
+                            : code === "NIGHT"
+                            ? "21:00"
+                            : "08:00",
+                      };
 
-  return (
-    <div key={code} className="space-y-2">
-      <TimeRangePicker
-        label={codeLabel(code)}
-        value={current}
-        wheel={{
-          openTime: (side) => setTimePick({ kind: "SHIFT", code, side }),
-          openBreak: () => setBreakPick({ kind: "SHIFT", code }),
-        }}
-      />
+                      return (
+                        <div key={code} className="space-y-2">
+                          <TimeRangePicker
+                            label={codeLabel(code)}
+                            value={current}
+                            wheel={{
+                              openTime: (side) => setTimePick({ kind: "SHIFT", code, side }),
+                              openBreak: () => setBreakPick({ kind: "SHIFT", code }),
+                            }}
+                          />
 
-      <div className="rounded-2xl border border-neutral-100 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-xs font-semibold text-neutral-700">
-              {codeLabel(code)} 알림
-            </div>
-            <div className="mt-1 text-[11px] text-neutral-500">
-              {codeLabel(code)} 근무 알림을 설정합니다.
-            </div>
-          </div>
+                          <div className="rounded-2xl border border-neutral-100 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="text-xs font-semibold text-neutral-700">
+                                  {codeLabel(code)} 알림
+                                </div>
+                                <div className="mt-1 text-[11px] text-neutral-500">
+                                  {codeLabel(code)} 근무 알림을 설정합니다.
+                                </div>
+                              </div>
 
-          <Toggle
-            checked={reminder.enabled}
-            onChange={(next) =>
-              setDraftReminder((prev: ShiftReminderSettings) => ({
-                ...prev,
-                [code]: {
-                  ...(prev[code] ?? reminder),
-                  enabled: next,
-                },
-              }))
-            }
-          />
-        </div>
+                              <Toggle
+                                checked={reminder.enabled}
+                                onChange={(next) =>
+                                  setDraftReminder((prev: ShiftReminderSettings) => ({
+                                    ...prev,
+                                    [code]: {
+                                      ...(prev[code] ?? reminder),
+                                      enabled: next,
+                                    },
+                                  }))
+                                }
+                              />
+                            </div>
 
-        <div className="mt-3 rounded-2xl border border-neutral-100 p-3">
-  <div className="grid grid-cols-[110px_1fr] items-end gap-2">
-    <div>
-      <div className="mb-2 text-xs font-semibold text-neutral-700">알림 기준</div>
-      <select
-        value={reminder.whenMode}
-        onChange={(e) =>
-          setDraftReminder((prev: ShiftReminderSettings) => ({
-            ...prev,
-            [code]: {
-              ...(prev[code] ?? reminder),
-              whenMode: e.target.value as "today" | "previousDay",
-            },
-          }))
-        }
-        className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-900 outline-none"
-      >
-        <option value="previousDay">전날</option>
-        <option value="today">당일</option>
-      </select>
-    </div>
+                            {reminder.enabled && (
+                              <div className="mt-3 rounded-2xl border border-neutral-100 p-3">
+                                <div className="grid grid-cols-[110px_1fr] items-end gap-2">
+                                  <div>
+                                    <div className="mb-2 text-xs font-semibold text-neutral-700">
+                                      알림 기준
+                                    </div>
+                                    <select
+                                      value={reminder.whenMode}
+                                      onChange={(e) =>
+                                        setDraftReminder((prev: ShiftReminderSettings) => ({
+                                          ...prev,
+                                          [code]: {
+                                            ...(prev[code] ?? reminder),
+                                            whenMode: e.target.value as "today" | "previousDay",
+                                          },
+                                        }))
+                                      }
+                                      className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-900 outline-none"
+                                    >
+                                      <option value="previousDay">전날</option>
+                                      <option value="today">당일</option>
+                                    </select>
+                                  </div>
 
-    <div>
-      <div className="mb-2 text-xs font-semibold text-neutral-700">알림 시간</div>
-      <button
-        type="button"
-        onClick={() => setTimePick({ kind: "REMINDER", code })}
-        className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-left text-sm font-semibold text-neutral-900 hover:bg-neutral-50"
-      >
-        {reminder.reminderTime}
-      </button>
-    </div>
-  </div>
+                                  <div>
+                                    <div className="mb-2 text-xs font-semibold text-neutral-700">
+                                      알림 시간
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setTimePick({ kind: "REMINDER", code })}
+                                      className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-left text-sm font-semibold text-neutral-900 hover:bg-neutral-50"
+                                    >
+                                      {reminder.reminderTime}
+                                    </button>
+                                  </div>
+                                </div>
 
-  <div className="mt-2 text-[11px] text-neutral-400">
-    {reminder.whenMode === "today"
-      ? "해당 근무일 당일에 알림"
-      : "다음날 근무를 전날 미리 알림"}
-  </div>
-</div>
+                                <div className="mt-2 text-[11px] text-neutral-400">
+                                  {reminder.whenMode === "today"
+                                    ? "해당 근무일 당일에 알림"
+                                    : "다음날 근무를 전날 미리 알림"}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-      </div>
-    </div>
-  );
-})}
-    </div>
-  )}
+                <div className="ml-2 text-[11px] text-neutral-400">
+                  * 비번/휴무는 시간 설정을 생략합니다.
+                </div>
+              </div>
 
-  <div className="text-[11px] ml-2 text-neutral-400">
-    * 비번/휴무는 시간 설정을 생략합니다.
-  </div>
-</div>
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={applyAndClose}
+                  className="w-full rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold text-white"
+                >
+                  적용
+                </button>
+              </div>
             </div>
           ) : null}
-
-          <div className="space-y-2 pt-1">
-            <button
-              type="button"
-              onClick={applyAndClose}
-              className="w-full rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold text-white"
-            >
-              적용
-            </button>
-          </div>
         </div>
       </div>
 
@@ -741,35 +721,35 @@ export default function WorkModeSheet({
         <TimeWheelModal
           open={true}
           title={
-  timePick.kind === "DAYMODE"
-    ? timePick.side === "start"
-      ? "일반근무 시작시간"
-      : "일반근무 종료시간"
-    : timePick.kind === "REMINDER"
-    ? `${codeLabel(timePick.code)} 알림 시간`
-    : timePick.side === "start"
-    ? `${codeLabel(timePick.code)} 시작시간`
-    : `${codeLabel(timePick.code)} 종료시간`
-}
+            timePick.kind === "DAYMODE"
+              ? timePick.side === "start"
+                ? "일반근무 시작시간"
+                : "일반근무 종료시간"
+              : timePick.kind === "REMINDER"
+              ? `${codeLabel(timePick.code)} 알림 시간`
+              : timePick.side === "start"
+              ? `${codeLabel(timePick.code)} 시작시간`
+              : `${codeLabel(timePick.code)} 종료시간`
+          }
           value={
-  (timePick.kind === "DAYMODE"
-    ? ((timePick.side === "start"
-        ? (draft as any).day?.start
-        : (draft as any).day?.end) ?? "09:00")
-    : timePick.kind === "REMINDER"
-    ? (draftReminder[timePick.code]?.reminderTime ??
-        (timePick.code === "DAY"
-          ? "07:00"
-          : timePick.code === "EVE"
-          ? "13:00"
-          : timePick.code === "NIGHT"
-          ? "21:00"
-          : "08:00"))
-    : (isShift(draft)
-        ? (draft as any).times?.[timePick.code]?.[timePick.side] ??
-          (timePick.side === "start" ? "09:00" : "18:00")
-        : "09:00")) as HHMM
-}
+            (timePick.kind === "DAYMODE"
+              ? ((timePick.side === "start"
+                  ? (draft as any).day?.start
+                  : (draft as any).day?.end) ?? "09:00")
+              : timePick.kind === "REMINDER"
+              ? (draftReminder[timePick.code]?.reminderTime ??
+                  (timePick.code === "DAY"
+                    ? "07:00"
+                    : timePick.code === "EVE"
+                    ? "13:00"
+                    : timePick.code === "NIGHT"
+                    ? "21:00"
+                    : "08:00"))
+              : (isShift(draft)
+                  ? (draft as any).times?.[timePick.code]?.[timePick.side] ??
+                    (timePick.side === "start" ? "09:00" : "18:00")
+                  : "09:00")) as HHMM
+          }
           stepMin={5}
           onClose={() => setTimePick(null)}
           onConfirm={(next) => {
@@ -777,34 +757,34 @@ export default function WorkModeSheet({
             if (!pick) return;
 
             if (pick.kind === "REMINDER") {
-  const code = pick.code;
+              const code = pick.code;
 
-  setDraftReminder((prev: ShiftReminderSettings) => {
-    const fallback = {
-      enabled: false,
-      whenMode: code === "NIGHT" ? "previousDay" : "today" as "today" | "previousDay",
-      reminderTime:
-        code === "DAY"
-          ? "07:00"
-          : code === "EVE"
-          ? "13:00"
-          : code === "NIGHT"
-          ? "21:00"
-          : "08:00" as HHMM,
-    };
+              setDraftReminder((prev: ShiftReminderSettings) => {
+                const fallback = {
+                  enabled: false,
+                  whenMode: code === "NIGHT" ? "previousDay" : ("today" as "today" | "previousDay"),
+                  reminderTime:
+                    code === "DAY"
+                      ? "07:00"
+                      : code === "EVE"
+                      ? "13:00"
+                      : code === "NIGHT"
+                      ? "21:00"
+                      : ("08:00" as HHMM),
+                };
 
-    return {
-      ...prev,
-      [code]: {
-        ...(prev[code] ?? fallback),
-        reminderTime: next,
-      },
-    };
-  });
+                return {
+                  ...prev,
+                  [code]: {
+                    ...(prev[code] ?? fallback),
+                    reminderTime: next,
+                  },
+                };
+              });
 
-  setTimePick(null);
-  return;
-}
+              setTimePick(null);
+              return;
+            }
 
             if (pick.kind === "DAYMODE") {
               const side = pick.side;

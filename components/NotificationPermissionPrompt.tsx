@@ -7,33 +7,12 @@ import {
   subscribeCalendarPush,
 } from "@/lib/push/client";
 import usePushUserId from "@/lib/hooks/usePushUserId";
+import {
+  DEFAULT_SHIFT_REMINDER_RULES,
+  saveShiftReminderRules,
+} from "@/lib/push/reminderSettings";
 
 const PROMPTED_KEY = "calendar_notification_prompted_v1";
-
-async function saveDefaultShiftReminder(userId: string) {
-  const res = await fetch("/api/calendar/settings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-device-id": userId,
-    },
-    body: JSON.stringify({
-      shiftReminder: {
-        enabled: true,
-        whenMode: "previousDay",
-        reminderTime: "19:10",
-        targetCodes: ["DAY"],
-      },
-    }),
-  });
-
-  const json = await res.json().catch(() => null);
-  console.log("saveDefaultShiftReminder", { status: res.status, json });
-
-  if (!res.ok || !json?.ok) {
-    throw new Error(json?.error || "근무 알림 설정 저장 실패");
-  }
-}
 
 export default function NotificationPermissionPrompt() {
   const userId = usePushUserId();
@@ -77,11 +56,11 @@ export default function NotificationPermissionPrompt() {
       setLoading(true);
 
       await subscribeCalendarPush(userId);
-      await saveDefaultShiftReminder(userId);
+      await saveShiftReminderRules(userId, DEFAULT_SHIFT_REMINDER_RULES);
 
       closeAndRemember();
     } catch (e) {
-      console.error("subscribeCalendarPush failed", e);
+      console.error("subscribeCalendarPush / saveShiftReminderRules failed", e);
       alert(e instanceof Error ? e.message : "알림 허용 설정에 실패했어요.");
     } finally {
       setLoading(false);
