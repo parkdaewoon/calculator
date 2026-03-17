@@ -321,7 +321,7 @@ useEffect(() => {
     setHolidays(merged);
   }, [visibleMonths]);
 
- /** =========================
+/** =========================
  * 2.1) persist remote calendar settings
  * ========================= */
 useEffect(() => {
@@ -331,14 +331,25 @@ useEffect(() => {
 
   (async () => {
     try {
+      console.log("[calendar] effect start", {
+        userId,
+        workMode,
+        shiftReminder,
+      });
+
       const needShiftPush = hasAnyEnabledShiftReminder(shiftReminder);
+
+      console.log("[calendar] needShiftPush =", needShiftPush);
 
       if (needShiftPush) {
         const pushEnabled = await fetchPushEnabled(userId).catch(() => false);
 
+        console.log("[calendar] pushEnabled =", pushEnabled);
+
         if (!pushEnabled) {
           console.log("[calendar] enabling push subscription before saving reminders");
           await subscribeCalendarPush(userId);
+          console.log("[calendar] subscribeCalendarPush done");
         }
       }
 
@@ -352,10 +363,9 @@ useEffect(() => {
       console.log("[calendar] saveCalendarSettings success", {
         userId,
         needShiftPush,
-        shiftReminder,
       });
     } catch (e) {
-      console.error("saveCalendarSettings failed", e);
+      console.error("[calendar] saveCalendarSettings failed", e);
     }
   })();
 
