@@ -27,10 +27,7 @@ export async function POST(req: Request) {
     const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
 
     if (!deviceId) {
-      return Response.json(
-        { ok: false, error: "Missing device id" },
-        { status: 401 }
-      );
+      return Response.json({ ok: false, error: "Missing device id" }, { status: 401 });
     }
 
     const subscription = body?.subscription;
@@ -42,17 +39,11 @@ export async function POST(req: Request) {
       : null;
 
     if (!isNonEmptyString(endpoint)) {
-      return Response.json(
-        { ok: false, error: "Missing subscription endpoint" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Missing subscription endpoint" }, { status: 400 });
     }
 
     if (!isNonEmptyString(p256dh) || !isNonEmptyString(auth)) {
-      return Response.json(
-        { ok: false, error: "Missing subscription keys" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Missing subscription keys" }, { status: 400 });
     }
 
     const now = new Date().toISOString();
@@ -74,10 +65,7 @@ export async function POST(req: Request) {
       );
 
     if (error) {
-      return Response.json(
-        { ok: false, error: error.message },
-        { status: 500 }
-      );
+      return Response.json({ ok: false, error: error.message }, { status: 500 });
     }
 
     return Response.json({ ok: true });

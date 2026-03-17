@@ -21,10 +21,7 @@ export async function GET(req: Request) {
     const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
 
     if (!deviceId) {
-      return Response.json(
-        { ok: false, error: "Missing device id" },
-        { status: 401 }
-      );
+      return Response.json({ ok: false, error: "Missing device id" }, { status: 401 });
     }
 
     const { data, error } = await supabaseAdmin
@@ -34,10 +31,7 @@ export async function GET(req: Request) {
       .maybeSingle();
 
     if (error) {
-      return Response.json(
-        { ok: false, error: error.message },
-        { status: 500 }
-      );
+      return Response.json({ ok: false, error: error.message }, { status: 500 });
     }
 
     return Response.json({
@@ -64,17 +58,11 @@ export async function POST(req: Request) {
     const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
 
     if (!deviceId) {
-      return Response.json(
-        { ok: false, error: "Missing device id" },
-        { status: 401 }
-      );
+      return Response.json({ ok: false, error: "Missing device id" }, { status: 401 });
     }
 
     if (typeof body?.push_enabled !== "boolean") {
-      return Response.json(
-        { ok: false, error: "Invalid push_enabled" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Invalid push_enabled" }, { status: 400 });
     }
 
     const endpoint =
@@ -95,10 +83,7 @@ export async function POST(req: Request) {
       );
 
     if (error) {
-      return Response.json(
-        { ok: false, error: error.message },
-        { status: 500 }
-      );
+      return Response.json({ ok: false, error: error.message }, { status: 500 });
     }
 
     return Response.json({ ok: true });

@@ -37,6 +37,10 @@ function isWhenMode(value: unknown): value is ReminderWhenMode {
   return value === "today" || value === "previousDay";
 }
 
+function isValidHhmm(value: string) {
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
+}
+
 function normalizeReminderRule(input: unknown): ShiftReminderRuleInput {
   if (!isObject(input)) {
     throw new Error("Invalid shift reminder rule");
@@ -54,10 +58,7 @@ function normalizeReminderRule(input: unknown): ShiftReminderRuleInput {
     throw new Error("Invalid shift reminder whenMode");
   }
 
-  if (
-    typeof input.reminderTime !== "string" ||
-    !/^\d{2}:\d{2}$/.test(input.reminderTime)
-  ) {
+  if (typeof input.reminderTime !== "string" || !isValidHhmm(input.reminderTime)) {
     throw new Error("Invalid shift reminder reminderTime");
   }
 
@@ -90,10 +91,7 @@ export async function GET(req: Request) {
     const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
 
     if (!deviceId) {
-      return Response.json(
-        { ok: false, error: "Missing device id" },
-        { status: 401 }
-      );
+      return Response.json({ ok: false, error: "Missing device id" }, { status: 401 });
     }
 
     const { data: workModeRow, error: workModeError } = await supabaseAdmin
@@ -103,10 +101,7 @@ export async function GET(req: Request) {
       .maybeSingle();
 
     if (workModeError) {
-      return Response.json(
-        { ok: false, error: workModeError.message },
-        { status: 500 }
-      );
+      return Response.json({ ok: false, error: workModeError.message }, { status: 500 });
     }
 
     const { data: reminderRows, error: reminderError } = await supabaseAdmin
@@ -116,10 +111,7 @@ export async function GET(req: Request) {
       .order("target_code", { ascending: true });
 
     if (reminderError) {
-      return Response.json(
-        { ok: false, error: reminderError.message },
-        { status: 500 }
-      );
+      return Response.json({ ok: false, error: reminderError.message }, { status: 500 });
     }
 
     return Response.json({
@@ -149,10 +141,7 @@ export async function POST(req: Request) {
     const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
 
     if (!deviceId) {
-      return Response.json(
-        { ok: false, error: "Missing device id" },
-        { status: 401 }
-      );
+      return Response.json({ ok: false, error: "Missing device id" }, { status: 401 });
     }
 
     const workMode = body?.workMode;
@@ -164,10 +153,7 @@ export async function POST(req: Request) {
       : null;
 
     if (!hasWorkMode && !hasShiftReminders) {
-      return Response.json(
-        { ok: false, error: "Nothing to update" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Nothing to update" }, { status: 400 });
     }
 
     const now = new Date().toISOString();
@@ -185,10 +171,7 @@ export async function POST(req: Request) {
         );
 
       if (workModeError) {
-        return Response.json(
-          { ok: false, error: workModeError.message },
-          { status: 500 }
-        );
+        return Response.json({ ok: false, error: workModeError.message }, { status: 500 });
       }
     }
 
@@ -209,10 +192,7 @@ export async function POST(req: Request) {
           );
 
         if (reminderError) {
-          return Response.json(
-            { ok: false, error: reminderError.message },
-            { status: 500 }
-          );
+          return Response.json({ ok: false, error: reminderError.message }, { status: 500 });
         }
       }
     }

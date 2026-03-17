@@ -2,11 +2,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { createClient } from "@supabase/supabase-js";
-import { sendPushToUser } from "@/lib/push/sender";
+import { sendPushToUser, hasActivePushSubscription } from "@/lib/push/sender";
 import { workModeToPattern } from "@/lib/calendar/patterns";
 
 type YYYYMMDD = `${number}${number}${number}${number}-${number}${number}-${number}${number}`;
 type ReminderTargetCode = "DAY" | "EVE" | "NIGHT" | "DANG";
+type ReminderWhenMode = "today" | "previousDay";
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,30 +21,23 @@ function getSupabaseAdmin() {
   });
 }
 
-function getTodayYmdInKst(date = new Date()): YYYYMMDD {
+function getKstParts(date = new Date()) {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  });
-
-  const parts = Object.fromEntries(
-    fmt.formatToParts(date).map((p) => [p.type, p.value])
-  );
-
-  return `${parts.year}-${parts.month}-${parts.day}` as YYYYMMDD;
-}
-
-function getNowHhmmInKst(date = new Date()) {
-  const fmt = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Seoul",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
 
-  return fmt.format(date);
+  const parts = Object.fromEntries(fmt.formatToParts(date).map((p) => [p.type, p.value]));
+
+  const ymd = `${parts.year}-${parts.month}-${parts.day}` as YYYYMMDD;
+  const hhmm = `${parts.hour}:${parts.minute}`;
+
+  return { ymd, hhmm };
 }
 
 function addDays(ymd: YYYYMMDD, days: number): YYYYMMDD {
@@ -55,6 +49,22 @@ function addDays(ymd: YYYYMMDD, days: number): YYYYMMDD {
   const d = String(dt.getDate()).padStart(2, "0");
 
   return `${y}-${m}-${d}` as YYYYMMDD;
+}
+
+function hhmmToMinutes(hhmm: string) {
+  const match = /^(\d{2}):(\d{2})$/.exec(hhmm);
+  if (!match) return null;
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function isWithinMinuteWindow(nowHhmm: string, targetHhmm: string, toleranceMinutes = 2) {
+  const now = hhmmToMinutes(nowHhmm);
+  const target = hhmmToMinutes(targetHhmm);
+  if (now == null || target == null) return false;
+  return Math.abs(now - target) <= toleranceMinutes;
 }
 
 function getWorkCodeForDate(
@@ -75,7 +85,7 @@ function getWorkCodeForDate(
 function buildScheduledKey(params: {
   baseDate: YYYYMMDD;
   targetCode: ReminderTargetCode;
-  whenMode: "today" | "previousDay";
+  whenMode: ReminderWhenMode;
   reminderTime: string;
   targetDate: YYYYMMDD;
 }) {
@@ -109,29 +119,19 @@ export async function POST(req: Request) {
     const expected = process.env.CRON_SECRET;
 
     if (expected && authHeader !== `Bearer ${expected}`) {
-      return Response.json(
-        { ok: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    const today = getTodayYmdInKst();
-    const nowHhmm = getNowHhmmInKst();
+    const { ymd: today, hhmm: nowHhmm } = getKstParts();
 
     const { data: reminderRows, error: reminderError } = await supabaseAdmin
-  .from("shift_reminder_rules")
-  .select("user_id, target_code, enabled, when_mode, reminder_time")
-  .eq("enabled", true);
-
-console.log("[shift-reminder] now", { today, nowHhmm });
-console.log("[shift-reminder] loaded reminderRows", reminderRows);
+      .from("shift_reminder_rules")
+      .select("user_id, target_code, enabled, when_mode, reminder_time")
+      .eq("enabled", true);
 
     if (reminderError) {
-      return Response.json(
-        { ok: false, error: reminderError.message },
-        { status: 500 }
-      );
+      return Response.json({ ok: false, error: reminderError.message }, { status: 500 });
     }
 
     let checkedRules = 0;
@@ -139,126 +139,98 @@ console.log("[shift-reminder] loaded reminderRows", reminderRows);
     let skippedRules = 0;
     let failedRules = 0;
 
+    const debug: Array<Record<string, unknown>> = [];
+
     for (const row of reminderRows ?? []) {
       checkedRules += 1;
-  console.log("[shift-reminder] checking row", row);
 
-  if (row.reminder_time !== nowHhmm) {
-    console.log("[shift-reminder] time mismatch", {
-      userId: row.user_id,
-      targetCode: row.target_code,
-      reminderTime: row.reminder_time,
-      nowHhmm,
-    });
-    skippedRules += 1;
-    continue;
-  }
-      const userId = row.user_id as string;
+      const userId = String(row.user_id);
       const targetCode = row.target_code as ReminderTargetCode;
-      const whenMode = row.when_mode === "today" ? "today" : "previousDay";
-      const reminderTime = row.reminder_time as string;
+      const whenMode: ReminderWhenMode =
+        row.when_mode === "today" ? "today" : "previousDay";
+      const reminderTime = String(row.reminder_time ?? "");
 
-      const [
-        { data: workModeRow, error: workModeError },
-        { data: notificationRow, error: notificationError },
-      ] = await Promise.all([
-        supabaseAdmin
-          .from("user_work_modes")
-          .select("work_mode")
-          .eq("user_id", userId)
-          .maybeSingle(),
-        supabaseAdmin
-          .from("notification_settings")
-          .select("push_enabled")
-          .eq("user_id", userId)
-          .maybeSingle(),
-      ]);
+      if (!isWithinMinuteWindow(nowHhmm, reminderTime, 2)) {
+        skippedRules += 1;
+        debug.push({
+          userId,
+          targetCode,
+          step: "time-mismatch",
+          reminderTime,
+          nowHhmm,
+        });
+        continue;
+      }
+
+      const { data: workModeRow, error: workModeError } = await supabaseAdmin
+        .from("user_work_modes")
+        .select("work_mode")
+        .eq("user_id", userId)
+        .maybeSingle();
 
       if (workModeError) {
-        console.error("[shift-reminder] work mode query failed", {
+        failedRules += 1;
+        debug.push({
           userId,
           targetCode,
-          workModeError,
+          step: "work-mode-query-failed",
+          error: workModeError.message,
         });
-        failedRules += 1;
         continue;
       }
 
-      if (notificationError) {
-        console.error("[shift-reminder] notification settings query failed", {
+      const workMode = workModeRow?.work_mode;
+
+      if (!workMode || typeof workMode !== "object") {
+        skippedRules += 1;
+        debug.push({
           userId,
           targetCode,
-          notificationError,
+          step: "missing-work-mode",
         });
-        failedRules += 1;
         continue;
       }
 
-      const pushEnabled = !!notificationRow?.push_enabled;
-const workMode = workModeRow?.work_mode;
+      const hasSubscription = await hasActivePushSubscription(userId);
+      if (!hasSubscription) {
+        skippedRules += 1;
+        debug.push({
+          userId,
+          targetCode,
+          step: "no-active-subscription",
+        });
+        continue;
+      }
 
-console.log("[shift-reminder] user state", {
-  userId,
-  targetCode,
-  pushEnabled,
-  notificationRow,
-  hasWorkMode: !!workMode,
-  workMode,
-});
-
-if (!pushEnabled || !workMode || typeof workMode !== "object") {
-  console.log("[shift-reminder] skipped: push disabled or workMode missing", {
-    userId,
-    targetCode,
-    pushEnabled,
-    hasWorkMode: !!workMode,
-  });
-  skippedRules += 1;
-  continue;
-}
-
-      const targetDate =
-        whenMode === "previousDay" ? addDays(today, 1) : today;
+      const targetDate = whenMode === "previousDay" ? addDays(today, 1) : today;
 
       const anchorDate =
-  typeof (workMode as any)?.anchorDate === "string"
-    ? ((workMode as any).anchorDate as YYYYMMDD)
-    : today;
+        typeof (workMode as any)?.anchorDate === "string"
+          ? ((workMode as any).anchorDate as YYYYMMDD)
+          : today;
 
-const pattern = workModeToPattern(workMode as any, anchorDate);
-console.log("[shift-reminder] pattern base", {
-  userId,
-  today,
-  anchorDate,
-  workMode,
-});
+      const pattern = workModeToPattern(workMode as any, anchorDate);
+
       const actualCode = getWorkCodeForDate(
         {
-          cycle: pattern.cycle,
+          cycle: Array.isArray(pattern.cycle) ? pattern.cycle : [],
           anchorDate: pattern.anchorDate as YYYYMMDD,
         },
         targetDate
       );
 
-      console.log("[shift-reminder] code compare", {
-  userId,
-  targetCode,
-  actualCode,
-  today,
-  targetDate,
-  whenMode,
-});
-
-if (actualCode !== targetCode) {
-  console.log("[shift-reminder] skipped: code mismatch", {
-    userId,
-    targetCode,
-    actualCode,
-    targetDate,
-  });
-  skippedRules += 1;
-  continue;
-}
+      if (actualCode !== targetCode) {
+        skippedRules += 1;
+        debug.push({
+          userId,
+          targetCode,
+          step: "code-mismatch",
+          actualCode,
+          targetDate,
+          whenMode,
+        });
+        continue;
+      }
 
       const scheduledKey = buildScheduledKey({
         baseDate: today,
@@ -276,25 +248,27 @@ if (actualCode !== targetCode) {
         .maybeSingle();
 
       if (logCheckError) {
-        console.error("[shift-reminder] log check failed", {
+        failedRules += 1;
+        debug.push({
           userId,
           targetCode,
+          step: "log-check-failed",
           scheduledKey,
-          logCheckError,
+          error: logCheckError.message,
         });
-        failedRules += 1;
         continue;
       }
 
       if (existingLog) {
-  console.log("[shift-reminder] skipped: already logged", {
-    userId,
-    targetCode,
-    scheduledKey,
-  });
-  skippedRules += 1;
-  continue;
-}
+        skippedRules += 1;
+        debug.push({
+          userId,
+          targetCode,
+          step: "already-sent",
+          scheduledKey,
+        });
+        continue;
+      }
 
       try {
         const result = await sendPushToUser(userId, {
@@ -307,8 +281,14 @@ if (actualCode !== targetCode) {
           tag: `shift-${scheduledKey}`,
         });
 
-        if (!result.sent) {
+        if (result.sent <= 0) {
           skippedRules += 1;
+          debug.push({
+            userId,
+            targetCode,
+            step: "push-not-sent",
+            result,
+          });
           continue;
         }
 
@@ -322,31 +302,47 @@ if (actualCode !== targetCode) {
           });
 
         if (insertLogError) {
-          console.error("[shift-reminder] log insert failed", {
+          failedRules += 1;
+          debug.push({
             userId,
             targetCode,
+            step: "log-insert-failed",
             scheduledKey,
-            insertLogError,
+            error: insertLogError.message,
           });
+          continue;
         }
 
         sentRules += 1;
+        debug.push({
+          userId,
+          targetCode,
+          step: "sent",
+          scheduledKey,
+          result,
+        });
       } catch (e) {
-        console.error("[shift-reminder] send failed", { userId, targetCode, e });
         failedRules += 1;
+        debug.push({
+          userId,
+          targetCode,
+          step: "send-failed",
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
 
     return Response.json({
-  ok: true,
-  today,
-  nowHhmm,
-  matchedRules: reminderRows?.length ?? 0,
-  checkedRules,
-  sentRules,
-  skippedRules,
-  failedRules,
-});
+      ok: true,
+      today,
+      nowHhmm,
+      matchedRules: reminderRows?.length ?? 0,
+      checkedRules,
+      sentRules,
+      skippedRules,
+      failedRules,
+      debug,
+    });
   } catch (e) {
     return Response.json(
       { ok: false, error: e instanceof Error ? e.message : "Unknown error" },

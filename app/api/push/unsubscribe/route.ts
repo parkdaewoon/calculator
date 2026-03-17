@@ -28,17 +28,11 @@ export async function POST(req: Request) {
     const endpoint = isNonEmptyString(body?.endpoint) ? body.endpoint.trim() : "";
 
     if (!deviceId) {
-      return Response.json(
-        { ok: false, error: "Missing device id" },
-        { status: 401 }
-      );
+      return Response.json({ ok: false, error: "Missing device id" }, { status: 401 });
     }
 
     if (!endpoint) {
-      return Response.json(
-        { ok: false, error: "Missing endpoint" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Missing endpoint" }, { status: 400 });
     }
 
     const { error, count } = await supabaseAdmin
@@ -54,10 +48,7 @@ export async function POST(req: Request) {
       .eq("user_id", deviceId);
 
     if (error) {
-      return Response.json(
-        { ok: false, error: error.message },
-        { status: 500 }
-      );
+      return Response.json({ ok: false, error: error.message }, { status: 500 });
     }
 
     return Response.json({

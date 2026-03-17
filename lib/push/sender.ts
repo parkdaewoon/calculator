@@ -21,16 +21,33 @@ type PushPayload = {
   tag?: string;
 };
 
+export async function hasActivePushSubscription(userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("push_subscriptions")
+    .select("endpoint", { count: "exact", head: false })
+    .eq("user_id", userId)
+    .eq("enabled", true)
+    .limit(1);
+
+  if (error) {
+    console.error("[push] hasActivePushSubscription query failed", { userId, error });
+    return false;
+  }
+
+  return !!data?.length;
+}
+
 export async function sendPushToUser(userId: string, payload: PushPayload) {
   ensureWebPushConfigured();
 
   const { data, error } = await supabaseAdmin
     .from("push_subscriptions")
-.select("endpoint, p256dh, auth, enabled")
-.eq("enabled", true);
+    .select("endpoint, p256dh, auth, enabled")
+    .eq("user_id", userId)
+    .eq("enabled", true);
 
   if (error) {
-    console.error("[push] subscription query failed", error);
+    console.error("[push] subscription query failed", { userId, error });
     throw error;
   }
 
@@ -50,6 +67,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
         url: payload.url ?? "/calendar",
         icon: payload.icon ?? "/icon-192.png",
         badge: payload.badge ?? "/icon-192.png",
+        tag: payload.tag ?? undefined,
         sentAt: Date.now(),
       };
 
@@ -85,7 +103,8 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
             enabled: false,
             updated_at: new Date().toISOString(),
           })
-          .eq("endpoint", row.endpoint);
+          .eq("endpoint", row.endpoint)
+          .eq("user_id", userId);
       }
     }
   }

@@ -14,9 +14,7 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 async function getPublicKey() {
-  if (CACHED_VAPID_KEY) {
-    return CACHED_VAPID_KEY;
-  }
+  if (CACHED_VAPID_KEY) return CACHED_VAPID_KEY;
 
   const res = await fetch("/api/push/public-key", {
     method: "GET",
@@ -36,6 +34,7 @@ async function getPublicKey() {
 
 export function isInstalledPwa() {
   if (typeof window === "undefined") return false;
+
   return (
     window.matchMedia?.("(display-mode: standalone)")?.matches ||
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true
