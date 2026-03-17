@@ -220,7 +220,18 @@ if (!pushEnabled || !workMode || typeof workMode !== "object") {
       const targetDate =
         whenMode === "previousDay" ? addDays(today, 1) : today;
 
-      const pattern = workModeToPattern(workMode as any, today);
+      const anchorDate =
+  typeof (workMode as any)?.anchorDate === "string"
+    ? ((workMode as any).anchorDate as YYYYMMDD)
+    : today;
+
+const pattern = workModeToPattern(workMode as any, anchorDate);
+console.log("[shift-reminder] pattern base", {
+  userId,
+  today,
+  anchorDate,
+  workMode,
+});
       const actualCode = getWorkCodeForDate(
         {
           cycle: pattern.cycle,
