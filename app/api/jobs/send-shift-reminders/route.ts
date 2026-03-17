@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { createClient } from "@supabase/supabase-js";
-import { sendPushToUser, hasActivePushSubscription } from "@/lib/push/sender";
+import { sendPushToUser } from "@/lib/push/sender";
 import { workModeToPattern } from "@/lib/calendar/patterns";
 
 type YYYYMMDD = `${number}${number}${number}${number}-${number}${number}-${number}${number}`;
@@ -21,23 +21,19 @@ function getSupabaseAdmin() {
   });
 }
 
-function getKstParts(date = new Date()) {
+function getTodayYmdInKst(date = new Date()): YYYYMMDD {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
   });
 
-  const parts = Object.fromEntries(fmt.formatToParts(date).map((p) => [p.type, p.value]));
+  const parts = Object.fromEntries(
+    fmt.formatToParts(date).map((p) => [p.type, p.value])
+  );
 
-  const ymd = `${parts.year}-${parts.month}-${parts.day}` as YYYYMMDD;
-  const hhmm = `${parts.hour}:${parts.minute}`;
-
-  return { ymd, hhmm };
+  return `${parts.year}-${parts.month}-${parts.day}` as YYYYMMDD;
 }
 
 function addDays(ymd: YYYYMMDD, days: number): YYYYMMDD {
@@ -49,22 +45,6 @@ function addDays(ymd: YYYYMMDD, days: number): YYYYMMDD {
   const d = String(dt.getDate()).padStart(2, "0");
 
   return `${y}-${m}-${d}` as YYYYMMDD;
-}
-
-function hhmmToMinutes(hhmm: string) {
-  const match = /^(\d{2}):(\d{2})$/.exec(hhmm);
-  if (!match) return null;
-  const h = Number(match[1]);
-  const m = Number(match[2]);
-  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
-  return h * 60 + m;
-}
-
-function isWithinMinuteWindow(nowHhmm: string, targetHhmm: string, toleranceMinutes = 2) {
-  const now = hhmmToMinutes(nowHhmm);
-  const target = hhmmToMinutes(targetHhmm);
-  if (now == null || target == null) return false;
-  return Math.abs(now - target) <= toleranceMinutes;
 }
 
 function getWorkCodeForDate(
@@ -122,45 +102,41 @@ export async function POST(req: Request) {
       return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-    const { ymd: today, hhmm: nowHhmm } = getKstParts();
+    const body = await req.json().catch(() => ({}));
+    const debugUserId =
+      typeof body?.userId === "string" && body.userId.trim()
+        ? body.userId.trim()
+        : null;
+    const ignoreTime = body?.ignoreTime === true;
 
-    const { data: reminderRows, error: reminderError } = await supabaseAdmin
+    const supabaseAdmin = getSupabaseAdmin();
+    const today = getTodayYmdInKst();
+
+    let query = supabaseAdmin
       .from("shift_reminder_rules")
       .select("user_id, target_code, enabled, when_mode, reminder_time")
       .eq("enabled", true);
 
-    if (reminderError) {
-      return Response.json({ ok: false, error: reminderError.message }, { status: 500 });
+    if (debugUserId) {
+      query = query.eq("user_id", debugUserId);
     }
 
-    let checkedRules = 0;
-    let sentRules = 0;
-    let skippedRules = 0;
-    let failedRules = 0;
+    const { data: reminderRows, error: reminderError } = await query;
 
-    const debug: Array<Record<string, unknown>> = [];
+    if (reminderError) {
+      return Response.json(
+        { ok: false, error: reminderError.message },
+        { status: 500 }
+      );
+    }
+
+    const debug = [];
 
     for (const row of reminderRows ?? []) {
-      checkedRules += 1;
-
-      const userId = String(row.user_id);
+      const userId = row.user_id as string;
       const targetCode = row.target_code as ReminderTargetCode;
-      const whenMode: ReminderWhenMode =
-        row.when_mode === "today" ? "today" : "previousDay";
-      const reminderTime = String(row.reminder_time ?? "");
-
-      if (!isWithinMinuteWindow(nowHhmm, reminderTime, 2)) {
-        skippedRules += 1;
-        debug.push({
-          userId,
-          targetCode,
-          step: "time-mismatch",
-          reminderTime,
-          nowHhmm,
-        });
-        continue;
-      }
+      const whenMode = row.when_mode === "today" ? "today" : "previousDay";
+      const reminderTime = row.reminder_time as string;
 
       const { data: workModeRow, error: workModeError } = await supabaseAdmin
         .from("user_work_modes")
@@ -169,11 +145,10 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       if (workModeError) {
-        failedRules += 1;
         debug.push({
           userId,
           targetCode,
-          step: "work-mode-query-failed",
+          step: "workModeError",
           error: workModeError.message,
         });
         continue;
@@ -182,27 +157,16 @@ export async function POST(req: Request) {
       const workMode = workModeRow?.work_mode;
 
       if (!workMode || typeof workMode !== "object") {
-        skippedRules += 1;
         debug.push({
           userId,
           targetCode,
-          step: "missing-work-mode",
+          step: "missingWorkMode",
         });
         continue;
       }
 
-      const hasSubscription = await hasActivePushSubscription(userId);
-      if (!hasSubscription) {
-        skippedRules += 1;
-        debug.push({
-          userId,
-          targetCode,
-          step: "no-active-subscription",
-        });
-        continue;
-      }
-
-      const targetDate = whenMode === "previousDay" ? addDays(today, 1) : today;
+      const targetDate =
+        whenMode === "previousDay" ? addDays(today, 1) : today;
 
       const anchorDate =
         typeof (workMode as any)?.anchorDate === "string"
@@ -213,21 +177,33 @@ export async function POST(req: Request) {
 
       const actualCode = getWorkCodeForDate(
         {
-          cycle: Array.isArray(pattern.cycle) ? pattern.cycle : [],
+          cycle: pattern.cycle,
           anchorDate: pattern.anchorDate as YYYYMMDD,
         },
         targetDate
       );
 
+      debug.push({
+        userId,
+        targetCode,
+        whenMode,
+        reminderTime,
+        targetDate,
+        anchorDate,
+        cycle: pattern.cycle,
+        actualCode,
+        matches: actualCode === targetCode,
+      });
+
       if (actualCode !== targetCode) {
-        skippedRules += 1;
+        continue;
+      }
+
+      if (!ignoreTime) {
         debug.push({
           userId,
           targetCode,
-          step: "code-mismatch",
-          actualCode,
-          targetDate,
-          whenMode,
+          step: "matched-code-but-time-check-still-enabled",
         });
         continue;
       }
@@ -240,107 +216,27 @@ export async function POST(req: Request) {
         targetDate,
       });
 
-      const { data: existingLog, error: logCheckError } = await supabaseAdmin
-        .from("shift_reminder_logs")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("scheduled_key", scheduledKey)
-        .maybeSingle();
+      const result = await sendPushToUser(userId, {
+        title: `${codeLabel(targetCode)} 근무 알림`,
+        body:
+          whenMode === "previousDay"
+            ? `내일 ${codeLabel(targetCode)} 근무 예정입니다.`
+            : `오늘 ${codeLabel(targetCode)} 근무 예정입니다.`,
+        url: "/calendar",
+        tag: `shift-${scheduledKey}`,
+      });
 
-      if (logCheckError) {
-        failedRules += 1;
-        debug.push({
-          userId,
-          targetCode,
-          step: "log-check-failed",
-          scheduledKey,
-          error: logCheckError.message,
-        });
-        continue;
-      }
-
-      if (existingLog) {
-        skippedRules += 1;
-        debug.push({
-          userId,
-          targetCode,
-          step: "already-sent",
-          scheduledKey,
-        });
-        continue;
-      }
-
-      try {
-        const result = await sendPushToUser(userId, {
-          title: `${codeLabel(targetCode)} 근무 알림`,
-          body:
-            whenMode === "previousDay"
-              ? `내일 ${codeLabel(targetCode)} 근무 예정입니다.`
-              : `오늘 ${codeLabel(targetCode)} 근무 예정입니다.`,
-          url: "/calendar",
-          tag: `shift-${scheduledKey}`,
-        });
-
-        if (result.sent <= 0) {
-          skippedRules += 1;
-          debug.push({
-            userId,
-            targetCode,
-            step: "push-not-sent",
-            result,
-          });
-          continue;
-        }
-
-        const { error: insertLogError } = await supabaseAdmin
-          .from("shift_reminder_logs")
-          .insert({
-            user_id: userId,
-            scheduled_key: scheduledKey,
-            target_date: targetDate,
-            target_code: targetCode,
-          });
-
-        if (insertLogError) {
-          failedRules += 1;
-          debug.push({
-            userId,
-            targetCode,
-            step: "log-insert-failed",
-            scheduledKey,
-            error: insertLogError.message,
-          });
-          continue;
-        }
-
-        sentRules += 1;
-        debug.push({
-          userId,
-          targetCode,
-          step: "sent",
-          scheduledKey,
-          result,
-        });
-      } catch (e) {
-        failedRules += 1;
-        debug.push({
-          userId,
-          targetCode,
-          step: "send-failed",
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
+      debug.push({
+        userId,
+        targetCode,
+        step: "sendResult",
+        result,
+      });
     }
 
     return Response.json({
       ok: true,
       today,
-      nowHhmm,
-      matchedRules: reminderRows?.length ?? 0,
-      checkedRules,
-      sentRules,
-      skippedRules,
-      failedRules,
       debug,
     });
   } catch (e) {
