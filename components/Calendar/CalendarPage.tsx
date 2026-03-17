@@ -12,7 +12,6 @@ import DayDetailSheet from "./DayDetailSheet";
 import EventEditorSheet from "./EventEditorSheet";
 import {
   ensureDeviceUserId,
-  fetchPushEnabled,
   subscribeCalendarPush,
 } from "@/lib/push/client";
 import {
@@ -342,15 +341,9 @@ useEffect(() => {
       console.log("[calendar] needShiftPush =", needShiftPush);
 
       if (needShiftPush) {
-        const pushEnabled = await fetchPushEnabled(userId).catch(() => false);
-
-        console.log("[calendar] pushEnabled =", pushEnabled);
-
-        if (!pushEnabled) {
-          console.log("[calendar] enabling push subscription before saving reminders");
-          await subscribeCalendarPush(userId);
-          console.log("[calendar] subscribeCalendarPush done");
-        }
+        console.log("[calendar] forcing subscribe before saving reminders");
+        await subscribeCalendarPush(userId);
+        console.log("[calendar] subscribeCalendarPush done");
       }
 
       if (cancelled) return;
