@@ -38,60 +38,34 @@ export default function NotificationSettingsCard({
   }, [userId]);
 
   async function onToggle(next: boolean) {
-    if (!userId || loading) return;
+  if (!userId || loading) return;
 
-    const prev = pushEnabled;
-    setPushEnabled(next);
-    setLoading(true);
+  const prev = pushEnabled;
+  setPushEnabled(next);
+  setLoading(true);
 
-    try {
-      if (next) {
-        if (!isInstalledPwa()) {
-          throw new Error("홈 화면에 추가한 앱에서만 푸시가 동작해요.");
-        }
+  try {
+    console.log("[push-ui] toggle start", { next, userId });
 
-        await subscribeCalendarPush(userId);
-
-        const existingRules = await fetchShiftReminderRules(userId).catch(
-          () => []
-        );
-
-        const rulesToSave =
-          existingRules.length > 0
-            ? buildShiftReminderRulesEnabled(true, existingRules)
-            : DEFAULT_SHIFT_REMINDER_RULES;
-
-        await saveShiftReminderRules(userId, rulesToSave);
-      } else {
-        await unsubscribeCalendarPush(userId);
-
-        const existingRules = await fetchShiftReminderRules(userId).catch(
-          () => []
-        );
-
-        const rulesToSave =
-          existingRules.length > 0
-            ? buildShiftReminderRulesEnabled(false, existingRules)
-            : buildShiftReminderRulesEnabled(false, DEFAULT_SHIFT_REMINDER_RULES);
-
-        await saveShiftReminderRules(userId, rulesToSave);
-      }
-    } catch (e) {
-      console.error("notification toggle failed", e);
-      setPushEnabled(prev);
-
-      const msg =
-        e instanceof Error
-          ? e.message
-          : next
-            ? "알림 권한/구독 설정에 실패했어요."
-            : "알림 해제에 실패했어요.";
-
-      alert(msg);
-    } finally {
-      setLoading(false);
+    if (next) {
+      const result = await subscribeCalendarPush(userId);
+      console.log("[push-ui] subscribe result", result);
+    } else {
+      const result = await unsubscribeCalendarPush(userId);
+      console.log("[push-ui] unsubscribe result", result);
     }
+
+    const enabled = await fetchPushEnabled(userId);
+    console.log("[push-ui] fetchPushEnabled after toggle", enabled);
+    setPushEnabled(enabled);
+  } catch (e) {
+    console.error("[push-ui] toggle failed", e);
+    alert(e instanceof Error ? e.message : "알림 설정 실패");
+    setPushEnabled(prev);
+  } finally {
+    setLoading(false);
   }
+}
 
   if (!userId) return null;
 
