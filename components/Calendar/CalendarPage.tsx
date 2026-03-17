@@ -467,6 +467,7 @@ export default function CalendarPage() {
   const fixed = migrateEvent(ev as any, selectedDate || today);
   const localId = fixed.id;
 
+  // 먼저 화면에는 즉시 반영
   setEvents((prev) => {
     const i = (prev as any[]).findIndex((x) => x?.id === localId);
     if (i >= 0) {
@@ -479,6 +480,19 @@ export default function CalendarPage() {
 
   try {
     const { startMs, startsAtIso, remindAtIso } = getEventScheduleTimes(fixed);
+
+    console.log("[saveEvent] payload times", {
+      title: fixed.title,
+      fixed,
+      localId,
+      startMs,
+      startsAtIso,
+      remindAtIso,
+      reminderMinutes: fixed.reminderMinutes,
+      dateStart: fixed.dateStart,
+      startTime: fixed.startTime,
+      allDay: fixed.allDay,
+    });
 
     if (!startMs || !startsAtIso) {
       console.error("[saveEvent] invalid start time", fixed);
@@ -509,7 +523,7 @@ export default function CalendarPage() {
       return;
     }
 
-    // 서버가 준 실제 DB id로 치환
+    // ✅ 서버가 준 진짜 DB id로 로컬 상태 교체
     if (json?.id && json.id !== localId) {
       setEvents((prev) =>
         (prev as any[]).map((x) =>
@@ -525,6 +539,7 @@ export default function CalendarPage() {
   const deleteEvent = async (id: string) => {
   try {
     console.log("[deleteEvent] id =", id);
+    console.log("[deleteEvent] userId =", userId);
 
     const res = await fetch("/api/calendar-events/delete", {
       method: "POST",
@@ -538,13 +553,12 @@ export default function CalendarPage() {
     const json = await res.json().catch(() => null);
     console.log("[deleteEvent] response =", res.status, json);
 
-    if (!res.ok || !json?.ok) {
-      console.error("calendar event delete failed", json);
-      alert("일정 삭제에 실패했어요.");
-      return;
-    }
-
+    // 일단 화면에서는 삭제
     setEvents((prev) => (prev as any[]).filter((x) => x?.id !== id) as any);
+
+    if (!res.ok || !json?.ok) {
+      console.warn("calendar event delete failed in DB, removed locally only", json);
+    }
   } catch (e) {
     console.error("calendar event delete failed", e);
     alert("일정 삭제 중 오류가 발생했어요.");
