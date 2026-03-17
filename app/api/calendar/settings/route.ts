@@ -3,6 +3,15 @@ export const dynamic = "force-dynamic";
 
 import { createClient } from "@supabase/supabase-js";
 
+type ReminderWhenMode = "today" | "previousDay";
+
+type ShiftReminderPayload = {
+  enabled: boolean;
+  whenMode: ReminderWhenMode;
+  reminderTime: string;
+  targetCodes: string[];
+};
+
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -19,6 +28,38 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function normalizeShiftReminder(input: unknown): ShiftReminderPayload {
+  if (!isObject(input)) {
+    return {
+      enabled: false,
+      whenMode: "previousDay",
+      reminderTime: "21:00",
+      targetCodes: ["NIGHT"],
+    };
+  }
+
+  const enabled = input.enabled === true;
+  const whenMode: ReminderWhenMode =
+    input.whenMode === "today" ? "today" : "previousDay";
+
+  const reminderTime =
+    typeof input.reminderTime === "string" &&
+    /^\d{2}:\d{2}$/.test(input.reminderTime)
+      ? input.reminderTime
+      : "21:00";
+
+  const targetCodes = Array.isArray(input.targetCodes)
+    ? input.targetCodes.filter((v): v is string => typeof v === "string" && !!v)
+    : ["NIGHT"];
+
+  return {
+    enabled,
+    whenMode,
+    reminderTime,
+    targetCodes: targetCodes.length ? targetCodes : ["NIGHT"],
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
@@ -31,19 +72,24 @@ export async function GET(req: Request) {
       );
     }
 
-    const [{ data: workModeRow, error: workModeError }, { data: reminderRow, error: reminderError }] =
-      await Promise.all([
-        supabaseAdmin
-          .from("user_work_modes")
-          .select("user_id, work_mode, updated_at")
-          .eq("user_id", deviceId)
-          .maybeSingle(),
-        supabaseAdmin
-          .from("shift_reminder_settings")
-          .select("user_id, settings, updated_at")
-          .eq("user_id", deviceId)
-          .maybeSingle(),
-      ]);
+    const [
+      { data: workModeRow, error: workModeError },
+      { data: reminderRow, error: reminderError },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("user_work_modes")
+        .select("user_id, work_mode, updated_at")
+        .eq("user_id", deviceId)
+        .maybeSingle(),
+
+      supabaseAdmin
+        .from("shift_reminder_settings")
+        .select(
+          "user_id, enabled, when_mode, reminder_time, target_codes, updated_at"
+        )
+        .eq("user_id", deviceId)
+        .maybeSingle(),
+    ]);
 
     if (workModeError) {
       return Response.json(
@@ -63,7 +109,17 @@ export async function GET(req: Request) {
       ok: true,
       data: {
         workMode: workModeRow?.work_mode ?? null,
-        shiftReminder: reminderRow?.settings ?? null,
+        shiftReminder: reminderRow
+          ? {
+              enabled: !!reminderRow.enabled,
+              whenMode:
+                reminderRow.when_mode === "today" ? "today" : "previousDay",
+              reminderTime: reminderRow.reminder_time ?? "21:00",
+              targetCodes: Array.isArray(reminderRow.target_codes)
+                ? reminderRow.target_codes
+                : ["NIGHT"],
+            }
+          : null,
       },
     });
   } catch (e) {
@@ -88,57 +144,58 @@ export async function POST(req: Request) {
     }
 
     const workMode = body?.workMode;
-    const shiftReminder = body?.shiftReminder;
+    const hasWorkMode = isObject(workMode);
 
-    if (!isObject(workMode)) {
-      return Response.json(
-        { ok: false, error: "Invalid workMode" },
-        { status: 400 }
-      );
-    }
+    const hasShiftReminder = body?.shiftReminder !== undefined;
+    const shiftReminder = hasShiftReminder
+      ? normalizeShiftReminder(body?.shiftReminder)
+      : null;
 
-    if (!isObject(shiftReminder)) {
+    if (!hasWorkMode && !hasShiftReminder) {
       return Response.json(
-        { ok: false, error: "Invalid shiftReminder" },
+        { ok: false, error: "Nothing to update" },
         { status: 400 }
       );
     }
 
     const now = new Date().toISOString();
+    const jobs: PromiseLike<{ error: { message: string } | null }>[] = [];
 
-    const [{ error: workModeError }, { error: reminderError }] = await Promise.all([
-      supabaseAdmin
-        .from("user_work_modes")
-        .upsert(
+    if (hasWorkMode) {
+      jobs.push(
+        supabaseAdmin.from("user_work_modes").upsert(
           {
             user_id: deviceId,
             work_mode: workMode,
             updated_at: now,
           },
           { onConflict: "user_id" }
-        ),
-      supabaseAdmin
-        .from("shift_reminder_settings")
-        .upsert(
-          {
-            user_id: deviceId,
-            settings: shiftReminder,
-            updated_at: now,
-          },
-          { onConflict: "user_id" }
-        ),
-    ]);
-
-    if (workModeError) {
-      return Response.json(
-        { ok: false, error: workModeError.message },
-        { status: 500 }
+        )
       );
     }
 
-    if (reminderError) {
+    if (shiftReminder) {
+      jobs.push(
+        supabaseAdmin.from("shift_reminder_settings").upsert(
+          {
+            user_id: deviceId,
+            enabled: shiftReminder.enabled,
+            when_mode: shiftReminder.whenMode,
+            reminder_time: shiftReminder.reminderTime,
+            target_codes: shiftReminder.targetCodes,
+            updated_at: now,
+          },
+          { onConflict: "user_id" }
+        )
+      );
+    }
+
+    const results = await Promise.all(jobs);
+    const failed = results.find((r) => r.error);
+
+    if (failed?.error) {
       return Response.json(
-        { ok: false, error: reminderError.message },
+        { ok: false, error: failed.error.message },
         { status: 500 }
       );
     }

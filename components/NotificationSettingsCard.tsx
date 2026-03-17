@@ -9,6 +9,31 @@ import {
 } from "@/lib/push/client";
 import usePushUserId from "@/lib/hooks/usePushUserId";
 
+async function saveShiftReminderEnabled(userId: string, enabled: boolean) {
+  const res = await fetch("/api/calendar/preferences", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-device-id": userId,
+    },
+    body: JSON.stringify({
+      workMode: {}, // 서버가 기존 workMode 유지 안 하면 아래 안내대로 route도 같이 수정
+      shiftReminder: {
+        enabled,
+        whenMode: "previousDay",
+        reminderTime: "19:10",
+        targetCodes: ["DAY"],
+      },
+    }),
+  });
+
+  const json = await res.json().catch(() => null);
+
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.error || "근무 알림 설정 저장 실패");
+  }
+}
+
 export default function NotificationSettingsCard({
   compact = false,
 }: {
@@ -32,34 +57,40 @@ export default function NotificationSettingsCard({
   }, [userId]);
 
   async function onToggle(next: boolean) {
-  if (!userId || loading) return;
+    if (!userId || loading) return;
 
-  const prev = pushEnabled;
-  setPushEnabled(next);
-  setLoading(true);
+    const prev = pushEnabled;
+    setPushEnabled(next);
+    setLoading(true);
 
-  try {
-    if (next) {
-      if (!isInstalledPwa()) {
-        throw new Error("홈 화면에 추가한 앱에서만 푸시가 동작해요.");
+    try {
+      if (next) {
+        if (!isInstalledPwa()) {
+          throw new Error("홈 화면에 추가한 앱에서만 푸시가 동작해요.");
+        }
+
+        await subscribeCalendarPush(userId);
+        await saveShiftReminderEnabled(userId, true);
+      } else {
+        await unsubscribeCalendarPush(userId);
+        await saveShiftReminderEnabled(userId, false);
       }
+    } catch (e) {
+      console.error("notification toggle failed", e);
+      setPushEnabled(prev);
 
-      await subscribeCalendarPush(userId);
-    } else {
-      await unsubscribeCalendarPush(userId);
+      const msg =
+        e instanceof Error
+          ? e.message
+          : next
+            ? "알림 권한/구독 설정에 실패했어요."
+            : "알림 해제에 실패했어요.";
+
+      alert(msg);
+    } finally {
+      setLoading(false);
     }
-  } catch (e) {
-    console.error("notification toggle failed", e);
-    setPushEnabled(prev);
-
-    const msg =
-      e instanceof Error ? e.message : next ? "알림 권한/구독 설정에 실패했어요." : "알림 해제에 실패했어요.";
-
-    alert(msg);
-  } finally {
-    setLoading(false);
   }
-}
 
   if (!userId) return null;
 

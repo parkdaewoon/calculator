@@ -10,6 +10,31 @@ import usePushUserId from "@/lib/hooks/usePushUserId";
 
 const PROMPTED_KEY = "calendar_notification_prompted_v1";
 
+async function saveDefaultShiftReminder(userId: string) {
+  const res = await fetch("/api/calendar/preferences", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-device-id": userId,
+    },
+    body: JSON.stringify({
+      workMode: {}, // 기존 workMode를 여기서 바꾸지 않도록 빈 객체 대신 서버에서 기존 값 유지 구조가 아니면 아래 설명 참고
+      shiftReminder: {
+        enabled: true,
+        whenMode: "previousDay",
+        reminderTime: "19:10",
+        targetCodes: ["DAY"],
+      },
+    }),
+  });
+
+  const json = await res.json().catch(() => null);
+
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.error || "근무 알림 설정 저장 실패");
+  }
+}
+
 export default function NotificationPermissionPrompt() {
   const userId = usePushUserId();
   const [open, setOpen] = useState(false);
@@ -50,11 +75,16 @@ export default function NotificationPermissionPrompt() {
 
     try {
       setLoading(true);
+
       await subscribeCalendarPush(userId);
+      await saveDefaultShiftReminder(userId);
+
       closeAndRemember();
     } catch (e) {
       console.error("subscribeCalendarPush failed", e);
-      alert("알림 허용 설정에 실패했어요.");
+      alert(
+        e instanceof Error ? e.message : "알림 허용 설정에 실패했어요."
+      );
     } finally {
       setLoading(false);
     }
