@@ -159,24 +159,31 @@ export async function POST(req: Request) {
     }
 
     const now = new Date().toISOString();
-    const jobs: PromiseLike<{ error: { message: string } | null }>[] = [];
 
     if (hasWorkMode) {
-      jobs.push(
-        supabaseAdmin.from("user_work_modes").upsert(
+      const { error: workModeError } = await supabaseAdmin
+        .from("user_work_modes")
+        .upsert(
           {
             user_id: deviceId,
             work_mode: workMode,
             updated_at: now,
           },
           { onConflict: "user_id" }
-        )
-      );
+        );
+
+      if (workModeError) {
+        return Response.json(
+          { ok: false, error: workModeError.message },
+          { status: 500 }
+        );
+      }
     }
 
     if (shiftReminder) {
-      jobs.push(
-        supabaseAdmin.from("shift_reminder_settings").upsert(
+      const { error: reminderError } = await supabaseAdmin
+        .from("shift_reminder_settings")
+        .upsert(
           {
             user_id: deviceId,
             enabled: shiftReminder.enabled,
@@ -186,18 +193,14 @@ export async function POST(req: Request) {
             updated_at: now,
           },
           { onConflict: "user_id" }
-        )
-      );
-    }
+        );
 
-    const results = await Promise.all(jobs);
-    const failed = results.find((r) => r.error);
-
-    if (failed?.error) {
-      return Response.json(
-        { ok: false, error: failed.error.message },
-        { status: 500 }
-      );
+      if (reminderError) {
+        return Response.json(
+          { ok: false, error: reminderError.message },
+          { status: 500 }
+        );
+      }
     }
 
     return Response.json({ ok: true });

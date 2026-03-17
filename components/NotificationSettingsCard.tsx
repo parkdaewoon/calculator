@@ -10,14 +10,13 @@ import {
 import usePushUserId from "@/lib/hooks/usePushUserId";
 
 async function saveShiftReminderEnabled(userId: string, enabled: boolean) {
-  const res = await fetch("/api/calendar/preferences", {
+  const res = await fetch("/api/calendar/settings", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-device-id": userId,
     },
     body: JSON.stringify({
-      workMode: {}, // 서버가 기존 workMode 유지 안 하면 아래 안내대로 route도 같이 수정
       shiftReminder: {
         enabled,
         whenMode: "previousDay",
@@ -28,6 +27,7 @@ async function saveShiftReminderEnabled(userId: string, enabled: boolean) {
   });
 
   const json = await res.json().catch(() => null);
+  console.log("saveShiftReminderEnabled", { enabled, status: res.status, json });
 
   if (!res.ok || !json?.ok) {
     throw new Error(json?.error || "근무 알림 설정 저장 실패");
