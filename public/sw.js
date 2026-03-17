@@ -21,7 +21,7 @@ self.addEventListener("push", (event) => {
 
   try {
     data = event.data ? event.data.json() : {};
-  } catch (e) {
+  } catch {
     data = {};
   }
 
@@ -89,9 +89,11 @@ self.addEventListener("pushsubscriptionchange", (event) => {
 
         await fetch("/api/push/subscribe", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-device-id": userId,
+          },
           body: JSON.stringify({
-            userId,
             subscription: newSub.toJSON(),
             deviceLabel: "PWA",
           }),
@@ -108,7 +110,11 @@ function urlBase64ToUint8Array(base64String) {
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
   const out = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+
+  for (let i = 0; i < raw.length; i++) {
+    out[i] = raw.charCodeAt(i);
+  }
+
   return out;
 }
 

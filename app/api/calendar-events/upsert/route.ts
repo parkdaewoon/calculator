@@ -72,7 +72,6 @@ export async function POST(req: Request) {
     const typeMain =
       typeof body.type_main === "string" ? body.type_main.trim() : null;
 
-    // 새 일정 생성
     if (!id) {
       const { data, error } = await supabaseAdmin
         .from("calendar_events")
@@ -98,7 +97,6 @@ export async function POST(req: Request) {
       return Response.json({ ok: true, id: data.id });
     }
 
-    // 기존 일정 수정
     const { error, count } = await supabaseAdmin
       .from("calendar_events")
       .update(

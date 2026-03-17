@@ -84,12 +84,15 @@ export async function POST(req: Request) {
 
     const { error } = await supabaseAdmin
       .from("notification_settings")
-      .upsert({
-        user_id: deviceId,
-        push_enabled: body.push_enabled,
-        endpoint,
-        updated_at: new Date().toISOString(),
-      });
+      .upsert(
+        {
+          user_id: deviceId,
+          push_enabled: body.push_enabled,
+          endpoint,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
 
     if (error) {
       return Response.json(
