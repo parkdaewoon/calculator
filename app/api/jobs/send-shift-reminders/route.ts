@@ -36,6 +36,17 @@ function getTodayYmdInKst(date = new Date()): YYYYMMDD {
   return `${parts.year}-${parts.month}-${parts.day}` as YYYYMMDD;
 }
 
+function getNowHhmmInKst(date = new Date()) {
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  return fmt.format(date);
+}
+
 function addDays(ymd: YYYYMMDD, days: number): YYYYMMDD {
   const dt = new Date(`${ymd}T00:00:00+09:00`);
   dt.setDate(dt.getDate() + days);
@@ -107,10 +118,13 @@ export async function POST(req: Request) {
       typeof body?.userId === "string" && body.userId.trim()
         ? body.userId.trim()
         : null;
+
     const ignoreTime = body?.ignoreTime === true;
 
     const supabaseAdmin = getSupabaseAdmin();
-    const today = getTodayYmdInKst();
+    const now = new Date();
+    const today = getTodayYmdInKst(now);
+    const nowHhmm = getNowHhmmInKst(now);
 
     let query = supabaseAdmin
       .from("shift_reminder_rules")
@@ -130,7 +144,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const debug = [];
+    const debug: any[] = [];
 
     for (const row of reminderRows ?? []) {
       const userId = row.user_id as string;
@@ -183,27 +197,29 @@ export async function POST(req: Request) {
         targetDate
       );
 
-      debug.push({
-        userId,
-        targetCode,
-        whenMode,
-        reminderTime,
-        targetDate,
-        anchorDate,
-        cycle: pattern.cycle,
-        actualCode,
-        matches: actualCode === targetCode,
-      });
-
       if (actualCode !== targetCode) {
-        continue;
-      }
-
-      if (!ignoreTime) {
         debug.push({
           userId,
           targetCode,
-          step: "matched-code-but-time-check-still-enabled",
+          whenMode,
+          reminderTime,
+          targetDate,
+          actualCode,
+          step: "codeNotMatched",
+        });
+        continue;
+      }
+
+      if (!ignoreTime && reminderTime !== nowHhmm) {
+        debug.push({
+          userId,
+          targetCode,
+          whenMode,
+          reminderTime,
+          nowHhmm,
+          targetDate,
+          actualCode,
+          step: "timeNotMatched",
         });
         continue;
       }
@@ -216,6 +232,23 @@ export async function POST(req: Request) {
         targetDate,
       });
 
+      const { data: alreadySent } = await supabaseAdmin
+        .from("shift_reminder_logs")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("scheduled_key", scheduledKey)
+        .maybeSingle();
+
+      if (alreadySent) {
+        debug.push({
+          userId,
+          targetCode,
+          scheduledKey,
+          step: "alreadySent",
+        });
+        continue;
+      }
+
       const result = await sendPushToUser(userId, {
         title: `${codeLabel(targetCode)} 근무 알림`,
         body:
@@ -226,10 +259,25 @@ export async function POST(req: Request) {
         tag: `shift-${scheduledKey}`,
       });
 
+      await supabaseAdmin.from("shift_reminder_logs").insert({
+        user_id: userId,
+        target_code: targetCode,
+        when_mode: whenMode,
+        reminder_time: reminderTime,
+        target_date: targetDate,
+        scheduled_key: scheduledKey,
+        sent_at: new Date().toISOString(),
+      });
+
       debug.push({
         userId,
         targetCode,
-        step: "sendResult",
+        whenMode,
+        reminderTime,
+        nowHhmm,
+        targetDate,
+        actualCode,
+        step: "sent",
         result,
       });
     }
@@ -237,6 +285,7 @@ export async function POST(req: Request) {
     return Response.json({
       ok: true,
       today,
+      nowHhmm,
       debug,
     });
   } catch (e) {
