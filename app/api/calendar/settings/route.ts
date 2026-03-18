@@ -53,7 +53,9 @@ function normalizeReminderRule(input: unknown): ShiftReminderRuleInput {
   if (typeof input.enabled !== "boolean") {
     throw new Error("Invalid shift reminder enabled");
   }
-
+  if (!isWhenMode(input.whenMode)) {
+    throw new Error("Invalid shift reminder whenMode");
+  }
   if (typeof input.reminderTime !== "string" || !isValidHhmm(input.reminderTime)) {
     throw new Error("Invalid shift reminder reminderTime");
   }
@@ -61,7 +63,7 @@ function normalizeReminderRule(input: unknown): ShiftReminderRuleInput {
   return {
     targetCode: input.targetCode,
     enabled: input.enabled,
-    whenMode: "previousDay", // ✅ 서버에서도 강제 고정
+    whenMode: input.whenMode === "previousDay" ? "previousDay" : "today",
     reminderTime: input.reminderTime,
   };
 }

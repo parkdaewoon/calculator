@@ -48,12 +48,12 @@ function getNowHhmmInKst(date = new Date()) {
 }
 
 function addDays(ymd: YYYYMMDD, days: number): YYYYMMDD {
-  const dt = new Date(`${ymd}T00:00:00+09:00`);
-  dt.setDate(dt.getDate() + days);
+  const [year, month, day] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(year, month - 1, day + days));;
 
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, "0");
-  const d = String(dt.getDate()).padStart(2, "0");
+  const y = dt.getUTCFullYear();
+  const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(dt.getUTCDate()).padStart(2, "0");
 
   return `${y}-${m}-${d}` as YYYYMMDD;
 }
@@ -298,29 +298,28 @@ export async function POST(req: Request) {
 
       let result;
 
-try {
-  result = await sendPushToUser(userId, {
-    title: `${codeLabel(targetCode)} 근무 알림`,
-    body:
-      whenMode === "previousDay"
-        ? `내일 ${codeLabel(targetCode)} 근무 예정입니다.`
-        : `오늘 ${codeLabel(targetCode)} 근무 예정입니다.`,
-    url: "/calendar",
-    tag: `shift-${scheduledKey}`,
-  });
-} catch (e: any) {
-  debug.push({
-    userId,
-    targetCode,
-    whenMode,
-    reminderTime,
-    targetDate,
-    actualCode,
-    step: "sendError",
-    error: e?.message || String(e),
-  });
-  continue;
-}
+const targetDayLabel = targetDate === today ? "오늘" : "내일";
+
+      try {
+        result = await sendPushToUser(userId, {
+          title: `${codeLabel(targetCode)} 근무 알림`,
+          body: `${targetDayLabel} ${codeLabel(targetCode)}근무예정입니다.`,
+          url: "/calendar",
+          tag: `shift-${scheduledKey}`,
+        });
+      } catch (e: any) {
+        debug.push({
+          userId,
+          targetCode,
+          whenMode,
+          reminderTime,
+          targetDate,
+          actualCode,
+          step: "sendError",
+          error: e?.message || String(e),
+        });
+        continue;
+      }
 
       await supabaseAdmin.from("shift_reminder_logs").insert({
         user_id: userId,

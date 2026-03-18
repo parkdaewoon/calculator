@@ -28,7 +28,7 @@ function toShiftReminderRules(
     out.push({
       targetCode: code,
       enabled: !!item.enabled,
-      whenMode: "previousDay", // ✅ 무조건 고정
+      whenMode: item.whenMode === "previousDay" ? "previousDay" : "today",
       reminderTime: item.reminderTime as HHMM,
     });
   }
