@@ -18,7 +18,6 @@ import {
   addMonths,
   buildMonthGrid,
   calcWorkStatsForMonth,
-  defaultPattern,
   getToday,
   toMonthKey,
   type CalendarEvent,
@@ -37,7 +36,36 @@ import type { WorkMode, ShiftReminderSettings } from "./types";
 import { DEFAULT_SHIFT_REMINDER } from "./types";
 import { loadCalendarSettings, saveCalendarSettings } from "@/lib/calendar/settings";
 type HolidaysMap = Record<string, { name: string; isHoliday: boolean }>;
+function getInitialCalendarUiState(today: YYYYMMDD) {
+  const persisted = loadCalendarState();
+  const persistedWorkMode = isWorkModeObject(persisted?.workMode)
+    ? (persisted!.workMode as WorkMode)
+    : ({ type: "NONE" } as WorkMode);
+  const normalizedWorkMode: WorkMode =
+    persistedWorkMode.type === "SHIFT"
+      ? ({
+          ...persistedWorkMode,
+          anchorDate: normalizeYmd((persistedWorkMode as any).anchorDate) || today,
+        } as any)
+      : persistedWorkMode;
 
+  const persistedSelectedDate = normalizeYmd(persisted?.selectedDate) || today;
+  const persistedMonth =
+    typeof persisted?.month === "string" && persisted.month.trim()
+      ? (persisted.month as YYYYMM)
+      : toMonthKey(persistedSelectedDate);
+  const persistedEvents = Array.isArray(persisted?.events)
+    ? persisted.events.map((ev) => migrateEvent(ev, persistedSelectedDate))
+    : [];
+
+  return {
+    month: persistedMonth,
+    selectedDate: persistedSelectedDate,
+    workMode: normalizedWorkMode,
+    pattern: workModeToPattern(normalizedWorkMode as any, today),
+    events: persistedEvents,
+  };
+}
 function getEventScheduleTimes(ev: CalendarEvent): {
   startMs: number | null;
   startsAtIso: string | null;
@@ -215,16 +243,16 @@ function writeHolidaysCache(cache: Record<string, HolidaysMap>) {
 
 export default function CalendarPage() {
   const today = useMemo<YYYYMMDD>(() => normalizeYmd(getToday()) as YYYYMMDD, []);
-
-  const [month, setMonth] = useState<YYYYMM>(() => toMonthKey(today));
-  const [selectedDate, setSelectedDate] = useState<YYYYMMDD>(() => today);
+  const initialUiState = useMemo(() => getInitialCalendarUiState(today), [today]);
+  const [month, setMonth] = useState<YYYYMM>(() => initialUiState.month);
+  const [selectedDate, setSelectedDate] = useState<YYYYMMDD>(() => initialUiState.selectedDate);
   const userId = useMemo(() => ensureDeviceUserId(), []);
-  const [pattern, setPattern] = useState<WorkPattern>(() => defaultPattern(today));
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [pattern, setPattern] = useState<WorkPattern>(() => initialUiState.pattern);
+  const [events, setEvents] = useState<CalendarEvent[]>(() => initialUiState.events);
 
   const [workSummaryOpen, setWorkSummaryOpen] = useState(false);
 
-  const [workMode, setWorkMode] = useState<WorkMode>(() => ({ type: "NONE" }));
+  const [workMode, setWorkMode] = useState<WorkMode>(() => initialUiState.workMode);
   const [workModeOpen, setWorkModeOpen] = useState(false);
 const [shiftReminder, setShiftReminder] =
   useState<ShiftReminderSettings>(DEFAULT_SHIFT_REMINDER);
@@ -260,7 +288,20 @@ const [shiftReminder, setShiftReminder] =
     if (!editingId) return null;
     return (events as any[]).find((e) => e?.id === editingId) ?? null;
   }, [events, editingId]);
+useEffect(() => {
+  setHydrated(true);
+}, []);
 
+useEffect(() => {
+  if (!hydrated) return;
+
+  saveCalendarState({
+    month,
+    selectedDate,
+    workMode,
+    events,
+  });
+}, [hydrated, month, selectedDate, workMode, events]);
 /** =========================
  * 1.1) load remote calendar settings
  * ========================= */

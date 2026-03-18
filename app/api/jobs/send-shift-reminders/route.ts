@@ -72,6 +72,38 @@ function getWorkCodeForDate(
 
   return cycle[idx];
 }
+function isReminderTimeDue(params: {
+  reminderTime: string;
+  nowHhmm: string;
+  toleranceMinutes?: number;
+}) {
+  const toleranceMinutes = Math.max(0, params.toleranceMinutes ?? 1);
+
+  const parse = (hhmm: string) => {
+    const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
+    if (!m) return null;
+
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+
+    return hh * 60 + mm;
+  };
+
+  const a = parse(params.reminderTime);
+  const b = parse(params.nowHhmm);
+
+  if (a === null || b === null) return false;
+
+  // 00:00 경계(예: 23:59 vs 00:00)도 고려
+  const direct = Math.abs(a - b);
+  const wrapped = 24 * 60 - direct;
+  const diff = Math.min(direct, wrapped);
+
+  return diff <= toleranceMinutes;
+}
 
 function buildScheduledKey(params: {
   baseDate: YYYYMMDD;
@@ -107,13 +139,23 @@ function codeLabel(code: string) {
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("authorization") ?? "";
+    const cronSecretHeader = req.headers.get("x-cron-secret") ?? "";
     const expected = process.env.CRON_SECRET;
 
-    if (expected && authHeader !== `Bearer ${expected}`) {
-      return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const body = await req.json().catch(() => ({}));
+    if (expected) {
+      const bodySecret =
+        typeof body?.cronSecret === "string" ? body.cronSecret.trim() : "";
+      const authorized =
+        authHeader === `Bearer ${expected}` ||
+        cronSecretHeader === expected ||
+        bodySecret === expected;
+
+      if (!authorized) {
+        return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+      }
     }
 
-    const body = await req.json().catch(() => ({}));
     const debugUserId =
       typeof body?.userId === "string" && body.userId.trim()
         ? body.userId.trim()
@@ -122,7 +164,9 @@ export async function POST(req: Request) {
     const ignoreTime = body?.ignoreTime === true;
 
     const supabaseAdmin = getSupabaseAdmin();
-    const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    // NOTE: KST 변환은 아래 formatter에서 처리하므로, 여기서 시간을 더하면
+    // 날짜/시간이 9시간 더 밀려 실제 알림 시각과 매칭이 깨집니다.
+    const now = new Date();
     const today = getTodayYmdInKst(now);
     const nowHhmm = getNowHhmmInKst(now);
 
@@ -210,7 +254,10 @@ export async function POST(req: Request) {
         continue;
       }
 
-      if (!ignoreTime && reminderTime !== nowHhmm) {
+      if (
+        !ignoreTime &&
+        !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 1 })
+      ) {
         debug.push({
           userId,
           targetCode,
@@ -278,8 +325,6 @@ try {
       await supabaseAdmin.from("shift_reminder_logs").insert({
         user_id: userId,
         target_code: targetCode,
-        when_mode: whenMode,
-        reminder_time: reminderTime,
         target_date: targetDate,
         scheduled_key: scheduledKey,
         sent_at: new Date().toISOString(),

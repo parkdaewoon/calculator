@@ -1,11 +1,12 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { sendPushToUser } from "@/lib/push/sender";
 
 export async function POST(req: Request) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const body = await req.json();
     const { title, message, url = "/" } = body ?? {};
 

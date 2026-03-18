@@ -1,16 +1,25 @@
 import { createClient } from "@supabase/supabase-js";
 import { ensureWebPushConfigured, webpush } from "@/lib/push/webpush";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+  }
+
+  if (!serviceRoleKey) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
-  }
-);
+  });
+}
 
 type PushPayload = {
   title: string;
@@ -22,6 +31,7 @@ type PushPayload = {
 };
 
 export async function hasActivePushSubscription(userId: string) {
+  const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin
     .from("push_subscriptions")
     .select("endpoint", { count: "exact", head: false })
@@ -39,7 +49,7 @@ export async function hasActivePushSubscription(userId: string) {
 
 export async function sendPushToUser(userId: string, payload: PushPayload) {
   ensureWebPushConfigured();
-
+  const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin
     .from("push_subscriptions")
     .select("endpoint, p256dh, auth, enabled")
