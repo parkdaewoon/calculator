@@ -398,8 +398,11 @@ function unpackType(v: string): { main: MainType; sub: string } {
 }
 
 /** ===== 알림 ===== */
+const SAME_DAY_9AM = -1;
+
 const REMINDER_PRESETS: Array<{ label: string; minutes: number | null }> = [
   { label: "없음", minutes: null },
+  { label: "당일(09:00)", minutes: SAME_DAY_9AM },
   { label: "10분 전", minutes: 10 },
   { label: "30분 전", minutes: 30 },
   { label: "1시간 전", minutes: 60 },
@@ -410,6 +413,7 @@ const REMINDER_PRESETS: Array<{ label: string; minutes: number | null }> = [
 
 function reminderLabel(min: number | null, salaryMode = false, salaryEnabled = false) {
   if (salaryMode) return salaryEnabled ? "당일 오전 08:00" : "꺼짐";
+  if (min === SAME_DAY_9AM) return "당일(09:00)";
   const found = REMINDER_PRESETS.find((x) => x.minutes === min);
   return found?.label ?? "없음";
 }
@@ -755,8 +759,12 @@ useEffect(() => {
 
   // ✅ 알림 시각 계산
   const remindAt = salaryMode
-    ? (salaryReminderEnabled ? new Date(`${safeStart}T08:00:00`).toISOString() : null)
-    : calcRemindAt(startIso, reminderMinutes);
+    ? (salaryReminderEnabled
+        ? new Date(`${safeStart}T08:00:00`).toISOString()
+        : null)
+    : reminderMinutes === SAME_DAY_9AM
+      ? new Date(`${safeStart}T09:00:00`).toISOString()
+      : calcRemindAt(startIso, reminderMinutes);
 
     const next: any = {
     ...base,

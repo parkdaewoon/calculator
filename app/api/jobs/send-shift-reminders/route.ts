@@ -302,7 +302,7 @@ const targetDayLabel = targetDate === today ? "오늘" : "내일";
 
       try {
         result = await sendPushToUser(userId, {
-          title: `${codeLabel(targetCode)} 근무 알림`,
+          title: `${codeLabel(targetCode)} 근무 알림!!`,
           body: `${targetDayLabel} ${codeLabel(targetCode)}근무예정입니다.`,
           url: "/calendar",
           tag: `shift-${scheduledKey}`,
