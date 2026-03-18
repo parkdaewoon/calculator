@@ -255,21 +255,21 @@ export async function POST(req: Request) {
       }
 
       if (
-        !ignoreTime &&
-        !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 1 })
-      ) {
-        debug.push({
-          userId,
-          targetCode,
-          whenMode,
-          reminderTime,
-          nowHhmm,
-          targetDate,
-          actualCode,
-          step: "timeNotMatched",
-        });
-        continue;
-      }
+  !ignoreTime &&
+  !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 0 })
+) {
+  debug.push({
+    userId,
+    targetCode,
+    whenMode,
+    reminderTime,
+    nowHhmm,
+    targetDate,
+    actualCode,
+    step: "timeNotMatched",
+  });
+  continue;
+}
 
       const scheduledKey = buildScheduledKey({
         baseDate: today,
