@@ -49,11 +49,8 @@ function getInitialCalendarUiState(today: YYYYMMDD) {
         } as any)
       : persistedWorkMode;
 
-  const persistedSelectedDate = normalizeYmd(persisted?.selectedDate) || today;
-  const persistedMonth =
-    typeof persisted?.month === "string" && persisted.month.trim()
-      ? (persisted.month as YYYYMM)
-      : toMonthKey(persistedSelectedDate);
+  const persistedSelectedDate = today;
+  const persistedMonth = toMonthKey(today);
   const persistedEvents = Array.isArray(persisted?.events)
     ? persisted.events.map((ev) => migrateEvent(ev, persistedSelectedDate))
     : [];
@@ -242,8 +239,8 @@ function writeHolidaysCache(cache: Record<string, HolidaysMap>) {
 }
 
 export default function CalendarPage() {
-  const today = useMemo<YYYYMMDD>(() => normalizeYmd(getToday()) as YYYYMMDD, []);
-  const initialUiState = useMemo(() => getInitialCalendarUiState(today), [today]);
+  const initialToday = useMemo<YYYYMMDD>(() => normalizeYmd(getToday()) as YYYYMMDD, []);
+  const initialUiState = useMemo(() => getInitialCalendarUiState(initialToday), [initialToday]);
   const [month, setMonth] = useState<YYYYMM>(() => initialUiState.month);
   const [selectedDate, setSelectedDate] = useState<YYYYMMDD>(() => initialUiState.selectedDate);
   const userId = useMemo(() => ensureDeviceUserId(), []);
@@ -264,7 +261,7 @@ const [shiftReminder, setShiftReminder] =
   const [holidays, setHolidays] = useState<HolidaysMap>(() => {
     const cache = readHolidaysCache();
     holidaysCacheRef.current = cache;
-    return cache[toMonthKey(today)] ?? {};
+    return cache[toMonthKey(initialToday)] ?? {};
   });
   const visibleMonths = useMemo<YYYYMM[]>(() => {
     const grid = buildMonthGrid(month);
@@ -302,6 +299,29 @@ useEffect(() => {
     events,
   });
 }, [hydrated, month, selectedDate, workMode, events]);
+useEffect(() => {
+  const syncCalendarFocusToToday = () => {
+    const currentToday = normalizeYmd(getToday()) as YYYYMMDD;
+    setMonth(toMonthKey(currentToday));
+    setSelectedDate(currentToday);
+  };
+
+  syncCalendarFocusToToday();
+
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "visible") {
+      syncCalendarFocusToToday();
+    }
+  };
+
+  window.addEventListener("pageshow", syncCalendarFocusToToday);
+  document.addEventListener("visibilitychange", onVisibilityChange);
+
+  return () => {
+    window.removeEventListener("pageshow", syncCalendarFocusToToday);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+  };
+}, []);
 /** =========================
  * 1.1) load remote calendar settings
  * ========================= */
@@ -321,12 +341,12 @@ useEffect(() => {
           remoteWorkMode.type === "SHIFT"
             ? ({
                 ...remoteWorkMode,
-                anchorDate: normalizeYmd((remoteWorkMode as any).anchorDate) || today,
+                anchorDate: normalizeYmd((remoteWorkMode as any).anchorDate) || initialToday,
               } as any)
             : remoteWorkMode;
 
         setWorkMode(nextWorkMode);
-        setPattern(workModeToPattern(nextWorkMode as any, today));
+        setPattern(workModeToPattern(nextWorkMode as any, initialToday));
       }
 
       if (remoteShiftReminder) {
@@ -343,7 +363,7 @@ useEffect(() => {
   return () => {
     alive = false;
   };
-}, [today]);
+}, [initialToday]);
 
   /** =========================
    * 1.5) month가 바뀌면: 캐시를 즉시 적용
@@ -470,9 +490,10 @@ useEffect(() => {
     setEvents([]);
     const wm: WorkMode = { type: "NONE" };
     setWorkMode(wm);
-    setPattern(workModeToPattern(wm as any, today));
-    setMonth(toMonthKey(today));
-    setSelectedDate(today);
+    setPattern(workModeToPattern(wm as any, initialToday));
+    const currentToday = normalizeYmd(getToday()) as YYYYMMDD;
+    setMonth(toMonthKey(currentToday));
+    setSelectedDate(currentToday);
 
     setDayDetailOpen(false);
     setEditorOpen(false);
@@ -488,7 +509,7 @@ useEffect(() => {
   };
 
   const upsertEvent = async (ev: CalendarEvent) => {
-  const fixed = migrateEvent(ev as any, selectedDate || today);
+  const fixed = migrateEvent(ev as any, selectedDate || (normalizeYmd(getToday()) as YYYYMMDD));
   const localId = fixed.id;
 
   // 먼저 화면에는 즉시 반영
@@ -594,8 +615,9 @@ useEffect(() => {
       <CalendarHeader
   month={month}
   onGoToday={() => {
-    setMonth(toMonthKey(today));
-    setSelectedDate(today);
+    const currentToday = normalizeYmd(getToday()) as YYYYMMDD;
+    setMonth(toMonthKey(currentToday));
+    setSelectedDate(currentToday);
   }}
   onOpenWorkMode={() => setWorkModeOpen(true)}
   onClear={onClear}
@@ -609,7 +631,7 @@ useEffect(() => {
         <MonthGrid
           month={month}
           selectedDate={selectedDate}
-          onSelectDate={(d) => setSelectedDate(normalizeYmd(d) || today)}
+          onSelectDate={(d) => setSelectedDate(normalizeYmd(d) || (normalizeYmd(getToday()) as YYYYMMDD))}
           pattern={pattern}
           events={events}
           onChangeEvents={setEvents}
@@ -617,7 +639,7 @@ useEffect(() => {
           onPrevMonth={goPrev}
           onNextMonth={goNext}
           onOpenDay={(d) => {
-            const nd = normalizeYmd(d) || today;
+            const nd = normalizeYmd(d) || (normalizeYmd(getToday()) as YYYYMMDD);
             setSelectedDate(nd);
             setDayDetailOpen(true);
           }}
@@ -652,11 +674,11 @@ useEffect(() => {
   onChange={(v) => {
     const next: WorkMode =
       v.type === "SHIFT"
-        ? ({ ...v, anchorDate: normalizeYmd((v as any).anchorDate) || today } as any)
+        ? ({ ...v, anchorDate: normalizeYmd((v as any).anchorDate) || initialToday } as any)
         : v;
 
     setWorkMode(next);
-    setPattern(workModeToPattern(next as any, today));
+    setPattern(workModeToPattern(next as any, initialToday));
   }}
   reminderValue={shiftReminder}
   onChangeReminder={(next) => {
