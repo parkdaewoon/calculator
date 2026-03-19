@@ -36,6 +36,7 @@ import type { WorkMode, ShiftReminderSettings } from "./types";
 import { DEFAULT_SHIFT_REMINDER } from "./types";
 import { loadCalendarSettings, saveCalendarSettings } from "@/lib/calendar/settings";
 type HolidaysMap = Record<string, { name: string; isHoliday: boolean }>;
+const SAME_DAY_9AM = -1;
 function getInitialCalendarUiState(today: YYYYMMDD) {
   const persisted = loadCalendarState();
   const persistedWorkMode = isWorkModeObject(persisted?.workMode)
@@ -104,7 +105,17 @@ function getEventScheduleTimes(ev: CalendarEvent): {
         : null,
     };
   }
+if (ev?.reminderMinutes === SAME_DAY_9AM) {
+    const sameDayReminderMs = new Date(y, (m ?? 1) - 1, d ?? 1, 9, 0, 0, 0).getTime();
 
+    return {
+      startMs,
+      startsAtIso,
+      remindAtIso: Number.isFinite(sameDayReminderMs)
+        ? new Date(sameDayReminderMs).toISOString()
+        : null,
+    };
+  }
   const minutes =
     typeof ev?.reminderMinutes === "number" && ev.reminderMinutes >= 0
       ? ev.reminderMinutes

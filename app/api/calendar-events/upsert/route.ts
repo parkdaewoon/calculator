@@ -69,14 +69,19 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
+if (body?.url != null && typeof body.url !== "string") {
+      return Response.json(
+        { ok: false, error: "Invalid url" },
+        { status: 400 }
+      );
+    }
     const now = new Date().toISOString();
     const title = typeof body.title === "string" ? body.title.trim() : null;
     const remindAt =
       typeof body.remind_at === "string" ? body.remind_at : null;
     const typeMain =
       typeof body.type_main === "string" ? body.type_main.trim() : null;
-
+const url = typeof body.url === "string" ? body.url.trim() || null : null;
     // 새 일정 생성
     if (!id) {
       const { data, error } = await supabaseAdmin
@@ -88,6 +93,7 @@ export async function POST(req: Request) {
           remind_at: remindAt,
           reminder_sent: false,
           type_main: typeMain,
+          url,
           updated_at: now,
         })
         .select("id")
@@ -113,6 +119,7 @@ export async function POST(req: Request) {
           remind_at: remindAt,
           reminder_sent: false,
           type_main: typeMain,
+          url,
           updated_at: now,
         },
         { count: "exact" }
@@ -138,6 +145,7 @@ export async function POST(req: Request) {
           remind_at: remindAt,
           reminder_sent: false,
           type_main: typeMain,
+          url,
           updated_at: now,
         })
         .select("id")
