@@ -172,7 +172,7 @@ function migrateEvent(raw: any, fallbackDate: YYYYMMDD): CalendarEvent {
     endTime: raw?.endTime,
 
     location: raw?.location,
-
+    url: raw?.url ?? raw?.link,
     typeMain: raw?.typeMain,
     typeSub: raw?.typeSub,
 
@@ -557,6 +557,7 @@ useEffect(() => {
         remind_at: remindAtIso,
         reminder_sent: false,
         type_main: fixed.typeMain ?? null,
+        url: fixed.url ?? null,
       }),
     });
 

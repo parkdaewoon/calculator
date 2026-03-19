@@ -40,7 +40,7 @@ export type CalendarEvent = {
   endTime?: string;
 
   location?: string;
-
+  url?: string;
   typeMain?: EventTypeMain;
   typeSub?: string;
 
