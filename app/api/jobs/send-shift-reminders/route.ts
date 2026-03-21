@@ -135,7 +135,40 @@ function codeLabel(code: string) {
       return code;
   }
 }
+function formatReminderWhen(startsAt: string | null | undefined) {
+  if (!startsAt) return "";
 
+  const dt = new Date(startsAt);
+  if (Number.isNaN(dt.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(dt);
+
+  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  const day = parts.find((p) => p.type === "day")?.value ?? "";
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "";
+
+  if (!month || !day || !hour || !minute) return "";
+
+  return `${month}.${day}. ${hour}:${minute}`;
+}
+
+function buildCalendarEventPushBody(ev: {
+  title?: string | null;
+  starts_at?: string | null;
+}) {
+  const when = formatReminderWhen(ev?.starts_at);
+  const title = String(ev?.title ?? "").trim() || "일정";
+
+  return when ? `(${when}) ${title}` : title;
+}
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("authorization") ?? "";
@@ -188,7 +221,9 @@ export async function POST(req: Request) {
       );
     }
 
-        const debug: any[] = [];
+         const debug: any[] = [];
+    const eventDebug: any[] = [];
+        
 
     for (const row of reminderRows ?? []) {
       const userId = row.user_id as string;
@@ -256,20 +291,20 @@ export async function POST(req: Request) {
 
       if (
   !ignoreTime &&
-  !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 0 })
-) {
-  debug.push({
-    userId,
-    targetCode,
-    whenMode,
-    reminderTime,
-    nowHhmm,
-    targetDate,
-    actualCode,
-    step: "timeNotMatched",
-  });
-  continue;
-}
+        !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 0 })
+      ) {
+        debug.push({
+          userId,
+          targetCode,
+          whenMode,
+          reminderTime,
+          nowHhmm,
+          targetDate,
+          actualCode,
+          step: "timeNotMatched",
+        });
+        continue;
+      }
 
       const scheduledKey = buildScheduledKey({
         baseDate: today,
@@ -303,7 +338,7 @@ const targetDayLabel = targetDate === today ? "오늘" : "내일";
       try {
         result = await sendPushToUser(userId, {
           title: `${codeLabel(targetCode)} 근무 알림!!`,
-          body: `${targetDayLabel} ${codeLabel(targetCode)}근무예정입니다.`,
+          body: `${targetDayLabel} ${codeLabel(targetCode)}근무입니다.`,
           url: "/calendar",
           tag: `shift-${scheduledKey}`,
         });
@@ -341,7 +376,67 @@ const targetDayLabel = targetDate === today ? "오늘" : "내일";
         result,
       });
     }
+let dueEventsQuery = supabaseAdmin
+      .from("calendar_events")
+      .select("id, user_id, title, starts_at, remind_at, reminder_sent, type_main")
+      .not("remind_at", "is", null)
+      .eq("reminder_sent", false)
+      .lte("remind_at", now.toISOString());
 
+    if (debugUserId) {
+      dueEventsQuery = dueEventsQuery.eq("user_id", debugUserId);
+    }
+
+    const { data: dueEvents, error: dueEventsError } = await dueEventsQuery;
+
+    if (dueEventsError) {
+      return Response.json(
+        { ok: false, error: dueEventsError.message },
+        { status: 500 }
+      );
+    }
+
+    for (const ev of dueEvents ?? []) {
+      try {
+        const result = await sendPushToUser(ev.user_id as string, {
+          title: "일정 놓치지 않기!!",
+          body: buildCalendarEventPushBody(ev),
+          url: "/calendar",
+          tag: `calendar-event-${ev.id}`,
+        });
+
+        if (result.sent > 0) {
+          await supabaseAdmin
+            .from("calendar_events")
+            .update({ reminder_sent: true })
+            .eq("id", ev.id);
+
+          eventDebug.push({
+            id: ev.id,
+            userId: ev.user_id,
+            remindAt: ev.remind_at,
+            step: "sent",
+            result,
+          });
+        } else {
+          eventDebug.push({
+            id: ev.id,
+            userId: ev.user_id,
+            remindAt: ev.remind_at,
+            step: "pushNotSent",
+            result,
+          });
+        }
+      } catch (e: any) {
+        eventDebug.push({
+          id: ev.id,
+          userId: ev.user_id,
+          remindAt: ev.remind_at,
+          step: "sendError",
+          error: e?.message || String(e),
+        });
+      }
+    }
     return Response.json({
       ok: true,
       today,
@@ -350,6 +445,8 @@ const targetDayLabel = targetDate === today ? "오늘" : "내일";
       count: reminderRows?.length ?? 0,
       reminderRows,
       debug,
+      dueEventCount: dueEvents?.length ?? 0,
+      eventDebug,
     });
   } catch (e) {
     return Response.json(
