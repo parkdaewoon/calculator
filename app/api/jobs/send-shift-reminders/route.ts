@@ -187,8 +187,7 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
-
-        const debug: any[] = [];
+    const debug: any[] = [];
 
     for (const row of reminderRows ?? []) {
       const userId = row.user_id as string;
@@ -255,21 +254,21 @@ export async function POST(req: Request) {
       }
 
       if (
-  !ignoreTime &&
-  !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 0 })
-) {
-  debug.push({
-    userId,
-    targetCode,
-    whenMode,
-    reminderTime,
-    nowHhmm,
-    targetDate,
-    actualCode,
-    step: "timeNotMatched",
-  });
-  continue;
-}
+        !ignoreTime &&
+        !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 0 })
+      ) {
+        debug.push({
+          userId,
+          targetCode,
+          whenMode,
+          reminderTime,
+          nowHhmm,
+          targetDate,
+          actualCode,
+          step: "timeNotMatched",
+        });
+        continue;
+      }
 
       const scheduledKey = buildScheduledKey({
         baseDate: today,
@@ -298,7 +297,7 @@ export async function POST(req: Request) {
 
       let result;
 
-const targetDayLabel = targetDate === today ? "오늘" : "내일";
+      const targetDayLabel = targetDate === today ? "오늘" : "내일";
 
       try {
         result = await sendPushToUser(userId, {

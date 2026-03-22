@@ -105,7 +105,7 @@ function getEventScheduleTimes(ev: CalendarEvent): {
         : null,
     };
   }
-if (ev?.reminderMinutes === SAME_DAY_9AM) {
+  if (ev?.reminderMinutes === SAME_DAY_9AM) {
     const sameDayReminderMs = new Date(y, (m ?? 1) - 1, d ?? 1, 9, 0, 0, 0).getTime();
 
     return {

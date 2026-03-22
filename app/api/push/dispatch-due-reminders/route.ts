@@ -4,6 +4,8 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { sendPushToUser } from "@/lib/push/sender";
 
+const REMINDER_LOOKBACK_MS = 60 * 1000;
+
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -77,13 +79,16 @@ export async function POST(req: Request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    const nowIso = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const windowStartIso = new Date(now.getTime() - REMINDER_LOOKBACK_MS).toISOString();
 
     const { data: dueEvents, error } = await supabaseAdmin
       .from("calendar_events")
       .select("id, user_id, title, starts_at, remind_at, reminder_sent, type_main")
       .not("remind_at", "is", null)
       .eq("reminder_sent", false)
+      .gte("remind_at", windowStartIso)
       .lte("remind_at", nowIso);
 
     if (error) {
