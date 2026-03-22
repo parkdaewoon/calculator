@@ -220,10 +220,8 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
-
-         const debug: any[] = [];
+    const debug: any[] = [];
     const eventDebug: any[] = [];
-        
 
     for (const row of reminderRows ?? []) {
       const userId = row.user_id as string;
@@ -290,7 +288,7 @@ export async function POST(req: Request) {
       }
 
       if (
-  !ignoreTime &&
+        !ignoreTime &&
         !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 0 })
       ) {
         debug.push({
@@ -333,7 +331,7 @@ export async function POST(req: Request) {
 
       let result;
 
-const targetDayLabel = targetDate === today ? "오늘" : "내일";
+      const targetDayLabel = targetDate === today ? "오늘" : "내일";
 
       try {
         result = await sendPushToUser(userId, {
