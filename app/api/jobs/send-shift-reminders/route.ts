@@ -169,6 +169,22 @@ function buildCalendarEventPushBody(ev: {
 
   return when ? `(${when}) ${title}` : title;
 }
+function isRecentDueTime(
+  remindAt: string | null | undefined,
+  now: Date,
+  toleranceMinutes = 2
+) {
+  if (!remindAt) return false;
+
+  const remindMs = new Date(remindAt).getTime();
+  const nowMs = now.getTime();
+  if (!Number.isFinite(remindMs) || !Number.isFinite(nowMs)) return false;
+
+  if (remindMs > nowMs) return false;
+
+  const maxLagMs = Math.max(0, toleranceMinutes) * 60 * 1000;
+  return nowMs - remindMs <= maxLagMs;
+}
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("authorization") ?? "";
@@ -396,9 +412,25 @@ let dueEventsQuery = supabaseAdmin
 
     for (const ev of dueEvents ?? []) {
       try {
+        if (!isRecentDueTime(ev.remind_at as string | null, now, 2)) {
+          eventDebug.push({
+            id: ev.id,
+            userId: ev.user_id,
+            remindAt: ev.remind_at,
+            step: "staleSkipped",
+          });
+          continue;
+        }
+
+        const isSalary = String(ev.type_main ?? "") === "SALARY";
+        const title = isSalary ? "월급 알림" : "일정 놓치지 않기!!";
+        const body = isSalary
+          ? "오늘은 무슨 날?\n월! 급! 날!"
+          : buildCalendarEventPushBody(ev);
+
         const result = await sendPushToUser(ev.user_id as string, {
-          title: "일정 놓치지 않기!!",
-          body: buildCalendarEventPushBody(ev),
+          title,
+          body,
           url: "/calendar",
           tag: `calendar-event-${ev.id}`,
         });

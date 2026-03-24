@@ -93,6 +93,7 @@ function getEventScheduleTimes(ev: CalendarEvent): {
   }
 
   const startsAtIso = new Date(startMs).toISOString();
+  
 const toIsoByKst = (hour: number, minute = 0) => {
     const kstMs = Date.UTC(y, (m ?? 1) - 1, d ?? 1, hour - 9, minute, 0, 0);
     return Number.isFinite(kstMs) ? new Date(kstMs).toISOString() : null;
