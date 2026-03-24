@@ -93,27 +93,25 @@ function getEventScheduleTimes(ev: CalendarEvent): {
   }
 
   const startsAtIso = new Date(startMs).toISOString();
-
+const toIsoByKst = (hour: number, minute = 0) => {
+    const kstMs = Date.UTC(y, (m ?? 1) - 1, d ?? 1, hour - 9, minute, 0, 0);
+    return Number.isFinite(kstMs) ? new Date(kstMs).toISOString() : null;
+  };
   if (String(ev?.typeMain ?? "") === "SALARY") {
-    const salaryRemindMs = new Date(y, (m ?? 1) - 1, d ?? 1, 8, 0, 0, 0).getTime();
-
+    if (!ev?.salaryReminderEnabled) {
+      return { startMs, startsAtIso, remindAtIso: null };
+    }
     return {
       startMs,
       startsAtIso,
-      remindAtIso: Number.isFinite(salaryRemindMs)
-        ? new Date(salaryRemindMs).toISOString()
-        : null,
+      remindAtIso: toIsoByKst(8, 0),
     };
   }
   if (ev?.reminderMinutes === SAME_DAY_9AM) {
-    const sameDayReminderMs = new Date(y, (m ?? 1) - 1, d ?? 1, 9, 0, 0, 0).getTime();
-
     return {
       startMs,
       startsAtIso,
-      remindAtIso: Number.isFinite(sameDayReminderMs)
-        ? new Date(sameDayReminderMs).toISOString()
-        : null,
+       remindAtIso: toIsoByKst(9, 0),
     };
   }
   const minutes =
@@ -194,6 +192,7 @@ function migrateEvent(raw: any, fallbackDate: YYYYMMDD): CalendarEvent {
 
     leaveUnit: raw?.leaveUnit,
     leaveHours: raw?.leaveHours,
+    salaryReminderEnabled: !!raw?.salaryReminderEnabled,
   };
 
   return next;
@@ -319,18 +318,9 @@ useEffect(() => {
 
   syncCalendarFocusToToday();
 
-  const onVisibilityChange = () => {
-    if (document.visibilityState === "visible") {
-      syncCalendarFocusToToday();
-    }
-  };
-
   window.addEventListener("pageshow", syncCalendarFocusToToday);
-  document.addEventListener("visibilitychange", onVisibilityChange);
-
   return () => {
     window.removeEventListener("pageshow", syncCalendarFocusToToday);
-    document.removeEventListener("visibilitychange", onVisibilityChange);
   };
 }, []);
 /** =========================

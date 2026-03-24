@@ -289,7 +289,7 @@ export async function POST(req: Request) {
 
       if (
         !ignoreTime &&
-        !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 0 })
+        !isReminderTimeDue({ reminderTime, nowHhmm, toleranceMinutes: 2 })
       ) {
         debug.push({
           userId,
