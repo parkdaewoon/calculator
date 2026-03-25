@@ -123,11 +123,13 @@ useEffect(() => {
     };
 
     const eventTypeKey = (ev: any) => {
-      const main = String(ev?.typeMain ?? ev?.categoryMain ?? "WORK");
-      const normalizedMain = ["WORK", "DUTY", "SALARY", "ETC"].includes(main) ? main : "WORK";
-      const sub = (ev?.typeSub ?? ev?.categorySub ?? "") as string;
-      return `${normalizedMain}|${sub}`;
-    };
+  const main = String(ev?.typeMain ?? ev?.categoryMain ?? "WORK");
+  const normalizedMain = ["WORK", "DUTY", "SALARY", "BONUS", "ETC"].includes(main)
+    ? main
+    : "WORK";
+  const sub = (ev?.typeSub ?? ev?.categorySub ?? "") as string;
+  return `${normalizedMain}|${sub}`;
+};
 
         const sorted = [...(displayEventsInView ?? [])].sort((a: any, b: any) => {
       const aS = normYMD(a.dateStart);
