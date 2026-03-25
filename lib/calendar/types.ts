@@ -22,7 +22,7 @@ export type WorkPattern = {
 export type CalendarEventType = "EVENT" | "LEAVE";
 export type LeaveUnit = "DAY" | "HALF" | "HOUR";
 
-export type EventTypeMain = "WORK" | "DUTY" | "SALARY" | "ETC";
+export type EventTypeMain = "WORK" | "DUTY" | "SALARY" | "BONUS" | "ETC";
 
 export type CalendarEvent = {
   id: string;

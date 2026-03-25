@@ -98,16 +98,20 @@ const toIsoByKst = (hour: number, minute = 0) => {
     const kstMs = Date.UTC(y, (m ?? 1) - 1, d ?? 1, hour - 9, minute, 0, 0);
     return Number.isFinite(kstMs) ? new Date(kstMs).toISOString() : null;
   };
-  if (String(ev?.typeMain ?? "") === "SALARY") {
-    if (!ev?.salaryReminderEnabled) {
-      return { startMs, startsAtIso, remindAtIso: null };
-    }
-    return {
-      startMs,
-      startsAtIso,
-      remindAtIso: toIsoByKst(8, 0),
-    };
+  const eventTypeMain = String(ev?.typeMain ?? "").trim();
+const isPayrollEvent =
+  eventTypeMain === "SALARY" || eventTypeMain === "BONUS";
+
+if (isPayrollEvent) {
+  if (!ev?.salaryReminderEnabled) {
+    return { startMs, startsAtIso, remindAtIso: null };
   }
+  return {
+    startMs,
+    startsAtIso,
+    remindAtIso: toIsoByKst(8, 0),
+  };
+}
   if (ev?.reminderMinutes === SAME_DAY_9AM) {
     return {
       startMs,

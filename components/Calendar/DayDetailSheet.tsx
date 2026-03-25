@@ -120,7 +120,9 @@ function sortByTime(a: any, b: any) {
 
 function eventTypeKey(ev: any): TypeKey {
   const main = String(ev?.typeMain ?? ev?.categoryMain ?? "WORK");
-  const normalizedMain = ["WORK", "DUTY", "SALARY", "ETC"].includes(main) ? main : "WORK";
+  const normalizedMain = ["WORK", "DUTY", "SALARY", "BONUS", "ETC"].includes(main)
+    ? main
+    : "WORK";
   const sub = (ev?.typeSub ?? ev?.categorySub ?? "") as string;
   return `${normalizedMain}|${sub}` as TypeKey;
 }

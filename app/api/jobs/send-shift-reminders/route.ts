@@ -172,7 +172,7 @@ function buildCalendarEventPushBody(ev: {
 function isRecentDueTime(
   remindAt: string | null | undefined,
   now: Date,
-  toleranceMinutes = 2
+  toleranceMinutes = 10
 ) {
   if (!remindAt) return false;
 
@@ -412,7 +412,7 @@ let dueEventsQuery = supabaseAdmin
 
     for (const ev of dueEvents ?? []) {
       try {
-        if (!isRecentDueTime(ev.remind_at as string | null, now, 2)) {
+        if (!isRecentDueTime(ev.remind_at as string | null, now, 10)) {
           eventDebug.push({
             id: ev.id,
             userId: ev.user_id,
@@ -422,11 +422,30 @@ let dueEventsQuery = supabaseAdmin
           continue;
         }
 
-        const isSalary = String(ev.type_main ?? "") === "SALARY";
-        const title = isSalary ? "월급 알림" : "일정 놓치지 않기!!";
-        const body = isSalary
-          ? "오늘은 무슨 날?\n월! 급! 날!"
-          : buildCalendarEventPushBody(ev);
+        const typeMain = String(ev.type_main ?? "").trim();
+const normalizedTitle = String(ev.title ?? "").trim();
+
+const isSalary =
+  typeMain === "SALARY" ||
+  normalizedTitle === "월급" ||
+  normalizedTitle.includes("월급");
+
+const isBonus =
+  typeMain === "BONUS" ||
+  normalizedTitle === "보너스" ||
+  normalizedTitle.includes("보너스");
+
+const title = isSalary
+  ? "🎉 경축 🎉"
+  : isBonus
+  ? "🎊 축하 🎊"
+  : "일정 놓치지 않기!!";
+
+const body = isSalary
+  ? "💸 월급 입금 💸"
+  : isBonus
+  ? "💰 보너스 입금 💰"
+  : buildCalendarEventPushBody(ev);
 
         const result = await sendPushToUser(ev.user_id as string, {
           title,

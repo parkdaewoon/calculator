@@ -385,15 +385,19 @@ function WheelModal({
 }
 
 /** ===== 유형(업무/복무/월급/기타) ===== */
-type MainType = "WORK" | "DUTY" | "SALARY" | "ETC";
+type MainType = "WORK" | "DUTY" | "SALARY" | "BONUS" | "ETC";
 const DEFAULT_WORK_SUBS = ["미팅", "회의", "교육", "회식"];
 const DEFAULT_DUTY_SUBS = ["연가", "병가", "공가"];
 const DEFAULT_ETC_SUBS = ["기타"];
 const SALARY_SUB = "월급";
+const BONUS_SUB = "보너스";
 
 function unpackType(v: string): { main: MainType; sub: string } {
   const [m, s] = (v || "").split("|");
-  const main: MainType = m === "DUTY" || m === "SALARY" || m === "ETC" ? (m as MainType) : "WORK";
+  const main: MainType =
+    m === "DUTY" || m === "SALARY" || m === "BONUS" || m === "ETC"
+      ? (m as MainType)
+      : "WORK";
   return { main, sub: s ?? "" };
 }
 
@@ -618,7 +622,13 @@ useEffect(() => {
     setSalaryReminderEnabled(Boolean(e?.salaryReminderEnabled));
 
     const savedMainRaw = String(e?.typeMain ?? e?.categoryMain ?? "WORK");
-    const savedMain: MainType = savedMainRaw === "DUTY" || savedMainRaw === "SALARY" || savedMainRaw === "ETC" ? (savedMainRaw as MainType) : "WORK";
+const savedMain: MainType =
+  savedMainRaw === "DUTY" ||
+  savedMainRaw === "SALARY" ||
+  savedMainRaw === "BONUS" ||
+  savedMainRaw === "ETC"
+    ? (savedMainRaw as MainType)
+    : "WORK";
     const savedSub = (e?.typeSub ?? e?.categorySub) as string | undefined;
     if (savedMain && savedSub) {
       const packed = `${savedMain}|${savedSub}`;
@@ -646,44 +656,48 @@ useEffect(() => {
   });
 }, [open, event?.id]);
   const typeOptions = useMemo(() => {
-    return {
-      WORK: workSubs.map((s) => ({ value: `WORK|${s}`, label: s })),
-      DUTY: dutySubs.map((s) => ({ value: `DUTY|${s}`, label: s })),
-      SALARY: [{ value: `SALARY|${SALARY_SUB}`, label: SALARY_SUB }],
-      ETC: etcSubs.map((s) => ({ value: `ETC|${s}`, label: s })),
-    } as const;
-  }, [workSubs, dutySubs, etcSubs]);
+  return {
+    WORK: workSubs.map((s) => ({ value: `WORK|${s}`, label: s })),
+    DUTY: dutySubs.map((s) => ({ value: `DUTY|${s}`, label: s })),
+    SALARY: [{ value: `SALARY|${SALARY_SUB}`, label: SALARY_SUB }],
+    BONUS: [{ value: `BONUS|${BONUS_SUB}`, label: BONUS_SUB }],
+    ETC: etcSubs.map((s) => ({ value: `ETC|${s}`, label: s })),
+  } as const;
+}, [workSubs, dutySubs, etcSubs]);
 
-  const isSalarySelected = useMemo(() => unpackType(typeValue).main === "SALARY", [typeValue]);
-const prevIsSalaryRef = useRef(isSalarySelected);
+  const selectedMainType = useMemo(() => unpackType(typeValue).main, [typeValue]);
+const isSalarySelected = selectedMainType === "SALARY";
+const isBonusSelected = selectedMainType === "BONUS";
+const isPayrollSelected = isSalarySelected || isBonusSelected;
+
+const prevIsPayrollRef = useRef(isPayrollSelected);
 
 useEffect(() => {
-  const wasSalary = prevIsSalaryRef.current;
+  const wasPayroll = prevIsPayrollRef.current;
 
-  // 월급 -> 다른 유형으로 바뀐 순간
-  if (wasSalary && !isSalarySelected) {
-    if (title === "월급") setTitle("");
+  if (wasPayroll && !isPayrollSelected) {
+    if (title === "월급" || title === "보너스") setTitle("");
     if (allDay) setAllDay(false);
     if (salaryReminderEnabled) setSalaryReminderEnabled(false);
   }
 
-  prevIsSalaryRef.current = isSalarySelected;
-}, [isSalarySelected, title, allDay, salaryReminderEnabled]);
+  prevIsPayrollRef.current = isPayrollSelected;
+}, [isPayrollSelected, title, allDay, salaryReminderEnabled]);
   const canSave = useMemo(() => {
-  if (!isSalarySelected && title.trim().length === 0) return false;
+  if (!isPayrollSelected && title.trim().length === 0) return false;
   if (startDate > endDate) return false;
 
   const timeUnspecified = !allDay && startTime === "09:00" && endTime === "18:00";
   if (!allDay && !timeUnspecified && startDate === endDate && startTime >= endTime) return false;
 
   return true;
-}, [isSalarySelected, title, startDate, endDate, allDay, startTime, endTime]);
+}, [isPayrollSelected, title, startDate, endDate, allDay, startTime, endTime]);
 
   const addTypeItem = () => {
     const v = newTypeInput.trim();
     if (!v) return;
 
-    if (selectedMain === "SALARY") return;
+    if (selectedMain === "SALARY" || selectedMain === "BONUS") return;
     if (selectedMain === "WORK") {
       setWorkSubs((prev) => (prev.includes(v) ? prev : [...prev, v]));
       setTypeValue(`WORK|${v}`);
@@ -701,7 +715,7 @@ useEffect(() => {
 
   const removeCurrentTypeItem = () => {
   const { main, sub } = unpackType(typeValue);
-  if (!sub || main === "SALARY") return;
+  if (!sub || main === "SALARY" || main === "BONUS") return;
 
   if (main === "WORK") {
     const nextList = workSubs.filter((x) => x !== sub);
@@ -738,7 +752,8 @@ useEffect(() => {
 
   const base: any = event ? { ...(event as any) } : {};
   const { main: typeMain, sub: typeSub } = unpackType(typeValue);
-  const salaryMode = typeMain === "SALARY";
+const payrollMode = typeMain === "SALARY" || typeMain === "BONUS";
+const payrollTitle = typeMain === "SALARY" ? "월급" : typeMain === "BONUS" ? "보너스" : "";
 
   const safeStart = startDate;
   const safeEnd = endDate && endDate >= startDate ? endDate : startDate;
@@ -746,25 +761,25 @@ useEffect(() => {
   // ✅ 00:00 / 00:00이면 "시간 미지정"으로 저장(시간 필드 제거)
   const timeUnspecified =
     !allDay && startTime === "00:00" && endTime === "00:00";
-  const forcedAllDay = salaryMode ? true : allDay;
+  const forcedAllDay = payrollMode ? true : allDay;
 
   // ✅ 실제 저장될 시작 시각 ISO 만들기
   // - 종일이면 해당 날짜 09:00 기준으로 일단 고정
   // - 시간이 있으면 선택한 시간 사용
   const startIso = (() => {
-    if (salaryMode) return `${safeStart}T08:00:00`;
-    const time = forcedAllDay || timeUnspecified ? "09:00" : startTime;
-    return `${safeStart}T${time}:00`;
-  })();
+  if (payrollMode) return `${safeStart}T08:00:00`;
+  const time = forcedAllDay || timeUnspecified ? "09:00" : startTime;
+  return `${safeStart}T${time}:00`;
+})();
 
   // ✅ 알림 시각 계산
-  const remindAt = salaryMode
-    ? (salaryReminderEnabled
-        ? new Date(`${safeStart}T08:00:00`).toISOString()
-        : null)
-    : reminderMinutes === SAME_DAY_9AM
-      ? new Date(`${safeStart}T09:00:00`).toISOString()
-      : calcRemindAt(startIso, reminderMinutes);
+  const remindAt = payrollMode
+  ? (salaryReminderEnabled
+      ? new Date(`${safeStart}T08:00:00`).toISOString()
+      : null)
+  : reminderMinutes === SAME_DAY_9AM
+    ? new Date(`${safeStart}T09:00:00`).toISOString()
+    : calcRemindAt(startIso, reminderMinutes);
 
     const next: any = {
     ...base,
@@ -773,24 +788,24 @@ useEffect(() => {
     dateStart: safeStart,
     dateEnd: safeEnd === safeStart ? undefined : safeEnd,
 
-    title: salaryMode ? "월급" : title.trim(),
+    title: payrollMode ? payrollTitle : title.trim(),
     allDay: forcedAllDay,
 
     startTime: forcedAllDay || timeUnspecified ? undefined : startTime,
     endTime: forcedAllDay || timeUnspecified ? undefined : endTime,
 
-    location: salaryMode ? undefined : (location?.trim() ? location.trim() : undefined),
-    url: salaryMode ? undefined : (url?.trim() ? url.trim() : undefined),
+    location: payrollMode ? undefined : (location?.trim() ? location.trim() : undefined),
+url: payrollMode ? undefined : (url?.trim() ? url.trim() : undefined),
 
     typeMain,
     typeSub: typeSub || undefined,
 
-    reminderMinutes: salaryMode ? undefined : (reminderMinutes ?? undefined),
-    salaryReminderEnabled: salaryMode ? salaryReminderEnabled : undefined,
+    reminderMinutes: payrollMode ? undefined : (reminderMinutes ?? undefined),
+salaryReminderEnabled: payrollMode ? salaryReminderEnabled : undefined,
     remindAt: remindAt ?? undefined,
     reminderSent: false,
 
-    memo: salaryMode ? undefined : (memo?.trim() ? memo.trim() : undefined),
+    memo: payrollMode ? undefined : (memo?.trim() ? memo.trim() : undefined),
   };
 
   try {
@@ -803,10 +818,19 @@ useEffect(() => {
 };
 
   const currentTypeLabel = useMemo(() => {
-    const { main, sub } = unpackType(typeValue);
-    const head = main === "WORK" ? "업무" : main === "DUTY" ? "복무" : main === "SALARY" ? "월급" : "기타";
-    return sub ? `${head} · ${sub}` : head;
-  }, [typeValue]);
+  const { main, sub } = unpackType(typeValue);
+  const head =
+    main === "WORK"
+      ? "업무"
+      : main === "DUTY"
+      ? "복무"
+      : main === "SALARY"
+      ? "월급"
+      : main === "BONUS"
+      ? "보너스"
+      : "기타";
+  return sub ? `${head} · ${sub}` : head;
+}, [typeValue]);
 
   const currentTypeColor = useMemo(() => {
     const key = typeValue as TypeKey;
@@ -875,10 +899,10 @@ useEffect(() => {
             <div className="flex items-start gap-3">
               <div className="mt-2 h-8 w-1 rounded-full" style={{ backgroundColor: currentTypeColor }} />
               <input
-                value={isSalarySelected ? "월급" : title}
+  value={isSalarySelected ? "월급" : isBonusSelected ? "보너스" : title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="제목"
-                disabled={isSalarySelected}
+                disabled={isPayrollSelected}
                 className="w-full bg-transparent text-[34px] leading-[38px] font-semibold tracking-tight text-neutral-900 outline-none placeholder:text-neutral-300 disabled:text-neutral-400"
               />
             </div>
@@ -904,7 +928,7 @@ useEffect(() => {
 </div>
 
 {/* 종일 (배경 없음, 우측 정렬) */}
-{!isSalarySelected ? (
+{!isPayrollSelected ? (
 <div className="mt-2 flex items-center justify-end gap-3 px-1">
   <span className="text-[12px] font-semibold text-neutral-600">하루종일</span>
 
@@ -928,7 +952,7 @@ useEffect(() => {
 ) : null}
 
 {/* 시간 카드 (종일이면 숨김) */}
-{!allDay && !isSalarySelected ? (
+{!allDay && !isPayrollSelected ? (
   <div className="mt-3 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
     <Row
       icon={<Clock size={18} strokeWidth={1.8} className="text-neutral-500" />}
@@ -975,15 +999,15 @@ useEffect(() => {
   <Row
     icon={<Bell size={18} strokeWidth={1.8} className="text-neutral-500" />}
     label="알림"
-    value={reminderLabel(reminderMinutes, isSalarySelected, salaryReminderEnabled)}
-    onClick={
-      isSalarySelected
-        ? undefined
-        : () => setReminderListOpen((p) => !p)
-    }
+    value={reminderLabel(reminderMinutes, isPayrollSelected, salaryReminderEnabled)}
+onClick={
+  isPayrollSelected
+    ? undefined
+    : () => setReminderListOpen((p) => !p)
+}
     valueTone="text-neutral-700"
     rightSlot={
-      isSalarySelected ? (
+      isPayrollSelected ? (
         <div
           role="switch"
           aria-checked={salaryReminderEnabled}
@@ -1030,7 +1054,7 @@ useEffect(() => {
     }
   />
 
-  {!isSalarySelected && reminderListOpen ? (
+  {!isPayrollSelected && reminderListOpen ? (
   <div className="absolute right-3 top-full mt-1 w-40 z-50 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_18px_40px_rgba(0,0,0,0.14)]">
     <div className="max-h-48 overflow-y-auto p-2">
       {REMINDER_PRESETS.map((r) => {
@@ -1063,7 +1087,7 @@ useEffect(() => {
 </div>
 
           {/* 위치/URL/메모 카드 */}
-          {!isSalarySelected ? (
+          {!isPayrollSelected ? (
           <div className="mt-4 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
             <div className="px-4 py-3">
               <div className="flex items-center gap-3">
@@ -1257,27 +1281,31 @@ useEffect(() => {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             {([
-              ["WORK", "업무"],
-              ["DUTY", "복무"],
-              ["SALARY", "월급"],
-              ["ETC", "기타"],
-            ] as const).map(([key, label]) => (
+  ["WORK", "업무"],
+  ["DUTY", "복무"],
+  ["SALARY", "월급"],
+  ["BONUS", "보너스"],
+  ["ETC", "기타"],
+] as const).map(([key, label]) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => {
-  const wasSalary = unpackType(typeValue).main === "SALARY";
+  const selectedMain = unpackType(typeValue).main;
+  const wasPayroll = ["SALARY", "BONUS"].includes(selectedMain);
 
-  setSelectedMain(key);
-  const first = typeOptions[key][0]?.value;
-  if (first) setTypeValue(first);
+  setTypeValue(key === "WORK" ? `WORK|${workSubs[0] ?? ""}` : `${key}|`);
 
   if (key === "SALARY") {
     setAllDay(true);
     setTitle("월급");
     setSalaryReminderEnabled(true);
-  } else if (wasSalary) {
-    if (title === "월급") setTitle("");
+  } else if (key === "BONUS") {
+    setAllDay(true);
+    setTitle("보너스");
+    setSalaryReminderEnabled(true);
+  } else if (wasPayroll) {
+    if (title === "월급" || title === "보너스") setTitle("");
     setAllDay(false);
     setSalaryReminderEnabled(false);
   }
@@ -1311,14 +1339,18 @@ useEffect(() => {
   setTypeValue(o.value);
 
   if (nextMain === "SALARY") {
-    setSalaryReminderEnabled(true);
-    setAllDay(true);
-    setTitle("월급");
-  } else if (prevMain === "SALARY") {
-    if (title === "월급") setTitle("");
-    setAllDay(false);
-    setSalaryReminderEnabled(false);
-  }
+  setSalaryReminderEnabled(true);
+  setAllDay(true);
+  setTitle("월급");
+} else if (nextMain === "BONUS") {
+  setSalaryReminderEnabled(true);
+  setAllDay(true);
+  setTitle("보너스");
+} else if (prevMain === "SALARY" || prevMain === "BONUS") {
+  if (title === "월급" || title === "보너스") setTitle("");
+  setAllDay(false);
+  setSalaryReminderEnabled(false);
+}
 
   setTypeSheetOpen(false);
 }}
