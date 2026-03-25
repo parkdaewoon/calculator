@@ -3,14 +3,20 @@
 import { DEFAULT_TYPE_COLORS, type TypeColorMap } from "@/lib/calendar/typeColors";
 
 const KEY = "event_type_colors_v1";
-const EVT = "typeColorsUpdated";
+const EVT = "type-colors-updated";
 
 function isHexColor(v: unknown): v is string {
   return typeof v === "string" && /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(v);
 }
 
 function isAllowedKey(k: string) {
-  return k.startsWith("WORK|") || k.startsWith("DUTY|") || k.startsWith("SALARY|") || k.startsWith("ETC|");
+  return (
+    k.startsWith("WORK|") ||
+    k.startsWith("DUTY|") ||
+    k.startsWith("SALARY|") ||
+    k.startsWith("BONUS|") ||
+    k.startsWith("ETC|")
+  );
 }
 
 export function loadTypeColors(): TypeColorMap {
