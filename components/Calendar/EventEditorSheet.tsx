@@ -1241,7 +1241,7 @@ onClick={
               <button
                 type="button"
                 onClick={() => setAddingType((p) => !p)}
-                disabled={selectedMain === "SALARY"}
+                disabled={selectedMain === "SALARY" || selectedMain === "BONUS"}
                 className="text-sm font-semibold text-neutral-700 hover:underline disabled:text-neutral-300"
               >
                 + 항목 추가
@@ -1249,9 +1249,9 @@ onClick={
               <button
                 type="button"
                 onClick={removeCurrentTypeItem}
-                disabled={selectedMain === "SALARY"}
+                disabled={selectedMain === "SALARY" || selectedMain === "BONUS"}
                 className="text-sm font-semibold text-neutral-500 hover:text-neutral-800 disabled:text-neutral-300"
-                title="월급 항목은 삭제 불가"
+                title="월급/보너스 항목은 삭제 불가"
               >
                 현재 항목 삭제
               </button>
@@ -1291,10 +1291,15 @@ onClick={
                 key={key}
                 type="button"
                 onClick={() => {
-  const selectedMain = unpackType(typeValue).main;
-  const wasPayroll = ["SALARY", "BONUS"].includes(selectedMain);
+  const prevMain = unpackType(typeValue).main;
+  const wasPayroll = prevMain === "SALARY" || prevMain === "BONUS";
 
-  setTypeValue(key === "WORK" ? `WORK|${workSubs[0] ?? ""}` : `${key}|`);
+  setSelectedMain(key);
+
+  const first = typeOptions[key]?.[0]?.value;
+  if (first) {
+    setTypeValue(first);
+  }
 
   if (key === "SALARY") {
     setAllDay(true);
