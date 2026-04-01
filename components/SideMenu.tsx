@@ -51,23 +51,27 @@ export default function SideMenu({
         <nav className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <div className="text-xs text-neutral-500">바로가기</div>
           <div className="mt-3 space-y-2">
-            <MenuLink href="/" label="홈" onClick={onClose} />
-            <MenuLink
-              href="/salary"
-              label="공무원 봉급 알아보기"
-              onClick={onClose}
-            />
-            <MenuLink
-              href="/pension"
-              label="공무원 연금 알아보기"
-              onClick={onClose}
-            />
-            <MenuLink
-              href="/calendar"
-              label="일정 관리하기"
-              onClick={onClose}
-            />
-          </div>
+  <MenuLink
+    href="/salary"
+    label="공무원 봉급 알아보기"
+    onClick={onClose}
+  />
+  <MenuLink
+    href="/pension"
+    label="공무원 연금 알아보기"
+    onClick={onClose}
+  />
+  <MenuLink
+    href="/guide"
+    label="공무원 가이드"
+    onClick={onClose}
+  />
+  <MenuLink
+    href="/calendar"
+    label="일정 관리하기"
+    onClick={onClose}
+  />
+</div>
 
           <div className="mt-8 text-xs text-neutral-500">정보</div>
           <div className="mt-3 space-y-2">
