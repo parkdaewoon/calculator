@@ -34,6 +34,7 @@ export async function POST(req: Request) {
 
     const deviceId = req.headers.get("x-device-id")?.trim() ?? "";
     const id = isNonEmptyString(body?.id) ? body.id.trim() : "";
+     const localIdForInsert = id || crypto.randomUUID();
 
     if (!deviceId) {
       return Response.json(
@@ -87,6 +88,7 @@ const url = typeof body.url === "string" ? body.url.trim() || null : null;
       const { data, error } = await supabaseAdmin
         .from("calendar_events")
         .insert({
+          id: localIdForInsert,
           user_id: deviceId,
           title,
           starts_at: body.starts_at,
@@ -139,6 +141,7 @@ const url = typeof body.url === "string" ? body.url.trim() || null : null;
       const { data, error: insertError } = await supabaseAdmin
         .from("calendar_events")
         .insert({
+          id: localIdForInsert,
           user_id: deviceId,
           title,
           starts_at: body.starts_at,

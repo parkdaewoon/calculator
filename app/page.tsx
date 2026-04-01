@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import AdsenseSlot from "@/components/AdsenseSlot";
 import IconCard from "@/components/IconCard";
-import { Calculator, Landmark, Calendar, Clock } from "lucide-react";
+import { Calculator, Landmark, Calendar,} from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "공무원 봉급·수당·연금 계산기 및 캘린더",
@@ -79,18 +80,17 @@ export default function HomePage() {
           }
         />
         <IconCard
-          href="#"
-          icon={<Clock className="h-9 w-9" />}
-          title="준비중"
-          desc={
-            <>
-              추가 기능을 준비하고
-              <br />
-              있습니다.
-            </>
-          }
-          disabled
-        />
+  href="/guide"
+  icon={<BookOpen className="h-9 w-9" />}
+  title="공무원 가이드"
+  desc={
+    <>
+      봉급·연금 계산 방법과
+      <br />
+      사용법을 확인하세요.
+    </>
+  }
+/>
       </section>
 
       <section className="pt-2">

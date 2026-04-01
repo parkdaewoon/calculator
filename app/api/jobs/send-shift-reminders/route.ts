@@ -77,7 +77,7 @@ function isReminderTimeDue(params: {
   nowHhmm: string;
   toleranceMinutes?: number;
 }) {
-  const toleranceMinutes = Math.max(0, params.toleranceMinutes ?? 1);
+  const toleranceMinutes = Math.max(0, params.toleranceMinutes ?? 2);
 
   const parse = (hhmm: string) => {
     const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
@@ -92,17 +92,14 @@ function isReminderTimeDue(params: {
     return hh * 60 + mm;
   };
 
-  const a = parse(params.reminderTime);
-  const b = parse(params.nowHhmm);
+  const scheduled = parse(params.reminderTime);
+  const now = parse(params.nowHhmm);
 
-  if (a === null || b === null) return false;
+  if (scheduled === null || now === null) return false;
 
-  // 00:00 경계(예: 23:59 vs 00:00)도 고려
-  const direct = Math.abs(a - b);
-  const wrapped = 24 * 60 - direct;
-  const diff = Math.min(direct, wrapped);
+  const lag = now - scheduled;
 
-  return diff <= toleranceMinutes;
+  return lag >= 0 && lag <= toleranceMinutes;
 }
 
 function buildScheduledKey(params: {
@@ -412,7 +409,7 @@ let dueEventsQuery = supabaseAdmin
 
     for (const ev of dueEvents ?? []) {
       try {
-        if (!isRecentDueTime(ev.remind_at as string | null, now, 10)) {
+        if (!isRecentDueTime(ev.remind_at as string | null, now, 90)) {
           eventDebug.push({
             id: ev.id,
             userId: ev.user_id,
