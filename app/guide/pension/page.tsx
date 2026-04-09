@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description:
     "공무원 연금의 기본 개념, 재직기간에 따른 확인 포인트, 예상 연금 계산기 사용 방법을 쉽게 안내합니다.",
   alternates: {
-    canonical: "https://www.nokobridge.com/guide/pension",
+    canonical: "/guide/pension",
   },
   openGraph: {
     title: "공무원 연금 가이드 | 공무원 노트",

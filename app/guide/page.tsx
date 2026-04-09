@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description:
     "공무원 봉급, 수당, 연금 계산 방법과 공무원 노트 사용법을 쉽게 확인할 수 있는 안내 페이지입니다.",
   alternates: {
-    canonical: "https://www.nokobridge.com/guide",
+    canonical: "/guide",
   },
   openGraph: {
     title: "공무원 가이드 | 공무원 노트",

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description:
     "공무원 수당의 의미와 종류, 급여 확인 시 함께 봐야 할 포인트를 쉽게 정리한 가이드입니다.",
   alternates: {
-    canonical: "https://www.nokobridge.com/guide/allowance",
+    canonical: "/guide/allowance",
   },
   openGraph: {
     title: "공무원 수당 가이드 | 공무원 노트",

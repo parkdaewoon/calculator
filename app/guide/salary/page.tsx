@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description:
     "공무원 월급 구조, 봉급표 보는 법, 기본급과 수당의 차이, 봉급 계산기 사용 방법을 쉽게 정리한 가이드입니다.",
   alternates: {
-    canonical: "https://www.nokobridge.com/guide/salary",
+    canonical: "/guide/salary",
   },
   openGraph: {
     title: "공무원 봉급 가이드 | 공무원 노트",

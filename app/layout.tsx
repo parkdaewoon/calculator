@@ -5,7 +5,7 @@ import SplashScreen from "@/components/SplashScreen";
 import SwipeBackBlocker from "@/components/SwipeBackBlocker";
 
 const siteName = "공무원 노트";
-const siteUrl = "https://nokobridge.com";
+const siteUrl = "https://www.nokobridge.com";
 const siteDescription = "봉급·수당·연금 계산과 달력을 한 곳에서";
 
 export const metadata: Metadata = {
