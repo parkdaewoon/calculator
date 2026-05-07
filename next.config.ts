@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/service",
+        destination: "/sources",
+        permanent: true,
+      },
+      {
         source: "/:path*",
         has: [
           {
