@@ -16,7 +16,12 @@ type Props = {
 export default function AdsenseSlot({ slot, height = 90 }: Props) {
   const adRef = useRef<HTMLElement | null>(null);
 
+  const adsenseEnabled = process.env.NEXT_PUBLIC_ADSENSE_ENABLED === "true";
+  const hasRealSlot = Boolean(slot && slot !== "1234567890");
+
   useEffect(() => {
+    if (!adsenseEnabled || !hasRealSlot) return;
+
     const el = adRef.current;
     if (!el) return;
 
@@ -35,7 +40,11 @@ export default function AdsenseSlot({ slot, height = 90 }: Props) {
     } catch (err) {
       console.error("Adsense push error:", err);
     }
-  }, []);
+  }, [adsenseEnabled, hasRealSlot]);
+
+  if (!adsenseEnabled || !hasRealSlot) {
+    return null;
+  }
 
   return (
     <ins

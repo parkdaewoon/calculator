@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import IconCard from "@/components/IconCard";
-import { Calculator, Landmark, Calendar,} from "lucide-react";
-import { BookOpen } from "lucide-react";
+import { Calculator, Landmark, Calendar, BookOpen } from "lucide-react";
+import { HomeTrustContent } from "@/components/seo/AdSenseContent";
 
 export const metadata: Metadata = {
   title: "공무원 봉급·수당·연금 계산기 및 캘린더",
   description:
-    "공무원 봉급, 수당, 연금 계산과 달력 기능을 한 곳에서 간편하게 이용하세요.",
+    "공무원 노트에서 봉급표, 수당, 연금, 퇴직수당 계산과 공무원 일정 관리를 한 곳에서 확인하세요.",
   alternates: {
     canonical: "/",
   },
@@ -26,11 +26,11 @@ export default function HomePage() {
     <div className="space-y-6">
       <section className="pt-4 pb-1">
         <div className="flex justify-center">
-          <div className="w-full rounded-2xl border border-neutral-100 bg-white px-5 py-3 text-center shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
+          <div className="w-full rounded-2xl border border-neutral-100 bg-white px-5 py-4 text-center shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
             <p className="text-[14px] leading-relaxed text-neutral-700">
-              공무원 급여와 연금을 간편하게 확인하고
+              공무원 봉급·수당·연금 계산과
               <br />
-              업무 일정을 관리하세요.
+              일정 관리를 한 곳에서 확인하세요.
             </p>
           </div>
         </div>
@@ -44,9 +44,9 @@ export default function HomePage() {
           title="봉급"
           desc={
             <>
-              직급·호봉과 수당을 입력하면
+              직급·호봉과 수당을 입력해
               <br />
-              다음달 예상 급여와 연봉을
+              예상 급여와 연봉을
               <br />
               확인합니다.
             </>
@@ -58,7 +58,7 @@ export default function HomePage() {
           title="연금"
           desc={
             <>
-              재직기간과 급여를 기준으로
+              재직기간과 기준소득월액으로
               <br />
               예상 연금과 퇴직수당을
               <br />
@@ -72,34 +72,27 @@ export default function HomePage() {
           title="달력"
           desc={
             <>
-              업무·복무 등 일정을
+              업무·복무·교대근무 등
               <br />
-              관리하세요.
+              일정을 관리하세요.
             </>
           }
         />
         <IconCard
-  href="/guide"
-  icon={<BookOpen className="h-9 w-9" />}
-  title="공무원 가이드"
-  desc={
-    <>
-      봉급·연금 계산 방법과
-      <br />
-      사용법을 확인하세요.
-    </>
-  }
-/>
+          href="/guide"
+          icon={<BookOpen className="h-9 w-9" />}
+          title="공무원 가이드"
+          desc={
+            <>
+              봉급·수당·연금 계산 방법과
+              <br />
+              주의사항을 확인하세요.
+            </>
+          }
+        />
       </section>
 
-      <section className="pt-2">
-  <div className="mt-2 h-px bg-neutral-100" />
-
-  <div className="mt-4 flex justify-center">
-    <div className="w-full max-w-[390px] rounded-2xl border border-neutral-100 bg-white px-2 py-2 text-center shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
-         </div>
-  </div>
-</section>
+      <HomeTrustContent />
     </div>
   );
 }

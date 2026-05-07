@@ -8,7 +8,7 @@ import SwipeBackBlocker from "@/components/SwipeBackBlocker";
 
 const siteName = "공무원 노트";
 const siteUrl = "https://www.nokobridge.com";
-const siteDescription = "봉급·수당·연금 계산과 달력을 한 곳에서";
+const siteDescription = "공무원 노트에서 봉급·수당·연금 계산과 달력 기능을 한 곳에서 이용하세요.";
 
 const googleVerification = "QH2tu1jVQN-Fsn3Pnav9Pw7NcqiAMxtyaT5C3";
 const naverVerification = "836e851277d7d3cb2c1a0d4a890a1d34daff3718";
@@ -117,6 +117,7 @@ export default function RootLayout({
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: siteName,
+    alternateName: ["Nokobridge", "노코브릿지", "공무원노트"],
     url: siteUrl,
     description: siteDescription,
     inLanguage: "ko-KR",

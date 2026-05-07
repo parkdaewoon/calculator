@@ -188,6 +188,31 @@ export default function GuidePage() {
         ))}
       </section>
 
+      <section className="mt-6 rounded-[32px] border border-neutral-200 bg-white p-6 shadow-sm sm:p-8 xl:p-10">
+        <p className="text-sm font-semibold text-neutral-500">상세 가이드</p>
+        <h2 className="mt-2 text-2xl font-bold text-neutral-900">
+          계산 전에 함께 읽으면 좋은 글
+        </h2>
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {[
+            ["/guide/salary/actual-pay", "공무원 실수령액이 봉급표와 다른 이유"],
+            ["/guide/salary/allowance-basic", "공무원 수당 종류 한눈에 정리"],
+            ["/guide/salary/overtime", "공무원 초과근무수당 계산 방식"],
+            ["/guide/pension/basic-income", "공무원 기준소득월액이란?"],
+            ["/guide/pension/retirement", "공무원 연금과 퇴직수당의 차이"],
+            ["/guide/calendar/shift-work", "교대근무 캘린더 사용 방법"],
+          ].map(([href, title]) => (
+            <Link
+              key={href}
+              href={href}
+              className="rounded-2xl border border-neutral-100 bg-neutral-50 p-4 text-sm font-semibold leading-6 text-neutral-900 transition hover:bg-white hover:shadow-sm"
+            >
+              {title}
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <InfoCard title="공무원 노트에서 확인할 수 있는 내용" icon={BookOpen}>
           <p>
