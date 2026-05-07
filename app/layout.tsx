@@ -11,7 +11,7 @@ const siteUrl = "https://www.nokobridge.com";
 const siteDescription = "봉급·수당·연금 계산과 달력을 한 곳에서";
 
 const googleVerification = "QH2tu1jVQN-Fsn3Pnav9Pw7NcqiAMxtyaT5C3";
-const naverVerification = "b4734cb10293d0179bebef3ca5d12cf790df6d81";
+const naverVerification = "836e851277d7d3cb2c1a0d4a890a1d34daff3718";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
