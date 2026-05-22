@@ -1,7 +1,13 @@
-export const metadata = {
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
   title: "아이폰 · 안드로이드 PWA 설치 방법",
   description:
     "아이폰 Safari와 안드로이드 Chrome에서 공무원 노트를 홈 화면에 추가해 앱처럼 사용하는 방법을 안내합니다.",
+  robots: {
+    index: false,
+    follow: true,
+  },
 };
 
 export default function PwaInstallPage() {

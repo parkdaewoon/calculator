@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/calendar",
   },
+  robots: {
+    index: false,
+    follow: true,
+  },
   openGraph: {
     title: "교대근무 캘린더 | 공무원 노트",
     description:

@@ -17,11 +17,8 @@ const routes: RouteItem[] = [
   { path: "/salary/allowances", changeFrequency: "weekly", priority: 0.8 },
   { path: "/salary/travel", changeFrequency: "weekly", priority: 0.7 },
   { path: "/pension", changeFrequency: "weekly", priority: 0.9 },
-  { path: "/pension/basic", changeFrequency: "weekly", priority: 0.8 },
   { path: "/pension/calc", changeFrequency: "weekly", priority: 0.85 },
   { path: "/pension/severance", changeFrequency: "weekly", priority: 0.85 },
-  { path: "/pension/compare", changeFrequency: "weekly", priority: 0.75 },
-  { path: "/calendar", changeFrequency: "weekly", priority: 0.8 },
   { path: "/guide", changeFrequency: "weekly", priority: 0.85 },
   { path: "/guide/salary", changeFrequency: "monthly", priority: 0.8 },
   { path: "/guide/salary/actual-pay", changeFrequency: "monthly", priority: 0.75 },
@@ -37,7 +34,6 @@ const routes: RouteItem[] = [
   { path: "/privacy", changeFrequency: "yearly", priority: 0.4 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.4 },
   { path: "/disclaimer", changeFrequency: "yearly", priority: 0.4 },
-  { path: "/pwa-install", changeFrequency: "yearly", priority: 0.3 },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

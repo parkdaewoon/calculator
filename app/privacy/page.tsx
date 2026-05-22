@@ -89,24 +89,64 @@ export default function PrivacyPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-semibold text-neutral-900 mb-2">
-          5. 광고 및 쿠키 사용
-        </h2>
+  <h2 className="font-semibold text-neutral-900 mb-2">
+    5. 광고 및 쿠키 사용
+  </h2>
 
-        <p>
-          서비스는 Google AdSense 광고를 사용할 수 있습니다.
-        </p>
+  <p>
+    서비스는 운영 과정에서 Google AdSense 등 제3자 광고 서비스를
+    사용할 수 있습니다.
+  </p>
 
-        <p className="mt-2">
-          Google을 포함한 제3자 광고 사업자는 쿠키를 사용하여 이용자의
-          이전 방문 기록을 기반으로 광고를 제공할 수 있습니다.
-        </p>
+  <p className="mt-2">
+    Google을 포함한 제3자 광고 사업자는 광고 제공, 광고 성과 측정,
+    부정 이용 방지, 맞춤형 광고 제공 등을 위해 쿠키, 웹 비콘,
+    IP 주소 또는 기타 식별자를 사용할 수 있습니다.
+  </p>
 
-        <p className="mt-2">
-          Google의 광고 쿠키 사용에 대한 자세한 내용은 Google의
-          광고 및 콘텐츠 네트워크 개인정보처리방침을 참고하시기 바랍니다.
-        </p>
-      </section>
+  <p className="mt-2">
+    이러한 과정에서 제3자 광고 사업자는 이용자의 브라우저에 쿠키를
+    삽입하거나 기존 쿠키를 읽을 수 있으며, 이용자의 이전 방문 기록이나
+    서비스 이용 정보를 바탕으로 광고를 제공할 수 있습니다.
+  </p>
+
+  <p className="mt-2">
+    이용자는 브라우저 설정을 통해 쿠키 저장을 거부하거나 기존 쿠키를
+    삭제할 수 있습니다. 다만 쿠키를 차단하는 경우 일부 서비스 기능이나
+    광고 표시가 제한될 수 있습니다.
+  </p>
+
+  <p className="mt-2">
+    Google이 파트너 사이트 또는 앱을 사용할 때 데이터를 사용하는 방식은
+    아래 Google 안내 페이지에서 확인할 수 있습니다.
+  </p>
+
+  <p className="mt-2">
+    <a
+      href="https://policies.google.com/technologies/partner-sites"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium text-neutral-900 underline underline-offset-4 hover:text-neutral-600"
+    >
+      Google 파트너 사이트 또는 앱 사용 시 데이터 사용 방식
+    </a>
+  </p>
+
+  <p className="mt-2">
+    맞춤형 광고 설정은 Google 광고 설정 페이지에서 관리할 수 있습니다.
+  </p>
+
+  <p className="mt-2">
+    <a
+      href="https://adssettings.google.com"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium text-neutral-900 underline underline-offset-4 hover:text-neutral-600"
+    >
+      Google 광고 설정
+    </a>
+  </p>
+</section>
 
       <section className="mt-8">
         <h2 className="font-semibold text-neutral-900 mb-2">
@@ -137,8 +177,8 @@ export default function PrivacyPage() {
       </section>
 
       <p className="mt-10 text-xs text-neutral-500">
-        시행일: 2026년 3월 11일
-      </p>
+  시행일: 2026년 5월 22일
+</p>
     </main>
   );
 }

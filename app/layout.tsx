@@ -13,6 +13,9 @@ const siteDescription = "공무원 노트에서 봉급·수당·연금 계산과
 const googleVerification = "QH2tu1jVQN-Fsn3Pnav9Pw7NcqiAMxtyaT5C3";
 const naverVerification = "836e851277d7d3cb2c1a0d4a890a1d34daff3718";
 
+const adsensePublisherId = "ca-pub-7723637407359078";
+const adsenseEnabled = process.env.NEXT_PUBLIC_ADSENSE_ENABLED === "true";
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
 
@@ -130,18 +133,21 @@ export default function RootLayout({
 
   return (
     <html lang="ko">
-      <head>
-        <meta name="naver-site-verification" content={naverVerification} />
-        <meta name="google-site-verification" content={googleVerification} />
+     <head>
+  <meta name="naver-site-verification" content={naverVerification} />
+  <meta name="google-site-verification" content={googleVerification} />
+  <meta name="google-adsense-account" content={adsensePublisherId} />
 
-        <Script
-          id="google-adsense"
-          async
-          strategy="afterInteractive"
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7723637407359078"
-          crossOrigin="anonymous"
-        />
-      </head>
+  {adsenseEnabled ? (
+    <Script
+      id="google-adsense"
+      async
+      strategy="afterInteractive"
+      src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsensePublisherId}`}
+      crossOrigin="anonymous"
+    />
+  ) : null}
+</head>
 
       <body>
         <script
