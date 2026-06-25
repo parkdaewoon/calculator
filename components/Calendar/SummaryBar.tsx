@@ -33,6 +33,13 @@ function formatHoursRatio(actual: number, normal?: number) {
   return `${formatHours(actual)}/${formatHours(normal)}`;
 }
 
+const summaryButtonClass =
+  "relative min-w-0 rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-left";
+const summaryLabelClass =
+  "pl-[0.2rem] text-[11px] font-semibold leading-none text-neutral-500";
+const summaryValueClass =
+  "mt-2 min-h-[18px] overflow-hidden whitespace-nowrap pr-[0.2rem] text-right text-[12px] font-semibold leading-[18px] tracking-[-0.03em] text-neutral-900";
+
 export default function SummaryBar({ stats, onOpenWorkSummary }: SummaryBarProps) {
   const [openLeaveSheet, setOpenLeaveSheet] = useState(false);
 
@@ -58,18 +65,18 @@ export default function SummaryBar({ stats, onOpenWorkSummary }: SummaryBarProps
             {/* ✅ 연가일수 */}
             <button
               onClick={() => setOpenLeaveSheet(true)}
-              className="relative min-w-0 rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-left"
+              className={summaryButtonClass}
               type="button"
             >
               <div className="absolute right-[0.5rem] top-[0.2rem] mt-1 text-xs text-neutral-400">
                 +
               </div>
 
-              <div className="pl-[0.2rem] text-[11px] font-semibold text-neutral-500">
+              <div className={summaryLabelClass}>
                 연가일수
               </div>
 
-              <div className="mt-1 overflow-hidden whitespace-nowrap pr-[0.2rem] text-right text-[12px] font-semibold leading-snug tracking-[-0.03em] text-neutral-900">
+              <div className={summaryValueClass}>
                 {formatLeaveDisplay(leaveUsed, leaveTotal)}
               </div>
             </button>
@@ -77,18 +84,18 @@ export default function SummaryBar({ stats, onOpenWorkSummary }: SummaryBarProps
             {/* 총근무시간 */}
             <button
               onClick={onOpenWorkSummary}
-              className="relative rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-left"
+              className={summaryButtonClass}
               type="button"
             >
               <div className="absolute right-[0.5rem] top-[0.2rem] mt-1 text-xs text-neutral-400">
                 +
               </div>
 
-              <div className="pl-[0.2rem] text-[11px] font-semibold text-neutral-500">
+              <div className={summaryLabelClass}>
                 총 근무시간
               </div>
 
-              <div className="mt-1 pr-[0.2rem] text-right text-lg font-semibold text-neutral-900">
+              <div className={summaryValueClass}>
                 {formatHoursRatio(stats.totalHours, (stats as any).normalHours)}
               </div>
             </button>
