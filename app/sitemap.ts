@@ -11,6 +11,9 @@ type RouteItem = {
 
 const routes: RouteItem[] = [
   { path: "", changeFrequency: "daily", priority: 1 },
+  { path: "/about", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/editorial-policy", changeFrequency: "monthly", priority: 0.65 },
+  { path: "/checklist", changeFrequency: "monthly", priority: 0.65 },
   { path: "/salary", changeFrequency: "weekly", priority: 0.9 },
   { path: "/salary/calculator", changeFrequency: "weekly", priority: 0.9 },
   { path: "/salary/pay-table", changeFrequency: "weekly", priority: 0.85 },
