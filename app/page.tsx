@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import IconCard from "@/components/IconCard";
 import { Calculator, Landmark, Calendar, BookOpen } from "lucide-react";
 import { HomeTrustContent } from "@/components/seo/AdSenseContent";
@@ -38,58 +39,19 @@ export default function HomePage() {
       </section>
 
       <section className="grid grid-cols-2 gap-3">
-        <IconCard
-          href="/salary"
-          icon={<Calculator className="h-9 w-9" />}
-          title="봉급"
-          desc={
-            <>
-              직급·호봉과 수당을 입력해
-              <br />
-              예상 급여와 연봉을
-              <br />
-              확인합니다.
-            </>
-          }
-        />
-        <IconCard
-          href="/pension"
-          icon={<Landmark className="h-9 w-9" />}
-          title="연금"
-          desc={
-            <>
-              재직기간과 기준소득월액으로
-              <br />
-              예상 연금과 퇴직수당을
-              <br />
-              확인합니다.
-            </>
-          }
-        />
-        <IconCard
-          href="/calendar"
-          icon={<Calendar className="h-9 w-9" />}
-          title="달력"
-          desc={
-            <>
-              업무·복무·교대근무 등
-              <br />
-              일정을 관리하세요.
-            </>
-          }
-        />
-        <IconCard
-          href="/guide"
-          icon={<BookOpen className="h-9 w-9" />}
-          title="공무원 가이드"
-          desc={
-            <>
-              봉급·수당·연금 계산 방법과
-              <br />
-              주의사항을 확인하세요.
-            </>
-          }
-        />
+        <IconCard href="/salary" icon={<Calculator className="h-9 w-9" />} title="봉급" desc={<>직급·호봉과 수당을 입력해<br />예상 급여와 연봉을<br />확인합니다.</>} />
+        <IconCard href="/pension" icon={<Landmark className="h-9 w-9" />} title="연금" desc={<>재직기간과 기준소득월액으로<br />예상 연금과 퇴직수당을<br />확인합니다.</>} />
+        <IconCard href="/calendar" icon={<Calendar className="h-9 w-9" />} title="달력" desc={<>업무·복무·교대근무 등<br />일정을 관리하세요.</>} />
+        <IconCard href="/guide" icon={<BookOpen className="h-9 w-9" />} title="공무원 가이드" desc={<>봉급·수당·연금 계산 방법과<br />주의사항을 확인하세요.</>} />
+      </section>
+
+      <section className="rounded-3xl border border-neutral-100 bg-white p-5 shadow-[0_10px_25px_rgba(0,0,0,0.05)]">
+        <h2 className="text-lg font-bold text-neutral-900">사이트 안내</h2>
+        <div className="mt-4 grid grid-cols-1 gap-3">
+          <Link href="/about" className="rounded-2xl border border-neutral-100 bg-neutral-50 p-4 text-sm font-semibold text-neutral-900">공무원 노트 소개</Link>
+          <Link href="/editorial-policy" className="rounded-2xl border border-neutral-100 bg-neutral-50 p-4 text-sm font-semibold text-neutral-900">콘텐츠 작성 기준</Link>
+          <Link href="/checklist" className="rounded-2xl border border-neutral-100 bg-neutral-50 p-4 text-sm font-semibold text-neutral-900">이용 체크리스트</Link>
+        </div>
       </section>
 
       <HomeTrustContent />
