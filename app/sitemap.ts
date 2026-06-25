@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 const siteUrl = "https://www.nokobridge.com";
-const lastModified = new Date("2026-05-07");
+const lastModified = new Date("2026-06-25");
 
 type RouteItem = {
   path: string;
