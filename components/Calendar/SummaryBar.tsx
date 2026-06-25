@@ -38,7 +38,7 @@ const summaryButtonClass =
 const summaryLabelClass =
   "pl-[0.2rem] text-[11px] font-semibold leading-none text-neutral-500";
 const summaryValueClass =
-  "mt-2 min-h-[18px] overflow-hidden whitespace-nowrap pr-[0.2rem] text-right text-[12px] font-semibold leading-[18px] tracking-[-0.03em] text-neutral-900";
+  "mt-2 min-h-[20px] overflow-hidden whitespace-nowrap pr-[0.2rem] text-right text-[14px] font-semibold leading-[20px] tracking-[-0.065em] text-neutral-900";
 
 export default function SummaryBar({ stats, onOpenWorkSummary }: SummaryBarProps) {
   const [openLeaveSheet, setOpenLeaveSheet] = useState(false);
