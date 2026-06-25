@@ -19,19 +19,10 @@ function leaveDaysToDHM(days: number) {
   return { d, h, m };
 }
 
-// ✅ 표시용: "2일 3시간 30분 / 15일"
+// ✅ 표시용: "2일 3시간 30분 / 15일"을 항상 한 줄로 보여준다.
 function formatLeaveDisplay(usedDaysDecimal: number, totalDays: number) {
   const { d, h, m } = leaveDaysToDHM(usedDaysDecimal);
-
-  // "0시간 0분"처럼 지저분하면 깔끔하게 제거(원하면 항상 표시로 바꿔도 됨)
-  const parts: string[] = [];
-  parts.push(`${d}일`);
-  if (h > 0 || m > 0) {
-    parts.push(`${h}시간`);
-    parts.push(`${m}분`);
-  }
-
-  const usedText = parts.join(" ");
+  const usedText = `${d}일 ${h}시간 ${m}분`;
   const totalText = `${Number(totalDays || 0)}일`;
 
   return `${usedText} / ${totalText}`;
@@ -67,7 +58,7 @@ export default function SummaryBar({ stats, onOpenWorkSummary }: SummaryBarProps
             {/* ✅ 연가일수 */}
             <button
               onClick={() => setOpenLeaveSheet(true)}
-              className="relative rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-left"
+              className="relative min-w-0 rounded-2xl border border-neutral-100 bg-neutral-50 p-3 text-left"
               type="button"
             >
               <div className="absolute right-[0.5rem] top-[0.2rem] mt-1 text-xs text-neutral-400">
@@ -78,7 +69,7 @@ export default function SummaryBar({ stats, onOpenWorkSummary }: SummaryBarProps
                 연가일수
               </div>
 
-              <div className="mt-1 pr-[0.2rem] text-right text-[15px] font-semibold leading-snug text-neutral-900">
+              <div className="mt-1 overflow-hidden whitespace-nowrap pr-[0.2rem] text-right text-[12px] font-semibold leading-snug tracking-[-0.03em] text-neutral-900">
                 {formatLeaveDisplay(leaveUsed, leaveTotal)}
               </div>
             </button>
