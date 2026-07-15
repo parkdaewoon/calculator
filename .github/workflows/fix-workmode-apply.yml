@@ -72,3 +72,5 @@ jobs:
           git add components/Calendar/WorkModeSheet.tsx .github/workflows/fix-workmode-apply.yml
           git commit -m "fix: show apply button for normal work mode"
           git push
+
+# trigger: 2
