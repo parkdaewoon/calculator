@@ -1,0 +1,74 @@
+name: Fix work mode apply button
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-workmode-apply.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Move apply button outside shift-only block
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('components/Calendar/WorkModeSheet.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={applyAndClose}
+                  className="w-full rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold text-white"
+                >
+                  적용
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+'''
+
+          new = '''
+            </div>
+          ) : null}
+
+          {((draft as any).type === "DAY" || (draft as any).type === "SHIFT") ? (
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={applyAndClose}
+                className="w-full rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold text-white"
+              >
+                적용
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+'''
+
+          if old not in text:
+              raise SystemExit('Target block not found; no changes made.')
+
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          Path('.github/workflows/fix-workmode-apply.yml').unlink()
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/Calendar/WorkModeSheet.tsx .github/workflows/fix-workmode-apply.yml
+          git commit -m "fix: show apply button for normal work mode"
+          git push
